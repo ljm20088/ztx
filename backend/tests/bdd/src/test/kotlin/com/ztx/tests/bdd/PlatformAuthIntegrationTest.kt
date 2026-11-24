@@ -62,18 +62,16 @@ class PlatformAuthIntegrationTest {
             }
 
             // When / Then：过期初始化凭据不能创建管理员
-            val expiredFailure = assertThrows(Exception::class.java) {
+            assertFailureContaining("初始化凭据无效或已过期") {
                 service.initialize(expiredToken, "expired.admin", "ZtxAdmin123", "127.0.0.1").await()
             }
-            assertTrue(expiredFailure.message?.contains("初始化凭据无效或已过期") == true)
 
             // When：重新生成有效凭据；新口令立即使此前未使用的口令失效
             val staleToken = service.createSetupCredential().await()
             val setupToken = service.createSetupCredential().await()
-            val staleFailure = assertThrows(Exception::class.java) {
+            assertFailureContaining("初始化凭据无效或已过期") {
                 service.initialize(staleToken, "stale.admin", "ZtxAdmin123", "127.0.0.1").await()
             }
-            assertTrue(staleFailure.message?.contains("初始化凭据无效或已过期") == true)
 
             // When：两个初始化请求并发使用同一有效口令
             val concurrentAttempts = listOf(
@@ -109,7 +107,7 @@ class PlatformAuthIntegrationTest {
             }
 
             // Then：同一初始化凭据不可重放
-            assertThrows(Exception::class.java) {
+            assertFailureContaining("初始化凭据无效或已过期") {
                 service.initialize(setupToken, "second.admin", "ZtxAdmin123", "127.0.0.1").await()
             }
 
@@ -123,7 +121,7 @@ class PlatformAuthIntegrationTest {
             service.logout(login.sessionToken, "127.0.0.1").await()
 
             // Then：启用 MFA 后，不提供动态验证码不能登录
-            assertThrows(Exception::class.java) {
+            assertFailureContaining("账号、密码或动态验证码不正确") {
                 service.login("platform.admin", "ZtxAdmin123", null, "127.0.0.1", "bdd-test").await()
             }
 
@@ -147,14 +145,14 @@ class PlatformAuthIntegrationTest {
             // Given：同一来源 IP 与账号在 15 分钟窗口内连续输错密码
             repeat(5) {
                 // When / Then：连续错误凭据均被拒绝
-                assertThrows(Exception::class.java) {
+                assertFailureContaining("账号、密码或动态验证码不正确") {
                     service.login("platform.admin", "WrongPass123", currentTotp(enrollment.secret),
                         "127.0.0.1", "bdd-test").await()
                 }
             }
 
             // Then：达到失败阈值后，即使提供正确密码和 MFA 也必须暂时拒绝
-            assertThrows(Exception::class.java) {
+            assertFailureContaining("账号、密码或动态验证码不正确") {
                 service.login("platform.admin", "ZtxAdmin123", currentTotp(enrollment.secret),
                     "127.0.0.1", "bdd-test").await()
             }
