@@ -25,8 +25,10 @@ class PgDatabase(vertx: Vertx, config: DatabaseConfig) : DatabaseHealth, AutoClo
 
     override fun ping(): Future<Void> = pool.query("SELECT 1").execute().mapEmpty()
 
-    fun <T> withTransaction(work: (SqlConnection) -> Future<T>): Future<T> =
-        pool.withTransaction { connection -> work(connection) }
+    fun <T : Any> withTransaction(work: (SqlConnection) -> Future<T>): Future<T> =
+        pool.withTransaction<T> { connection ->
+            work(connection)
+        }
 
     override fun close() {
         pool.close()
