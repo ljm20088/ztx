@@ -69,3 +69,14 @@ ZTX 是面向制造业的元数据驱动低代码 ERP 平台。当前仓库采�
 - ./gradlew :apps:server:run：启动 API Server。
 - docker compose up -d postgres：启动本地 PostgreSQL。
 - docker compose down：停止本地依赖（保留数据卷）。
+
+### 环境变量覆盖清单
+
+- `ZTX_PROFILE`：激活配置 Profile。
+- `ZTX_CONFIG_FILE`：指定外部 YAML 配置文件。
+- `ZTX_APP_ROLE`：覆盖运行角色（server / worker）。
+- `ZTX_HTTP_HOST`、`ZTX_HTTP_PORT`：覆盖 HTTP 监听地址和端口。
+- `ZTX_DB_HOST`、`ZTX_DB_PORT`、`ZTX_DB_NAME`、`ZTX_DB_USER`、`ZTX_DB_PASSWORD`：覆盖数据库连接参数。
+- `ZTX_DB_POOL_SIZE`、`ZTX_DB_MIGRATIONS`、`ZTX_DB_MIGRATE_ON_START`：覆盖连接池和迁移设置。
+
+未列出的环境变量不会自动注入配置，避免环境变量意外覆盖 YAML 中的设置。
