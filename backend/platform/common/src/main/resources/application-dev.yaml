@@ -3,5 +3,6 @@ server:
   host: 0.0.0.0
 database:
   host: localhost
+  migrate-on-start: true
   # 仅供本地开发使用；私有化/生产部署必须使用外部配置或 Secrets。
   password: ztx_local_dev_only

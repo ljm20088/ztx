@@ -67,9 +67,45 @@ class PlatformAuthIntegrationTest {
                 service.initialize(expiredToken, "expired.admin", "ZtxAdmin123", "127.0.0.1").await()
             }
 
-            // When：重新生成有效凭据并创建首个平台管理员
+            // When：重新生成有效凭据；新口令立即使此前未使用的口令失效
+            val staleToken = service.createSetupCredential().await()
             val setupToken = service.createSetupCredential().await()
-            val admin = service.initialize(setupToken, "platform.admin", "ZtxAdmin123", "127.0.0.1").await()
+            assertThrows(ExecutionException::class.java) {
+                service.initialize(staleToken, "stale.admin", "ZtxAdmin123", "127.0.0.1").await()
+            }
+
+            // When：两个初始化请求并发使用同一有效口令
+            val concurrentAttempts = listOf(
+                service.initialize(setupToken, "platform.admin", "ZtxAdmin123", "127.0.0.1"),
+                service.initialize(setupToken, "second.admin", "ZtxAdmin123", "127.0.0.1")
+            )
+            val outcomes = concurrentAttempts.map { attempt -> runCatching { attempt.await() } }
+
+            // Then：数据库事务锁保证只能创建一个首个平台管理员
+            assertEquals(1, outcomes.count { it.isSuccess })
+            val initialized = outcomes.single { it.isSuccess }.getOrThrow()
+            val admin = initialized.admin
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.executeQuery("SELECT count(*) FROM iam.platform_admin").use { rows ->
+                        rows.next()
+                        assertEquals(1, rows.getInt(1))
+                    }
+                }
+            }
+
+            // Then：初始化成功后已自动建立会话，无需再次登录
+            assertEquals(admin.id, service.authenticate(initialized.sessionToken).await()?.id)
+
+            // Given：尚未配置 MFA 加密密钥
+            val serviceWithoutMfaKey = PlatformAuthService(database, "")
+            // Then：普通用户名密码登录仍可使用；只有启用 MFA 时才要求配置密钥
+            assertEquals(admin.id, serviceWithoutMfaKey.login(
+                "platform.admin", "ZtxAdmin123", null, "127.0.0.1", "bdd-test"
+            ).await().admin.id)
+            assertThrows(IllegalArgumentException::class.java) {
+                serviceWithoutMfaKey.enrollMfa(admin)
+            }
 
             // Then：同一初始化凭据不可重放
             assertThrows(ExecutionException::class.java) {

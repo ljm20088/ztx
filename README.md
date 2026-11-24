@@ -28,9 +28,20 @@ ZTX 是面向制造业的元数据驱动低代码 ERP 平台。当前仓库采�
 - GET http://localhost:8080/health/live：只反映进程存活，不依赖数据库。
 - GET http://localhost:8080/health/ready：检查 PostgreSQL 连通性；数据库不可用时返回 HTTP 503。
 
-执行数据库迁移：
+开发环境首次启动会自动执行 Flyway 数据库迁移：
 
-    ZTX_DB_MIGRATE_ON_START=true ./gradlew :apps:server:run --args='--ztx.profile=dev'
+    ./gradlew :apps:server:run --args='--ztx.profile=dev'
+
+首次启动时，若尚未创建平台管理员，Server 会自动生成 15 分钟有效的一次性初始化口令。开发环境口令显示在启动终端；每次重启都会使旧口令失效并生成新口令。打开 ZTX 地址即可自动进入初始化页面，创建成功后自动登录。
+
+正式部署由受控部署流程执行数据库迁移，应用启动只校验迁移状态，不自动修改生产数据库。首次初始化口令不会写入普通应用日志：可在服务器交互式终端查看，或通过服务器本机/SSH 本地端口转发访问 loopback 安装管理接口 `GET /api/v1/platform/auth/setup-token` 获取。该接口仅接受 loopback 来源及本机 Host，拒绝转发请求；口令仅保存在当前 Server 进程内存，重启轮换，15 分钟后失效。远程部署可先建立 SSH 本地端口转发，再从本机读取口令：
+
+    ssh -L 18080:127.0.0.1:8080 <部署用户>@<服务器地址>
+    curl -fsS http://127.0.0.1:18080/api/v1/platform/auth/setup-token
+
+将返回的口令粘贴到正常访问的 ZTX 首次初始化页面。
+
+平台管理员首次初始化只需用户名和密码，不要求邮箱或 MFA。以后启用 MFA 时，才需要在 `application.yaml` 的 `security.mfa-encryption-key` 配置至少 32 字节随机密钥；可使用 `openssl rand -base64 32` 生成。密钥配置后必须长期备份，不能随意更换。
 
 ## 配置约定
 

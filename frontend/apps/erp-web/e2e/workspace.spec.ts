@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test('工作区首屏与页面截图', async ({ page }) => {
   // Given 用户打开 ZTX Web 工作区
-  await page.goto('/')
+  await page.goto('/workspace')
 
   // When 页面完成加载
   await expect(page.getByRole('heading', { name: '工作台' })).toBeVisible()
@@ -39,7 +39,7 @@ test('一级点击、二级悬停后指针可移入三级浮层', async ({ page 
   test.skip(testInfo.project.name === 'mobile-chrome', '触屏端不依赖 hover，使用点击交互')
 
   // Given 用户位于工作台
-  await page.goto('/')
+  await page.goto('/workspace')
 
   // When 点击一级菜单“开发中心”，悬停二级菜单“元数据开发”
   await page.getByRole('button', { name: '开发中心', exact: true }).click()
@@ -66,7 +66,7 @@ test('一级点击、二级悬停后指针可移入三级浮层', async ({ page 
 
 test('二级菜单可点击展开并通过 Escape 关闭', async ({ page }) => {
   // Given 用户打开企业管理一级菜单
-  await page.goto('/')
+  await page.goto('/workspace')
   await page.getByRole('button', { name: '企业管理', exact: true }).click()
 
   // When 点击二级菜单“组织基础”
@@ -84,7 +84,7 @@ test('二级菜单可点击展开并通过 Escape 关闭', async ({ page }) => {
 
 test('键盘方向键可以展开三级菜单并移动焦点', async ({ page }) => {
   // Given 用户使用键盘聚焦二级菜单
-  await page.goto('/')
+  await page.goto('/workspace')
   await page.getByRole('button', { name: '开发中心', exact: true }).click()
   const category = page.getByRole('button', { name: '元数据开发', exact: true })
   await category.focus()
@@ -99,7 +99,7 @@ test('键盘方向键可以展开三级菜单并移动焦点', async ({ page }) 
 test('触屏尺寸下可点击展开三级菜单', async ({ page }) => {
   // Given 用户使用触屏尺寸
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/')
+  await page.goto('/workspace')
 
   // When 点击一级与二级菜单
   await page.getByRole('button', { name: '开发中心', exact: true }).click()
@@ -114,7 +114,7 @@ test('触屏尺寸下可点击展开三级菜单', async ({ page }) => {
 
 test('左侧导航可整体折叠、展开并记住状态', async ({ page }) => {
   // Given 用户打开工作台，导航栏默认展开
-  await page.goto('/')
+  await page.goto('/workspace')
   const collapse = page.getByRole('button', { name: '折叠导航栏' })
   await expect(collapse).toBeVisible()
   await expect(page.locator('.inline-category-list')).toBeVisible()

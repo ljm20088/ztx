@@ -14,7 +14,7 @@ database:
   migrations: filesystem:database/migrations
   migrate-on-start: false
 security:
-  # 生产环境必须通过外部配置或 ZTX_MFA_ENCRYPTION_KEY 提供至少 32 字节随机密钥。
+  # 启用 MFA 时才需要配置；首次初始化和普通密码登录不依赖此密钥。
   mfa-encryption-key: ""
   secure-cookies: false
 logging:

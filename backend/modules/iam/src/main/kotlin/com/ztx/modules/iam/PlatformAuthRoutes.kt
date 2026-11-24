@@ -5,6 +5,7 @@ import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.BodyHandler
+import java.net.InetAddress
 
 class PlatformAuthRoutes(
     private val service: PlatformAuthService,
@@ -12,6 +13,8 @@ class PlatformAuthRoutes(
 ) {
     fun register(router: Router) {
         router.route("/api/v1/platform/auth/*").handler(BodyHandler.create().setBodyLimit(16 * 1024))
+        router.get("/api/v1/platform/auth/status").handler(::status)
+        router.get("/api/v1/platform/auth/setup-token").handler(::setupToken)
         router.post("/api/v1/platform/auth/initialize").handler(::initialize)
         router.post("/api/v1/platform/auth/login").handler(::login)
         router.post("/api/v1/platform/auth/logout").handler(::logout)
@@ -21,13 +24,49 @@ class PlatformAuthRoutes(
         router.post("/api/v1/platform/auth/mfa/enable").handler(::enableMfa)
     }
 
+    private fun status(context: RoutingContext) {
+        service.initializationStatus().onSuccess { initialized ->
+            context.response().putHeader("cache-control", "no-store")
+                .putHeader("content-type", "application/json")
+                .end(JsonObject().put("initialized", initialized).encode())
+        }.onFailure { fail(context, it, 503) }
+    }
+
+    private fun setupToken(context: RoutingContext) {
+        val remoteHost = context.request().remoteAddress()?.host()
+        val hostHeader = context.request().getHeader("host")?.lowercase().orEmpty()
+        val localHost = hostHeader == "::1" || hostHeader.startsWith("[::1]") ||
+            hostHeader.substringBefore(':') in setOf("localhost", "127.0.0.1")
+        val forwarded = context.request().getHeader("forwarded") != null ||
+            context.request().getHeader("x-forwarded-for") != null ||
+            context.request().getHeader("x-real-ip") != null
+        val isLoopback = remoteHost != null && runCatching {
+            InetAddress.getByName(remoteHost).isLoopbackAddress
+        }.getOrDefault(false)
+        if (!isLoopback || !localHost || forwarded) {
+            context.response().setStatusCode(403).putHeader("cache-control", "no-store").end()
+            return
+        }
+        service.currentSetupCredential().onSuccess { token ->
+            if (token == null) {
+                context.response().setStatusCode(410).putHeader("cache-control", "no-store").end()
+            } else {
+                context.response().putHeader("cache-control", "no-store")
+                    .putHeader("content-type", "application/json")
+                    .end(JsonObject().put("token", token).encode())
+            }
+        }.onFailure { fail(context, it, 503) }
+    }
+
     private fun initialize(context: RoutingContext) {
         val body = body(context)
         service.initialize(body.getString("token", ""), body.getString("username", ""),
-            body.getString("password", ""), ip(context))
-            .onSuccess { admin ->
-                context.response().setStatusCode(201).putHeader("content-type", "application/json")
-                    .end(JsonObject().put("id", admin.id.toString()).put("username", admin.username).encode())
+            body.getString("password", ""), ip(context), context.request().getHeader("user-agent"))
+            .onSuccess { result ->
+                context.response().setStatusCode(201).putHeader("set-cookie", cookie(result.sessionToken))
+                    .putHeader("content-type", "application/json")
+                    .end(JsonObject().put("id", result.admin.id.toString())
+                        .put("username", result.admin.username).put("mfaEnabled", result.admin.mfaEnabled).encode())
             }.onFailure { fail(context, it, 400) }
     }
 
