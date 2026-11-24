@@ -34,7 +34,7 @@ ZTX 是面向制造业的元数据驱动低代码 ERP 平台。当前仓库采�
 
 ## 配置约定
 
-后端以 `application.yml` 为唯一默认配置入口，支持 `application-{profile}.yml`。默认不激活 Profile；指定 `--ztx.profile=dev`、系统属性 `-Dztx.profile=dev` 或环境变量 `ZTX_PROFILE=dev` 后，加载对应 Profile 文件。加载顺序为：
+后端以 `application.yml` 为唯一默认配置入口，支持 `application-{profile}.yml`。默认不激活 Profile；指定 `--ztx.profile=dev`、系统属性 `-Dztx.profile=dev` 或环境变量 `ZTX_PROFILE=dev` 后，加载对应 Profile 文件。Profile 名称必须对应仓库内存在的配置文件，拼写错误会在启动时直接报错。加载顺序为：
 
 1. classpath 的 `application.yml`；
 2. classpath 的 `application-{profile}.yml`（如果指定 Profile）；
