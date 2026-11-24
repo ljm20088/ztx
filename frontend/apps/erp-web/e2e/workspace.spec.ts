@@ -10,6 +10,14 @@ test('工作区首屏与页面截图', async ({ page }) => {
   // Then 展示工作区标签、一级菜单和主内容区，并保存可复现截图
   await expect(page.getByRole('navigation', { name: '工作区标签' })).toBeVisible()
   await expect(page.getByRole('complementary', { name: '一级菜单' })).toBeVisible()
+  // Then 一级导航以 ERP 业务模块为主，管理功能集中收纳
+  for (const module of ['采购管理', '销售管理', '库存管理', '生产管理', '财务管理', '质量管理', '报表分析', '管理中心']) {
+    await expect(page.getByRole('button', { name: module, exact: true })).toBeVisible()
+  }
+  await expect(page.getByRole('button', { name: '平台管理', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '企业管理', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '开发中心', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '系统设置', exact: true })).toHaveCount(0)
 
   // Then 品牌区与左侧导航同宽对齐，顶部品牌区和标签区保持紧凑高度
   const headerLayout = await page.evaluate(() => {
@@ -67,7 +75,7 @@ test('一级点击、二级悬停后指针可移入三级浮层', async ({ page 
 test('二级菜单可点击展开并通过 Escape 关闭', async ({ page }) => {
   // Given 用户打开企业管理一级菜单
   await page.goto('/workspace')
-  await page.getByRole('button', { name: '企业管理', exact: true }).click()
+  await page.getByRole('button', { name: '管理中心', exact: true }).click()
 
   // When 点击二级菜单“组织基础”
   await page.getByRole('button', { name: '企业与组织', exact: true }).click()
