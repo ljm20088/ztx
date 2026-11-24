@@ -86,8 +86,11 @@ class PostgresOutboxStore(private val database: PgDatabase) {
         val typeFilter = types?.let {
             "AND task_type IN (${it.indices.joinToString { index -> "$${index + 4}" }})"
         } ?: ""
-        val parameters = mutableListOf<Any>(workerId, batchSize, leaseSeconds)
-        if (types != null) parameters.addAll(types)
+        val parameters = Tuple.tuple()
+            .addValue(workerId)
+            .addValue(batchSize)
+            .addValue(leaseSeconds)
+        types?.forEach(parameters::addValue)
 
         return database.withTransaction { connection ->
             connection.preparedQuery(
@@ -101,7 +104,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
                 """.trimIndent()
             ).execute().compose {
                 connection.preparedQuery(CLAIM_SQL.replace("/*TASK_TYPE_FILTER*/", typeFilter))
-                    .execute(Tuple.of(*parameters.toTypedArray()))
+                    .execute(parameters)
                     .map { rows ->
                         rows.map { row ->
                             ClaimedBackgroundTask(
