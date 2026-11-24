@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+.gradle/
+**/build/
+out/
+node_modules/
+.pnpm-store/
+frontend/node_modules/
+frontend/.vite/
+frontend/**/playwright-report/
+frontend/**/test-results/
+.idea/
+.vscode/
+.DS_Store
+*.iml
+*.log
