@@ -67,9 +67,29 @@ class PlatformAuthIntegrationTest {
                 service.initialize(expiredToken, "expired.admin", "ZtxAdmin123", "127.0.0.1").await()
             }
 
-            // When：重新生成有效凭据并创建首个平台管理员
+            // When：重新生成有效凭据；新口令立即使此前未使用的口令失效
+            val staleToken = service.createSetupCredential().await()
             val setupToken = service.createSetupCredential().await()
-            val admin = service.initialize(setupToken, "platform.admin", "ZtxAdmin123", "127.0.0.1").await()
+            assertThrows(ExecutionException::class.java) {
+                service.initialize(staleToken, "stale.admin", "ZtxAdmin123", "127.0.0.1").await()
+            }
+
+            // When：使用最新口令创建管理员
+            val initialized = service.initialize(setupToken, "platform.admin", "ZtxAdmin123", "127.0.0.1").await()
+            val admin = initialized.admin
+
+            // Then：初始化成功后已自动建立会话，无需再次登录
+            assertEquals(admin.id, service.authenticate(initialized.sessionToken).await()?.id)
+
+            // Given：尚未配置 MFA 加密密钥
+            val serviceWithoutMfaKey = PlatformAuthService(database, "")
+            // Then：普通用户名密码登录仍可使用；只有启用 MFA 时才要求配置密钥
+            assertEquals(admin.id, serviceWithoutMfaKey.login(
+                "platform.admin", "ZtxAdmin123", null, "127.0.0.1", "bdd-test"
+            ).await().admin.id)
+            assertThrows(IllegalArgumentException::class.java) {
+                serviceWithoutMfaKey.enrollMfa(admin)
+            }
 
             // Then：同一初始化凭据不可重放
             assertThrows(ExecutionException::class.java) {

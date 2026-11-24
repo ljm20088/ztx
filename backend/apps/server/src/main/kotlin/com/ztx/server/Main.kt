@@ -12,6 +12,7 @@ import com.ztx.modules.metadata.MetadataModule
 import com.ztx.platform.common.AppConfig
 import com.ztx.platform.common.ModuleRegistry
 import com.ztx.platform.common.RuntimeRole
+import io.vertx.core.Future
 import io.vertx.core.Vertx
 import org.slf4j.LoggerFactory
 import java.util.UUID
@@ -29,9 +30,13 @@ fun main(args: Array<String>) {
         .validateAndOrder()
     logger.info("ZTX 模块装配完成：{}", moduleOrder.joinToString(" -> ") { it.id })
 
-    if (config.migrateOnStart || args.contains("--ztx.platform-admin-init=true")) {
-        val count = FlywayMigrator(config.database).migrate()
+    val migrator = FlywayMigrator(config.database)
+    if (config.migrateOnStart) {
+        val count = migrator.migrate()
         logger.info("数据库迁移完成，执行迁移数：{}", count)
+    } else {
+        // 正式部署只校验迁移状态；数据库变更由受控部署流程执行。
+        migrator.validateCurrent()
     }
 
     val vertx = Vertx.vertx()
@@ -39,23 +44,6 @@ fun main(args: Array<String>) {
     val outboxStore = PostgresOutboxStore(database)
     val authService = PlatformAuthService(database, config.mfaEncryptionKey)
 
-    if (args.contains("--ztx.platform-admin-init=true")) {
-        authService.createSetupCredential()
-            .onSuccess { credential ->
-                // 初始化凭据只在显式初始化命令中输出一次；不得写入应用日志。
-                println("ZTX 平台管理员一次性初始化凭据（15 分钟有效，请立即保存）：")
-                println(credential)
-                database.close()
-                vertx.close()
-            }
-            .onFailure { error ->
-                System.err.println("平台管理员初始化凭据生成失败：" + error.message)
-                database.close()
-                vertx.close()
-                exitProcess(1)
-            }
-        return
-    }
 
     // 具体业务处理器由后续平台能力/业务扩展注册；空处理器集合不会领取未知任务。
     val worker = BackgroundTaskWorker(
@@ -72,10 +60,34 @@ fun main(args: Array<String>) {
     })
 
     when (config.role) {
-        RuntimeRole.SERVER -> HealthServer(
-            vertx, database, config.httpHost, config.httpPort,
-            PlatformAuthRoutes(authService, config.secureCookies)
-        ).start()
+        RuntimeRole.SERVER -> database.ping()
+            .compose { authService.initializationStatus() }
+            .compose { initialized ->
+                if (initialized) Future.succeededFuture<String?>(null)
+                else authService.createSetupCredential().map<String?> { it }
+            }
+            .compose { credential ->
+                if (credential != null) {
+                    val isDevelopment = args.any { it == "--ztx.profile=dev" } ||
+                        System.getProperty("ztx.profile") == "dev" || System.getenv("ZTX_PROFILE") == "dev"
+                    if (isDevelopment) {
+                        // 开发环境终端提示仅供本机使用；正式环境不写入普通应用日志。
+                        System.out.println("ZTX 首次初始化口令（15 分钟有效）：")
+                        System.out.println(credential)
+                    } else {
+                        // 正式部署仅在交互式服务器终端显示；无终端时通过 loopback 安装管理入口获取。
+                        System.console()?.writer()?.let { writer ->
+                            writer.println("ZTX 首次初始化口令（15 分钟有效）：")
+                            writer.println(credential)
+                            writer.flush()
+                        }
+                    }
+                }
+                HealthServer(
+                    vertx, database, config.httpHost, config.httpPort,
+                    PlatformAuthRoutes(authService, config.secureCookies)
+                ).start()
+            }
             .onSuccess { logger.info("ZTX API Server 已启动，监听 {}:{}", config.httpHost, config.httpPort) }
             .onFailure { error ->
                 logger.error("ZTX API Server 启动失败", error)

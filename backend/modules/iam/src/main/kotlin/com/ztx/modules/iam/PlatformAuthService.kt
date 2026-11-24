@@ -2,6 +2,8 @@ package com.ztx.modules.iam
 
 import com.ztx.adapters.postgres.PgDatabase
 import io.vertx.core.Future
+import io.vertx.pgclient.data.Inet
+import java.net.InetAddress
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 import java.nio.ByteBuffer
@@ -29,6 +31,28 @@ class PlatformAuthService(
     private val database: PgDatabase,
     private val mfaEncryptionKey: String
 ) {
+    @Volatile private var activeSetupCredential: String? = null
+    @Volatile private var setupCredentialExpiresAt: Instant? = null
+
+    fun initializationStatus(): Future<Boolean> =
+        database.withTransaction { connection ->
+            connection.preparedQuery("SELECT EXISTS (SELECT 1 FROM iam.platform_admin) AS initialized")
+                .execute().map { rows -> rows.first().getBoolean("initialized") }
+        }
+
+    /** 仅供 loopback 安装管理入口读取；明文只保存在当前进程内存。 */
+    fun currentSetupCredential(): Future<String?> {
+        val token = activeSetupCredential
+            ?.takeIf { setupCredentialExpiresAt?.isAfter(Instant.now()) == true }
+            ?: return Future.succeededFuture<String?>(null)
+        return database.withTransaction { connection ->
+            connection.preparedQuery(
+                """SELECT 1 FROM iam.platform_admin_setup_token
+                   WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > clock_timestamp()"""
+            ).execute(Tuple.of(sha256(token))).map { rows -> rows.size() == 1 }
+        }.map { isCurrent -> if (isCurrent) token else null }
+    }
+
     fun createSetupCredential(): Future<String> {
         val token = randomToken(32)
         return database.withTransaction { connection ->
@@ -49,10 +73,16 @@ class PlatformAuthService(
                     }
                 }
             }
+        }.map { issued ->
+            activeSetupCredential = issued
+            setupCredentialExpiresAt = Instant.now().plusSeconds(15 * 60)
+            issued
         }
     }
 
-    fun initialize(token: String, username: String, password: String, ip: String?): Future<PlatformAdmin> {
+    fun initialize(
+        token: String, username: String, password: String, ip: String?, userAgent: String? = null
+    ): Future<PlatformLogin> {
         require(username.matches(Regex("[A-Za-z0-9._-]{3,80}"))) { "管理员账号格式不正确" }
         validatePassword(password)
         val passwordHash = hashPassword(password)
@@ -68,6 +98,7 @@ class PlatformAuthService(
                 connection.preparedQuery("SELECT count(*) AS total FROM iam.platform_admin").execute().compose { admins ->
                     if (admins.first().getLong("total") > 0L) return@compose Future.failedFuture("平台管理员已初始化")
                     val id = UUID.randomUUID()
+                    val rawSession = randomToken(32)
                     connection.preparedQuery(
                         "INSERT INTO iam.platform_admin (id, username, password_hash) VALUES ($1, $2, $3)"
                     ).execute(Tuple.of(id.toString(), username, passwordHash)).compose {
@@ -76,12 +107,23 @@ class PlatformAuthService(
                                WHERE id = $1 AND consumed_at IS NULL"""
                         ).execute(Tuple.of(tokens.first().getString("id"))).compose { consumed ->
                             if (consumed.rowCount() != 1) Future.failedFuture("初始化凭据已被使用")
-                            else audit(connection, id, "ADMIN_INITIALIZED", "SUCCESS", ip)
-                                .map(PlatformAdmin(id, username, false))
+                            else connection.preparedQuery(
+                                """INSERT INTO iam.platform_admin_session
+                                   (id, admin_id, token_hash, expires_at, user_agent, ip_address)
+                                   VALUES ($1, $2, $3, clock_timestamp() + INTERVAL '8 hours', $4, $5::inet)"""
+                            ).execute(Tuple.of(UUID.randomUUID().toString(), id.toString(), sha256(rawSession),
+                                userAgent?.take(512), postgresInet(ip))).compose {
+                                audit(connection, id, "ADMIN_INITIALIZED", "SUCCESS", ip)
+                                    .map(PlatformLogin(rawSession, PlatformAdmin(id, username, false)))
+                            }
                         }
                     }
                 }
             }
+        }.map { login ->
+            activeSetupCredential = null
+            setupCredentialExpiresAt = null
+            login
         }
     }
 
@@ -118,7 +160,7 @@ class PlatformAuthService(
                                                (id, admin_id, token_hash, expires_at, user_agent, ip_address)
                                                VALUES ($1, $2, $3, clock_timestamp() + INTERVAL '8 hours', $4, $5::inet)"""
                                         ).execute(Tuple.of(UUID.randomUUID().toString(), adminId.toString(),
-                                            sha256(rawSession), userAgent?.take(512), ip))
+                                            sha256(rawSession), userAgent?.take(512), postgresInet(ip)))
                                     }.compose {
                                         connection.preparedQuery(
                                             "UPDATE iam.platform_admin SET last_login_at = clock_timestamp() WHERE id = $1"
@@ -189,7 +231,7 @@ class PlatformAuthService(
 
     fun enrollMfa(admin: PlatformAdmin): Future<MfaEnrollment> {
         require(mfaEncryptionKey.toByteArray(StandardCharsets.UTF_8).size >= 32) {
-            "启用 MFA 前必须配置至少 32 字节的 security.mfa-encryption-key"
+            "启用 MFA 前请在 application.yaml 的 security.mfa-encryption-key 中配置至少 32 字节随机密钥；可用 openssl rand -base64 32 生成"
         }
         val secret = base32(ByteArray(20).also(random::nextBytes))
         return database.withTransaction { connection ->
@@ -246,7 +288,7 @@ class PlatformAuthService(
         connection.preparedQuery(
             """INSERT INTO audit.platform_security_event (id, admin_id, event_type, outcome, source_ip)
                VALUES ($1, $2, $3, $4, $5::inet)"""
-        ).execute(Tuple.of(UUID.randomUUID().toString(), adminId?.toString(), event, outcome, ip)).mapEmpty()
+        ).execute(Tuple.of(UUID.randomUUID().toString(), adminId?.toString(), event, outcome, postgresInet(ip))).mapEmpty()
 
     private fun encrypt(value: String): String {
         val nonce = ByteArray(12).also(random::nextBytes)
@@ -262,8 +304,16 @@ class PlatformAuthService(
         return String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), StandardCharsets.UTF_8)
     }
 
-    private fun encryptionKey(): SecretKeySpec =
-        SecretKeySpec(MessageDigest.getInstance("SHA-256").digest(mfaEncryptionKey.toByteArray(StandardCharsets.UTF_8)), "AES")
+    private fun encryptionKey(): SecretKeySpec {
+        require(mfaEncryptionKey.toByteArray(StandardCharsets.UTF_8).size >= 32) {
+            "启用 MFA 前请在 application.yaml 的 security.mfa-encryption-key 中配置至少 32 字节随机密钥；可用 openssl rand -base64 32 生成"
+        }
+        return SecretKeySpec(
+            MessageDigest.getInstance("SHA-256").digest(mfaEncryptionKey.toByteArray(StandardCharsets.UTF_8)), "AES"
+        )
+    }
+
+    private fun postgresInet(ip: String?): Inet? = ip?.let { Inet().setAddress(InetAddress.getByName(it)) }
 
     private fun verifyTotp(secret: String, code: String): Boolean {
         if (!code.matches(Regex("[0-9]{6}"))) return false

@@ -1,18 +1,42 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const mode = ref<'login' | 'initialize'>('login')
 const username = ref('')
 const password = ref('')
+const confirmPassword = ref('')
 const totp = ref('')
 const setupToken = ref('')
 const error = ref('')
 const busy = ref(false)
 
+onMounted(async () => {
+  try {
+    const statusResponse = await fetch('/api/v1/platform/auth/status', { cache: 'no-store' })
+    if (!statusResponse.ok) throw new Error('无法读取平台初始化状态，请检查数据库连接和服务状态。')
+    const status = await statusResponse.json() as { initialized: boolean }
+    mode.value = status.initialized ? 'login' : 'initialize'
+    if (!status.initialized) {
+      // 本机或 SSH 本地端口转发访问时，自动从 loopback 安装管理入口获取口令。
+      const tokenResponse = await fetch('/api/v1/platform/auth/setup-token', { cache: 'no-store' })
+      if (tokenResponse.ok) {
+        const token = await tokenResponse.json() as { token: string }
+        setupToken.value = token.token
+      }
+    }
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '认证服务暂不可用'
+  }
+})
+
 async function submit() {
   error.value = ''
+  if (mode.value === 'initialize' && password.value !== confirmPassword.value) {
+    error.value = '两次输入的密码不一致。'
+    return
+  }
   busy.value = true
   try {
     const endpoint = mode.value === 'initialize'
@@ -29,14 +53,7 @@ async function submit() {
     })
     const data = response.status === 204 ? null : await response.json()
     if (!response.ok) throw new Error(data?.error?.message ?? '请求失败，请稍后重试')
-    if (mode.value === 'initialize') {
-      mode.value = 'login'
-      password.value = ''
-      setupToken.value = ''
-      error.value = '平台管理员已创建，请使用刚设置的账号密码登录。'
-    } else {
-      await router.replace('/platform/admin')
-    }
+    await router.replace('/platform/admin')
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '认证服务暂不可用'
   } finally {
@@ -51,20 +68,23 @@ async function submit() {
       <div class="platform-auth-brand"><span>Z</span><div><strong>ZTX</strong><small>PLATFORM CONTROL PLANE</small></div></div>
       <div class="platform-auth-heading">
         <span class="eyebrow">SECURE ACCESS</span>
-        <h1>{{ mode === 'login' ? '平台管理员登录' : '初始化平台管理员' }}</h1>
-        <p>{{ mode === 'login' ? '使用平台控制面账号登录。此账号与租户业务账号相互独立。' : '输入部署人员通过受控初始化命令生成的一次性凭据。' }}</p>
+        <h1>{{ mode === 'login' ? '平台管理员登录' : '欢迎使用 ZTX，创建平台管理员' }}</h1>
+        <p>{{ mode === 'login' ? '使用平台控制面账号登录。此账号与租户业务账号相互独立。' : '首次初始化只需设置用户名和密码。创建成功后将自动进入平台控制台。' }}</p>
       </div>
       <form class="platform-auth-form" @submit.prevent="submit">
-        <label v-if="mode === 'initialize'">一次性初始化凭据
-          <input v-model="setupToken" autocomplete="off" required placeholder="粘贴初始化凭据" />
+        <label v-if="mode === 'initialize'">一次性初始化口令
+          <input v-model="setupToken" autocomplete="off" required placeholder="输入部署人员提供的一次性口令" />
         </label>
-        <label>管理员账号
-          <input v-model="username" autocomplete="username" required minlength="3" maxlength="80" placeholder="请输入平台管理员账号" />
+        <label>用户名
+          <input v-model="username" autocomplete="username" required minlength="3" maxlength="80" placeholder="请输入平台管理员用户名" />
         </label>
         <label>密码
           <input v-model="password" :autocomplete="mode === 'login' ? 'current-password' : 'new-password'" type="password" required minlength="8" placeholder="至少 8 位，包含字母和数字" />
         </label>
-        <label v-if="mode === 'login'">动态验证码（已启用 MFA 时填写）
+        <label v-if="mode === 'initialize'">确认密码
+          <input v-model="confirmPassword" autocomplete="new-password" type="password" required minlength="8" placeholder="请再次输入密码" />
+        </label>
+        <label v-if="mode === 'login'">动态验证码（启用 MFA 后填写）
           <input v-model="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
         </label>
         <p v-if="error" class="platform-auth-message" role="status">{{ error }}</p>
@@ -72,9 +92,9 @@ async function submit() {
           {{ busy ? '正在处理…' : mode === 'login' ? '安全登录' : '创建平台管理员' }}
         </button>
       </form>
-      <button class="platform-auth-switch" type="button" @click="mode = mode === 'login' ? 'initialize' : 'login'; error = ''">
-        {{ mode === 'login' ? '首次部署？使用初始化凭据创建管理员' : '返回管理员登录' }}
-      </button>
+      <p v-if="mode === 'initialize'" class="platform-auth-hint">
+        正式部署可通过服务器本机安装管理入口（或 SSH 本地端口转发）获取口令；服务器终端也可作为备用方式。
+      </p>
       <div class="platform-auth-foot">平台身份独立存储 · 会话加密保护 · 安全操作留痕</div>
     </section>
   </main>
@@ -87,6 +107,7 @@ async function submit() {
 .platform-auth-heading{margin-bottom:24px}.eyebrow{font-size:9px;font-weight:700;letter-spacing:.14em;color:var(--ztx-muted)}h1{margin:7px 0 8px;font-size:21px;color:var(--ztx-text)}.platform-auth-heading p{margin:0;color:var(--ztx-muted);font-size:12px;line-height:1.7}
 .platform-auth-form{display:flex;flex-direction:column;gap:15px}.platform-auth-form label{display:flex;flex-direction:column;gap:7px;color:var(--ztx-text-secondary);font-size:11px;font-weight:650}.platform-auth-form input{height:39px;padding:0 11px;border:1px solid var(--ztx-border-strong);border-radius:5px;background:#fffefa;color:var(--ztx-text);font:inherit;font-size:12px;outline:none}.platform-auth-form input:focus{border-color:var(--ztx-primary);box-shadow:0 0 0 2px color-mix(in srgb,var(--ztx-primary) 15%,transparent)}
 .platform-auth-message{margin:0;padding:9px 10px;border-radius:5px;background:var(--ztx-surface-warm);color:var(--ztx-primary-strong);font-size:11px;line-height:1.6}
-.platform-auth-submit{height:40px;border:0;border-radius:5px;background:var(--ztx-primary);color:#fff;font-size:12px;font-weight:700;cursor:pointer}.platform-auth-submit:disabled{opacity:.6;cursor:wait}.platform-auth-switch{width:100%;margin-top:17px;border:0;background:transparent;color:var(--ztx-primary-strong);font-size:11px;cursor:pointer}.platform-auth-foot{margin-top:25px;padding-top:15px;border-top:1px solid var(--ztx-border);color:var(--ztx-muted);font-size:9px;text-align:center}
+.platform-auth-submit{height:40px;border:0;border-radius:5px;background:var(--ztx-primary);color:#fff;font-size:12px;font-weight:700;cursor:pointer}.platform-auth-submit:disabled{opacity:.6;cursor:wait}.platform-auth-hint{margin:14px 0 0;color:var(--ztx-muted);font-size:10px;line-height:1.7}
+.platform-auth-foot{margin-top:25px;padding-top:15px;border-top:1px solid var(--ztx-border);color:var(--ztx-muted);font-size:9px;text-align:center}
 @media(max-width:520px){.platform-auth-card{padding:24px 20px}}
 </style>
