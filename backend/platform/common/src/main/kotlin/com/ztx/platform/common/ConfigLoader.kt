@@ -27,7 +27,7 @@ object ConfigLoader {
         mergeInto(merged, readResource(classLoader, "application.yml", required = true))
         if (!profile.isNullOrBlank()) {
             require(PROFILE_PATTERN.matches(profile)) { "ZTX Profile 名称格式不合法" }
-            mergeInto(merged, readResource(classLoader, "application-$profile.yml", required = false))
+            mergeInto(merged, readResource(classLoader, "application-$profile.yml", required = true))
         }
         if (!externalConfig.isNullOrBlank()) {
             val path = Path.of(externalConfig).toAbsolutePath().normalize()

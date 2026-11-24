@@ -16,7 +16,7 @@ ZTX 是面向制造业的元数据驱动低代码 ERP 平台。当前仓库采�
 
     ./gradlew :apps:server:run
 
-指定环境 Profile：
+使用开发环境配置（包含仅供本地使用的数据库默认密码）：
 
     ./gradlew :apps:server:run --args='--ztx.profile=dev'
 
@@ -43,7 +43,7 @@ ZTX 是面向制造业的元数据驱动低代码 ERP 平台。当前仓库采�
 
 后加载的同名配置覆盖先加载的值；嵌套对象按键递归合并。业务模块只读取统一的 `AppConfig`，不得直接读取环境变量或自行解析 YAML。普通私有化部署可直接在外部 YAML 中配置数据库账号和密码；环境变量/Secrets 是可选的覆盖和敏感信息注入方式。Docker Compose 的 `.env` 只负责 Compose 变量插值，不是后端配置文件。真实密码和私有部署配置不得提交 Git。
 
-默认配置位于 `backend/platform/common/src/main/resources/application.yml`；dev、test、prod Profile 文件与其放在同一资源目录。配置加载失败时在启动阶段报错，不输出密码等敏感值。
+默认配置位于 `backend/platform/common/src/main/resources/application.yml`；dev、test、prod Profile 文件与其放在同一资源目录。dev Profile 内的默认密码仅用于本机开发，不得用于生产。配置加载失败时在启动阶段报错，不输出密码等敏感值。
 
 ## 工程结构
 
