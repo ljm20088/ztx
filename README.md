@@ -12,15 +12,17 @@ ZTX 是面向制造业的元数据驱动低代码 ERP 平台。当前仓库采�
     docker compose up -d postgres
     ./gradlew clean test build
 
-启动 API Server：
+启动 API Server（默认加载 application.yml）：
 
-    set -a && source .env && set +a
     ./gradlew :apps:server:run
+
+指定环境 Profile：
+
+    ./gradlew :apps:server:run --args='--ztx.profile=dev'
 
 启动 Worker 角色：
 
-    set -a && source .env && set +a
-    ZTX_APP_ROLE=worker ./gradlew :apps:server:run
+    ZTX_APP_ROLE=worker ./gradlew :apps:server:run --args='--ztx.profile=dev'
 
 健康检查：
 - GET http://localhost:8080/health/live：只反映进程存活，不依赖数据库。
@@ -28,15 +30,25 @@ ZTX 是面向制造业的元数据驱动低代码 ERP 平台。当前仓库采�
 
 执行数据库迁移：
 
-    set -a && source .env && set +a
-    ZTX_DB_MIGRATE_ON_START=true ./gradlew :apps:server:run
+    ZTX_DB_MIGRATE_ON_START=true ./gradlew :apps:server:run --args='--ztx.profile=dev'
 
-本地默认数据库密码仅用于本机开发。生产部署必须通过安全的环境变量或密钥管理注入凭据，不得复用示例密码。
+## 配置约定
+
+后端以 `application.yml` 为唯一默认配置入口，支持 `application-{profile}.yml`。默认不激活 Profile；指定 `--ztx.profile=dev`、系统属性 `-Dztx.profile=dev` 或环境变量 `ZTX_PROFILE=dev` 后，加载对应 Profile 文件。加载顺序为：
+
+1. classpath 的 `application.yml`；
+2. classpath 的 `application-{profile}.yml`（如果指定 Profile）；
+3. 外部 YAML 文件（通过 `--ztx.config=/path/to/application.yml`、`-Dztx.config=...` 或 `ZTX_CONFIG_FILE` 指定）；
+4. 明确支持的环境变量覆盖（如 `ZTX_DB_PASSWORD`、`ZTX_HTTP_PORT`）。
+
+后加载的同名配置覆盖先加载的值；嵌套对象按键递归合并。业务模块只读取统一的 `AppConfig`，不得直接读取环境变量或自行解析 YAML。普通私有化部署可直接在外部 YAML 中配置数据库账号和密码；环境变量/Secrets 是可选的覆盖和敏感信息注入方式。Docker Compose 的 `.env` 只负责 Compose 变量插值，不是后端配置文件。真实密码和私有部署配置不得提交 Git。
+
+默认配置位于 `backend/platform/common/src/main/resources/application.yml`；dev、test、prod Profile 文件与其放在同一资源目录。配置加载失败时在启动阶段报错，不输出密码等敏感值。
 
 ## 工程结构
 
 - backend/apps/server：API Server / Worker 启动入口与 HTTP 健康检查。
-- backend/platform/common：运行角色、配置和模块注册契约。
+- backend/platform/common：运行角色、统一配置加载与模块注册契约。
 - backend/adapters/postgres：Vert.x PostgreSQL 连接池、连通性检查和 Flyway 迁移。
 - backend/modules：平台模块边界与依赖声明。
 - backend/tests/bdd：JUnit 5、Testcontainers 与中文 BDD 场景注释。

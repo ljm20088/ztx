@@ -1,0 +1,6 @@
+# 自动化测试环境配置差异；数据库连接信息由 Testcontainers 或测试环境注入。
+server:
+  host: 127.0.0.1
+  port: 18080
+database:
+  migrate-on-start: false

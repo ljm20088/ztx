@@ -16,22 +16,31 @@ class DatabaseConfig(
         "DatabaseConfig(host=$host, port=$port, database=$database, user=$user, password=[REDACTED], poolSize=$poolSize, migrationLocations=$migrationLocations)"
 
     companion object {
-        fun fromEnvironment(env: Map<String, String>): DatabaseConfig {
-            val password = env["ZTX_DB_PASSWORD"]
-                ?: env["POSTGRES_PASSWORD"]
-                ?: throw IllegalArgumentException("必须通过 ZTX_DB_PASSWORD 或 POSTGRES_PASSWORD 提供数据库密码")
-            val port = env["ZTX_DB_PORT"]?.toIntOrNull() ?: 5432
-            val poolSize = env["ZTX_DB_POOL_SIZE"]?.toIntOrNull() ?: 10
-            require(port in 1..65535) { "ZTX_DB_PORT 必须在 1 到 65535 之间" }
-            require(poolSize in 1..100) { "ZTX_DB_POOL_SIZE 必须在 1 到 100 之间" }
+        internal fun fromConfig(config: Map<String, Any?>): DatabaseConfig {
+            fun string(name: String, default: String? = null): String {
+                val value = config[name] ?: default
+                require(value is String && value.isNotBlank()) { "database.$name 必须配置" }
+                return value
+            }
+            fun int(name: String, default: Int): Int {
+                val value = config[name] ?: default
+                val parsed = value.toString().toIntOrNull()
+                    ?: throw IllegalArgumentException("database.$name 必须是整数")
+                return parsed
+            }
+
+            val port = int("port", 5432)
+            val poolSize = int("pool-size", 10)
+            require(port in 1..65535) { "database.port 必须在 1 到 65535 之间" }
+            require(poolSize in 1..100) { "database.pool-size 必须在 1 到 100 之间" }
             return DatabaseConfig(
-                host = env["ZTX_DB_HOST"] ?: "localhost",
+                host = string("host", "localhost"),
                 port = port,
-                database = env["ZTX_DB_NAME"] ?: "ztx",
-                user = env["ZTX_DB_USER"] ?: "ztx",
-                password = password,
+                database = string("name", "ztx"),
+                user = string("user", "ztx"),
+                password = string("password"),
                 poolSize = poolSize,
-                migrationLocations = env["ZTX_DB_MIGRATIONS"] ?: "filesystem:database/migrations"
+                migrationLocations = string("migrations", "filesystem:database/migrations")
             )
         }
     }

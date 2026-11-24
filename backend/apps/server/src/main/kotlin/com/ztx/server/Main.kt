@@ -15,8 +15,8 @@ import kotlin.system.exitProcess
 
 private val logger = LoggerFactory.getLogger("com.ztx.server")
 
-fun main() {
-    val config = AppConfig.fromEnvironment(System.getenv())
+fun main(args: Array<String>) {
+    val config = AppConfig.load(args)
     val moduleOrder = ModuleRegistry()
         .register(PostgresModule())
         .register(IamModule())

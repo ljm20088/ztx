@@ -1,0 +1,5 @@
+# 开发环境仅声明与 application.yml 不同的配置。
+server:
+  host: 0.0.0.0
+database:
+  host: localhost
