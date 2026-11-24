@@ -118,7 +118,7 @@ jobs:
           echo "验证 ./ztx dev："
           ./ztx dev
           curl -fsS http://127.0.0.1:5173/ >/tmp/ztx-vite-home.html
-          grep -F "assets/" /tmp/ztx-vite-home.html
+          grep -F "/src/main.ts" /tmp/ztx-vite-home.html
           curl -fsS http://127.0.0.1:8080/health/ready | grep -F '"status":"READY"'
           api_status="$(curl -sS -o /tmp/ztx-proxy-api.json -w '%{http_code}' http://127.0.0.1:5173/api/v1/not-found)"
           test "$api_status" = "404"
