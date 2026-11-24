@@ -74,9 +74,25 @@ class PlatformAuthIntegrationTest {
                 service.initialize(staleToken, "stale.admin", "ZtxAdmin123", "127.0.0.1").await()
             }
 
-            // When：使用最新口令创建管理员
-            val initialized = service.initialize(setupToken, "platform.admin", "ZtxAdmin123", "127.0.0.1").await()
+            // When：两个初始化请求并发使用同一有效口令
+            val concurrentAttempts = listOf(
+                service.initialize(setupToken, "platform.admin", "ZtxAdmin123", "127.0.0.1"),
+                service.initialize(setupToken, "second.admin", "ZtxAdmin123", "127.0.0.1")
+            )
+            val outcomes = concurrentAttempts.map { attempt -> runCatching { attempt.await() } }
+
+            // Then：数据库事务锁保证只能创建一个首个平台管理员
+            assertEquals(1, outcomes.count { it.isSuccess })
+            val initialized = outcomes.single { it.isSuccess }.getOrThrow()
             val admin = initialized.admin
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.executeQuery("SELECT count(*) FROM iam.platform_admin").use { rows ->
+                        rows.next()
+                        assertEquals(1, rows.getInt(1))
+                    }
+                }
+            }
 
             // Then：初始化成功后已自动建立会话，无需再次登录
             assertEquals(admin.id, service.authenticate(initialized.sessionToken).await()?.id)
