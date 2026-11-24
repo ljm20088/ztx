@@ -19,7 +19,7 @@ test('平台管理员可以登录控制台', async ({ page }) => {
   await page.goto('/')
   await expect(page).toHaveURL(/platform\/login/)
   await page.getByLabel('用户名').fill('platform.admin')
-  await page.getByLabel('密码').fill('ZtxAdmin123')
+  await page.getByLabel('密码', { exact: true }).fill('ZtxAdmin123')
   await page.getByRole('button', { name: '安全登录' }).click()
 
   // Then 登录后进入平台控制台
@@ -42,15 +42,21 @@ test('首次启动自动显示初始化表单并创建管理员后直接登录',
     body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000001', username: 'platform.admin', mfaEnabled: false }),
   }))
 
+  await page.route('**/api/v1/platform/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000001', username: 'platform.admin', mfaEnabled: false }),
+  }))
+
   // When 首次访问系统入口
   await page.goto('/')
   await expect(page.getByRole('heading', { name: '欢迎使用 ZTX，创建平台管理员' })).toBeVisible()
   await expect(page.getByLabel('一次性初始化口令')).toHaveValue('one-time-setup-credential')
   await page.getByLabel('用户名').fill('platform.admin')
-  await page.getByLabel('密码').fill('ZtxAdmin123')
+  await page.getByLabel('密码', { exact: true }).fill('ZtxAdmin123')
   await page.getByLabel('确认密码').fill('ZtxAdmin123')
   await page.getByRole('button', { name: '创建平台管理员' }).click()
 
   // Then 无需重新登录，直接进入平台控制台
   await expect(page.getByRole('heading', { name: '平台控制台' })).toBeVisible()
+  await expect(page.getByText('platform.admin')).toBeVisible()
 })
