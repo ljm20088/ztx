@@ -221,7 +221,7 @@ class PlatformAuthService(
                             connection.preparedQuery(
                                 """UPDATE iam.platform_admin_session SET revoked_at = clock_timestamp()
                                    WHERE admin_id = $1 AND token_hash <> $2 AND revoked_at IS NULL"""
-                            ).execute(Tuple.of(admin.id.toString(), sha256(currentToken)))
+                            ).execute(Tuple.of(admin.id, sha256(currentToken)))
                         }.compose {
                             audit(connection, admin.id, "PASSWORD_CHANGED", "SUCCESS", ip)
                         }
