@@ -3,6 +3,7 @@ package com.ztx.server
 import com.ztx.adapters.postgres.FlywayMigrator
 import com.ztx.adapters.postgres.PgDatabase
 import com.ztx.adapters.postgres.PostgresModule
+import com.ztx.adapters.postgres.PostgresOutboxStore
 import com.ztx.modules.document.DocumentRuntimeModule
 import com.ztx.modules.iam.IamModule
 import com.ztx.modules.metadata.MetadataModule
@@ -11,6 +12,7 @@ import com.ztx.platform.common.ModuleRegistry
 import com.ztx.platform.common.RuntimeRole
 import io.vertx.core.Vertx
 import org.slf4j.LoggerFactory
+import java.util.UUID
 import kotlin.system.exitProcess
 
 private val logger = LoggerFactory.getLogger("com.ztx.server")
@@ -32,7 +34,17 @@ fun main(args: Array<String>) {
 
     val vertx = Vertx.vertx()
     val database = PgDatabase(vertx, config.database)
+    val outboxStore = PostgresOutboxStore(database)
+    // 具体业务处理器由后续平台能力/业务扩展注册；空处理器集合不会领取未知任务。
+    val worker = BackgroundTaskWorker(
+        vertx = vertx,
+        database = database,
+        store = outboxStore,
+        workerId = "ztx-worker-${UUID.randomUUID()}",
+        handlers = emptyMap()
+    )
     Runtime.getRuntime().addShutdownHook(Thread {
+        worker.close()
         database.close()
         vertx.close()
     })
@@ -51,9 +63,13 @@ fun main(args: Array<String>) {
             }
 
         RuntimeRole.WORKER -> database.ping()
-            .onSuccess { logger.info("ZTX Worker 运行角色已启动，数据库连接正常") }
+            .compose { worker.start() }
+            .onSuccess {
+                logger.info("ZTX Worker 运行角色已启动，数据库连接正常；已注册任务处理器：0")
+            }
             .onFailure { error ->
-                logger.error("ZTX Worker 数据库连接失败", error)
+                logger.error("ZTX Worker 启动失败", error)
+                worker.close()
                 database.close()
                 vertx.close()
                 exitProcess(1)
