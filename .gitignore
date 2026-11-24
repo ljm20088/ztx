@@ -10,6 +10,7 @@ frontend/node_modules/
 frontend/.vite/
 frontend/**/playwright-report/
 frontend/**/test-results/
+.ztx/
 .idea/
 .vscode/
 .DS_Store

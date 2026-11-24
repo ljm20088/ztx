@@ -2,42 +2,67 @@
 
 ZTX 是面向制造业的元数据驱动低代码 ERP 平台。当前仓库采用 Monorepo 与模块化单体，先建设可复用的平台基座，不在基座工程中提前实现采购、库存、成本、生产或财务业务应用。
 
-## 本地开发
+## 本地开发与启动
 
-环境要求：JDK 21 LTS、Gradle Wrapper 9.7.0、Docker Engine / Docker Compose。前端开发另需 Node.js 26.13.1 和 pnpm 12.18.0。
+环境要求：JDK 21 LTS、Gradle Wrapper 9.7.0、Docker Engine / Docker Compose。完整开发环境另需 Node.js 26.13.1 和 pnpm 12.18.0。
 
 首次初始化：
 
-    cp .env.example .env
-    docker compose up -d postgres
-    ./gradlew clean test build
+```bash
+cp .env.example .env
+```
 
-启动 API Server（默认加载 application.yaml）：
+推荐使用仓库根目录的统一启动器，不需要分别启动数据库、Server、Worker 和前端：
 
-    ./gradlew :apps:server:run
+```bash
+./ztx dev
+```
 
-使用开发环境配置（包含仅供本地使用的数据库默认密码）：
+一条命令会等待 PostgreSQL 健康就绪，再启动 Vert.x API Server、独立 Worker 和 Vite 热更新服务器。浏览器访问 `http://localhost:5173`；Vite 将 API 请求代理到 Vert.x（默认 `http://localhost:8080`）。
 
-    ./gradlew :apps:server:run --args='--ztx.profile=dev'
+构建并验证由 Vert.x 托管静态页面的完整运行形态：
 
-启动 Worker 角色：
+```bash
+./ztx start
+```
 
-    ZTX_APP_ROLE=worker ./gradlew :apps:server:run --args='--ztx.profile=dev'
+该命令构建 Vue 前端，将 dist 资源纳入 Server 发布产物，再启动 Server 和 Worker。浏览器访问 `http://localhost:8080`，页面和 API 使用同一个入口；此运行形态不需要 Vite 提供页面，但本地构建仍需要 Node.js 和 pnpm。
 
-健康检查：
+其他命令：
+
+```bash
+./ztx status
+./ztx stop
+```
+
+`./ztx stop` 只停止启动器记录的应用进程，保留 PostgreSQL 数据和容器。需要停止数据库时执行 `docker compose stop postgres`。启动器日志与 PID 文件位于仓库根目录 `.ztx/`；Server 首次初始化口令可能写入 `.ztx/logs/server.log`，目录权限限制为当前用户，请勿共享日志。
+
+### 独立启动后端
+
+Server 和 Worker 仍可独立运行，不依赖启动器：
+
+```bash
+./gradlew :apps:server:run --args='--ztx.profile=dev'
+ZTX_APP_ROLE=worker ./gradlew :apps:server:run --args='--ztx.profile=dev'
+```
+
+只启动 Server 时，API 可用；若已构建并打包前端静态资源，Server 也会提供 Web 页面。开发前端热更新时，使用 `./ztx dev` 或单独运行 Vite。
+
+## 健康检查
+
 - GET http://localhost:8080/health/live：只反映进程存活，不依赖数据库。
 - GET http://localhost:8080/health/ready：检查 PostgreSQL 连通性；数据库不可用时返回 HTTP 503。
 
-开发环境首次启动会自动执行 Flyway 数据库迁移：
+## 平台管理员首次初始化
 
-    ./gradlew :apps:server:run --args='--ztx.profile=dev'
-
-首次启动时，若尚未创建平台管理员，Server 会自动生成 15 分钟有效的一次性初始化口令。开发环境口令显示在启动终端；每次重启都会使旧口令失效并生成新口令。打开 ZTX 地址即可自动进入初始化页面，创建成功后自动登录。
+开发环境首次启动会自动执行 Flyway 数据库迁移。若尚未创建平台管理员，Server 会自动生成 15 分钟有效的一次性初始化口令；开发环境口令显示在启动终端/Server 日志中。每次重启都会使旧口令失效并生成新口令。打开 ZTX 地址即可自动进入初始化页面，创建成功后自动登录。
 
 正式部署由受控部署流程执行数据库迁移，应用启动只校验迁移状态，不自动修改生产数据库。首次初始化口令不会写入普通应用日志：可在服务器交互式终端查看，或通过服务器本机/SSH 本地端口转发访问 loopback 安装管理接口 `GET /api/v1/platform/auth/setup-token` 获取。该接口仅接受 loopback 来源及本机 Host，拒绝转发请求；口令仅保存在当前 Server 进程内存，重启轮换，15 分钟后失效。远程部署可先建立 SSH 本地端口转发，再从本机读取口令：
 
-    ssh -L 18080:127.0.0.1:8080 <部署用户>@<服务器地址>
-    curl -fsS http://127.0.0.1:18080/api/v1/platform/auth/setup-token
+```bash
+ssh -L 18080:127.0.0.1:8080 <部署用户>@<服务器地址>
+curl -fsS http://127.0.0.1:18080/api/v1/platform/auth/setup-token
+```
 
 将返回的口令粘贴到正常访问的 ZTX 首次初始化页面。
 
@@ -58,28 +83,30 @@ ZTX 是面向制造业的元数据驱动低代码 ERP 平台。当前仓库采�
 
 ## 工程结构
 
-- backend/apps/server：API Server / Worker 启动入口与 HTTP 健康检查。
+- backend/apps/server：API Server / Worker 启动入口、HTTP 健康检查与静态资源托管。
 - backend/platform/common：运行角色、统一配置加载与模块注册契约。
 - backend/adapters/postgres：Vert.x PostgreSQL 连接池、连通性检查和 Flyway 迁移。
 - backend/modules：平台模块边界与依赖声明。
 - backend/tests/bdd：JUnit 5、Testcontainers 与中文 BDD 场景注释。
 - database/migrations：集中管理的数据库迁移。
 - frontend：Vue Web 工作区。
+- ztx：项目级开发/本地运行进程编排入口。
 
 目录和 Gradle 子项目用于职责隔离与测试，不代表独立部署或微服务拆分。
 
 ## 生产静态资源策略
 
-生产发布时由前端流水线构建 erp-web，将 dist 产物纳入后端发布包的 webroot 资源目录；Vert.x 在 API 路由之后提供静态资源和 SPA fallback。当前 Issue #3 先交付 Server/Worker 启动及健康检查，前端资源打包接入随前端发布流程完成，不在此处复制或重建前端应用。
+生产发布时由前端流水线构建 erp-web，将 dist 产物纳入后端发布包的 `webroot` classpath 资源目录；Vert.x 在 API 路由之后提供静态资源。用户通过同一地址访问 Web 页面和 API。生产运行只需要 JDK 和后端发布产物，不需要 Node.js、pnpm 或 Nginx。前端构建由发布流水线完成，生产应用启动不执行前端构建。
 
 ## 常用命令
 
-- ./gradlew clean：清理构建产物。
-- ./gradlew test：运行全部后端测试。
-- ./gradlew build：构建全部后端模块。
-- ./gradlew :apps:server:run：启动 API Server。
-- docker compose up -d postgres：启动本地 PostgreSQL。
-- docker compose down：停止本地依赖（保留数据卷）。
+- `./ztx dev`：完整本地开发环境（Vite + Server + Worker + PostgreSQL）。
+- `./ztx start`：前端构建后由 Vert.x 托管 Web/API，并启动 Worker。
+- `./ztx stop`：停止启动器管理的应用进程。
+- `./ztx status`：查看应用进程状态。
+- `./gradlew clean test build`：运行全部后端测试并构建。
+- `pnpm --dir frontend check`：前端类型检查、Lint、测试和构建。
+- `docker compose down`：停止本地依赖（保留数据卷）。
 
 ### 环境变量覆盖清单
 
