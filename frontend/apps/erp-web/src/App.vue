@@ -5,7 +5,8 @@ import { ZBell, ZChevronRight, ZCommand, ZMaximize2, ZUserRound, ZShieldCheck, Z
 import { menuModules, findFeature } from './navigation/menu'
 import { useWorkspaceStore } from './stores/workspace'
 const route=useRoute(),router=useRouter(),workspace=useWorkspaceStore()
-const activeModuleId=ref('workspace'),openCategoryId=ref<string|null>('personal'),flyoutOpen=ref(false),isTouch=ref(false)\nconst account=ref<{id:string;username:string;mfaEnabled:boolean}|null>(null),accountMenuOpen=ref(false),accountMenuError=ref('')
+const activeModuleId=ref('workspace'),openCategoryId=ref<string|null>('personal'),flyoutOpen=ref(false),isTouch=ref(false)
+const account=ref<{id:string;username:string;mfaEnabled:boolean}|null>(null),accountMenuOpen=ref(false),accountMenuError=ref('')
 const navCollapsed=ref(localStorage.getItem('ztx-nav-collapsed')==='true'),collapsedMenuOpen=ref(false)
 const navRoot=ref<HTMLElement|null>(null),categoryButtons=new Map<string,HTMLButtonElement>(),flyoutTop=ref(120)
 let closeTimer:ReturnType<typeof setTimeout>|undefined
