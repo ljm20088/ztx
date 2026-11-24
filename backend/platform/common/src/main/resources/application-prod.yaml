@@ -1,0 +1,7 @@
+# 生产环境差异；数据库凭据通过外部配置或 Secrets 注入。
+server:
+  host: 0.0.0.0
+database:
+  migrate-on-start: false
+logging:
+  level: INFO

@@ -1,0 +1,151 @@
+name: Backend CI
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "backend/**"
+      - "database/migrations/**"
+      - "gradle/**"
+      - "**/*.gradle.kts"
+      - "settings.gradle.kts"
+      - "docker-compose.yml"
+      - ".devcontainer/**"
+      - ".env.example"
+      - "README.md"
+      - ".github/workflows/backend-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: JDK 21 · Gradle 9.7 · Kotlin 2.4
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Gradle from the committed Wrapper
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify toolchain
+        run: |
+          java -version
+          ./gradlew --version
+          ./gradlew --version | grep -F "Gradle 9.7.0"
+
+      - name: Build and test
+        run: ./gradlew --no-daemon clean test build
+
+      - name: Validate Dev Container and Compose configuration
+        run: |
+          python -m json.tool .devcontainer/devcontainer.json >/dev/null
+          bash -n .devcontainer/post-create.sh
+          docker compose config --quiet
+
+      - name: Start PostgreSQL with Docker Compose and verify health
+        run: |
+          docker compose up -d postgres
+          for attempt in $(seq 1 30); do
+            container_id="$(docker compose ps -q postgres)"
+            if [ -n "$container_id" ]; then
+              health="$(docker inspect --format='{{.State.Health.Status}}' "$container_id" 2>/dev/null || true)"
+              if [ "$health" = "healthy" ]; then
+                echo "PostgreSQL 18.6 is healthy."
+                exit 0
+              fi
+            fi
+            sleep 2
+          done
+          docker compose logs postgres
+          exit 1
+
+      - name: Smoke test API Server and Worker
+        run: |
+          set -euo pipefail
+          export ZTX_DB_HOST=127.0.0.1
+          export ZTX_DB_PORT=5432
+          export ZTX_DB_NAME=ztx
+          export ZTX_DB_USER=ztx
+          export ZTX_DB_PASSWORD=ztx_local_dev_only
+          export ZTX_DB_POOL_SIZE=10
+          export ZTX_DB_MIGRATIONS=filesystem:database/migrations
+          export ZTX_HTTP_HOST=127.0.0.1
+          export ZTX_HTTP_PORT=8080
+          export ZTX_DB_MIGRATE_ON_START=true
+
+          ./gradlew --no-daemon :apps:server:installDist
+
+          server_pid=""
+          worker_pid=""
+          cleanup() {
+            if [ -n "$server_pid" ]; then
+              kill "$server_pid" 2>/dev/null || true
+              wait "$server_pid" 2>/dev/null || true
+            fi
+            if [ -n "$worker_pid" ]; then
+              kill "$worker_pid" 2>/dev/null || true
+              wait "$worker_pid" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          backend/apps/server/build/install/server/bin/server >/tmp/ztx-server.log 2>&1 &
+          server_pid=$!
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/health/live >/tmp/ztx-live.json 2>/dev/null; then
+              break
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              cat /tmp/ztx-server.log
+              exit 1
+            fi
+            sleep 1
+          done
+          if ! grep -Fq '"status":"UP"' /tmp/ztx-live.json; then
+            cat /tmp/ztx-server.log
+            exit 1
+          fi
+          curl -fsS http://127.0.0.1:8080/health/ready >/tmp/ztx-ready.json
+          grep -F '"status":"READY"' /tmp/ztx-ready.json
+          kill "$server_pid" 2>/dev/null || true
+          wait "$server_pid" 2>/dev/null || true
+          server_pid=""
+
+          export ZTX_APP_ROLE=worker
+          export ZTX_DB_MIGRATE_ON_START=false
+          backend/apps/server/build/install/server/bin/server >/tmp/ztx-worker.log 2>&1 &
+          worker_pid=$!
+          for attempt in $(seq 1 30); do
+            if grep -Fq "ZTX Worker 运行角色已启动" /tmp/ztx-worker.log; then
+              break
+            fi
+            if ! kill -0 "$worker_pid" 2>/dev/null; then
+              cat /tmp/ztx-worker.log
+              exit 1
+            fi
+            sleep 1
+          done
+          if ! grep -Fq "ZTX Worker 运行角色已启动" /tmp/ztx-worker.log; then
+            cat /tmp/ztx-worker.log
+            exit 1
+          fi
+          echo "API Server and Worker smoke tests passed."
+
+      - name: Stop PostgreSQL
+        if: always()
+        run: docker compose down --volumes --remove-orphans
