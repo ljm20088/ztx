@@ -25,10 +25,12 @@ class PgDatabase(vertx: Vertx, config: DatabaseConfig) : DatabaseHealth, AutoClo
 
     override fun ping(): Future<Void> = pool.query("SELECT 1").execute().mapEmpty()
 
-    fun <T : Any> withTransaction(work: (SqlConnection) -> Future<T>): Future<T> =
-        pool.withTransaction<T?> { connection ->
-            work(connection).map<T?> { result -> result }
-        }.map { result -> requireNotNull(result) { "数据库事务不能返回 null" } }
+    /**
+     * Vert.x Future<Void> 成功时的结果本来就是 null。
+     * 事务包装层必须保留 Void 语义，不能把正常完成误判为事务返回 null 的错误。
+     */
+    fun <T> withTransaction(work: (SqlConnection) -> Future<T>): Future<T> =
+        pool.withTransaction { connection -> work(connection) }
 
     override fun close() {
         pool.close()
