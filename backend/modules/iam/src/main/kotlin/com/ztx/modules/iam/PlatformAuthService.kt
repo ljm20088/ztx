@@ -151,7 +151,8 @@ class PlatformAuthService(
                                         if (validPassword) "MFA_LOGIN" else "LOGIN", "FAILURE", ip)
                                 }.map(LoginOutcome(null))
                             } else {
-                                val adminId = UUID.fromString(row!!.getString("id"))
+                                val authenticatedAdmin = requireNotNull(row)
+                                val adminId = UUID.fromString(authenticatedAdmin.getString("id"))
                                 val rawSession = randomToken(32)
                                 connection.preparedQuery("DELETE FROM iam.platform_login_attempt WHERE key_hash = $1")
                                     .execute(Tuple.of(attemptKey)).compose {
@@ -167,7 +168,7 @@ class PlatformAuthService(
                                         ).execute(Tuple.of(adminId.toString()))
                                     }.compose {
                                         audit(connection, adminId, "LOGIN", "SUCCESS", ip)
-                                    }.map(LoginOutcome(PlatformLogin(rawSession, PlatformAdmin(adminId, row.getString("username"), row.getBoolean("mfa_enabled")))))
+                                    }.map(LoginOutcome(PlatformLogin(rawSession, PlatformAdmin(adminId, authenticatedAdmin.getString("username"), authenticatedAdmin.getBoolean("mfa_enabled")))))
                             }
                         }
                     }
