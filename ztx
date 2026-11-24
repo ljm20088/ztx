@@ -1,0 +1,245 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+STATE_DIR="$ROOT_DIR/.ztx"
+PID_DIR="$STATE_DIR/pids"
+LOG_DIR="$STATE_DIR/logs"
+HTTP_HOST="\${ZTX_HTTP_HOST:-127.0.0.1}"
+HTTP_PORT="\${ZTX_HTTP_PORT:-8080}"
+WEB_PORT="\${ZTX_WEB_PORT:-5173}"
+HEALTH_URL="http://$HTTP_HOST:$HTTP_PORT/health/ready"
+
+umask 077
+
+usage() {
+  cat <<'EOF'
+ZTX 项目启动器
+
+用法：
+  ./ztx dev      启动完整开发环境（Vite + Server + Worker + PostgreSQL）
+  ./ztx start    构建前端，由 Vert.x 托管静态页面和 API，并启动 Worker
+  ./ztx stop     停止本启动器启动的进程
+  ./ztx status   查看运行状态
+  ./ztx help     显示帮助
+
+访问地址：
+  dev:   http://localhost:5173
+  start: http://localhost:8080
+
+日志和 PID 文件保存在 .ztx/。Server 首次初始化口令也可能出现在 server.log，
+请勿共享日志文件；.ztx/ 默认仅当前用户可访问。
+EOF
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "缺少命令：$1" >&2
+    exit 1
+  }
+}
+
+prepare_state() {
+  mkdir -p "$PID_DIR" "$LOG_DIR"
+  chmod 700 "$STATE_DIR" "$PID_DIR" "$LOG_DIR"
+}
+
+check_java() {
+  require_command java
+  require_command "$ROOT_DIR/gradlew"
+}
+
+check_database() {
+  require_command docker
+  docker compose version >/dev/null
+  echo "检查 PostgreSQL..."
+  docker compose up -d --wait postgres
+}
+
+check_frontend_toolchain() {
+  require_command node
+  require_command pnpm
+  local node_version pnpm_version
+  node_version="$(node --version)"
+  pnpm_version="$(pnpm --version)"
+  if [[ "$node_version" != "v26.13.1" ]]; then
+    echo "要求 Node.js 26.13.1，当前为 $node_version" >&2
+    exit 1
+  fi
+  if [[ "$pnpm_version" != "12.18.0" ]]; then
+    echo "要求 pnpm 12.18.0，当前为 $pnpm_version" >&2
+    exit 1
+  fi
+}
+
+is_running() {
+  local name="$1" pid_file="$PID_DIR/$1.pid" pid
+  [[ -f "$pid_file" ]] || return 1
+  pid="$(cat "$pid_file")"
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  kill -0 "$pid" 2>/dev/null
+}
+
+start_service() {
+  local name="$1" log_file="$LOG_DIR/$1.log"
+  shift
+  if is_running "$name"; then
+    echo "$name 已在运行（PID $(cat "$PID_DIR/$name.pid")）"
+    return
+  fi
+  rm -f "$PID_DIR/$name.pid"
+  echo "启动 $name..."
+  (cd "$ROOT_DIR" && exec nohup "$@" >"$log_file" 2>&1 < /dev/null) &
+  local pid=$!
+  echo "$pid" >"$PID_DIR/$name.pid"
+  sleep 1
+  if ! kill -0 "$pid" 2>/dev/null; then
+    rm -f "$PID_DIR/$name.pid"
+    echo "$name 启动失败，日志：$log_file" >&2
+    tail -n 60 "$log_file" >&2 || true
+    exit 1
+  fi
+  echo "$name 已启动（PID $pid），日志：$log_file"
+}
+
+wait_for_http() {
+  local url="$1" name="$2" log_file="$3"
+  require_command curl
+  for _ in $(seq 1 60); do
+    if curl --silent --fail "$url" >/dev/null; then
+      echo "$name 健康检查通过：$url"
+      return
+    fi
+    sleep 1
+  done
+  echo "$name 未能在 60 秒内就绪，日志：$log_file" >&2
+  tail -n 80 "$log_file" >&2 || true
+  exit 1
+}
+
+wait_for_worker() {
+  local log_file="$LOG_DIR/worker.log"
+  for _ in $(seq 1 30); do
+    if grep -q "ZTX Worker 运行角色已启动" "$log_file" 2>/dev/null; then
+      echo "Worker 启动检查通过"
+      return
+    fi
+    sleep 1
+  done
+  echo "Worker 未能在 30 秒内就绪，日志：$log_file" >&2
+  tail -n 80 "$log_file" >&2 || true
+  exit 1
+}
+
+start_database_and_backend() {
+  check_database
+  start_service server "$ROOT_DIR/gradlew" --no-daemon :apps:server:run --args=--ztx.profile=dev
+  wait_for_http "$HEALTH_URL" "API Server" "$LOG_DIR/server.log"
+  start_service worker env ZTX_APP_ROLE=worker "$ROOT_DIR/gradlew" --no-daemon :apps:server:run --args=--ztx.profile=dev
+  wait_for_worker
+}
+
+dev() {
+  check_java
+  check_frontend_toolchain
+  prepare_state
+  start_database_and_backend
+  start_service web pnpm --dir "$ROOT_DIR/frontend" --filter @ztx/erp-web dev --host 0.0.0.0
+  wait_for_http "http://127.0.0.1:$WEB_PORT/" "Vite" "$LOG_DIR/web.log"
+  cat <<EOF
+
+ZTX 开发环境已启动：
+  Web： http://localhost:$WEB_PORT
+  API： http://localhost:$HTTP_PORT
+  健康：$HEALTH_URL
+
+日志目录：$LOG_DIR
+停止环境：./ztx stop
+EOF
+}
+
+start() {
+  check_java
+  check_frontend_toolchain
+  prepare_state
+  check_database
+  echo "安装前端依赖并构建静态资源..."
+  pnpm --dir "$ROOT_DIR/frontend" install --frozen-lockfile
+  pnpm --dir "$ROOT_DIR/frontend" build
+  echo "将前端静态资源打包进 Vert.x Server..."
+  "$ROOT_DIR/gradlew" --no-daemon :apps:server:installDist \
+    "-Pztx.frontendDist=$ROOT_DIR/frontend/apps/erp-web/dist"
+  local executable="$ROOT_DIR/backend/apps/server/build/install/server/bin/server"
+  [[ -x "$executable" ]] || {
+    echo "未找到 Server 发布程序：$executable" >&2
+    exit 1
+  }
+  start_service server "$executable" --ztx.profile=dev
+  wait_for_http "$HEALTH_URL" "API Server/Web" "$LOG_DIR/server.log"
+  start_service worker env ZTX_APP_ROLE=worker "$executable" --ztx.profile=dev
+  wait_for_worker
+  cat <<EOF
+
+ZTX 已启动（由 Vert.x 提供页面和 API）：
+  Web/API： http://localhost:$HTTP_PORT
+  健康检查：$HEALTH_URL
+
+日志目录：$LOG_DIR
+停止环境：./ztx stop
+EOF
+}
+
+stop() {
+  local name pid
+  local failed=0
+  for name in web worker server; do
+    local pid_file="$PID_DIR/$name.pid"
+    [[ -f "$pid_file" ]] || continue
+    pid="$(cat "$pid_file")"
+    if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+      echo "停止 $name（PID $pid）..."
+      kill -TERM "$pid" 2>/dev/null || true
+      for _ in $(seq 1 10); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 1
+      done
+      if kill -0 "$pid" 2>/dev/null; then
+        echo "$name 未正常退出，发送 SIGKILL" >&2
+        kill -KILL "$pid" 2>/dev/null || failed=1
+      fi
+    fi
+    rm -f "$pid_file"
+  done
+  if (( failed != 0 )); then
+    echo "部分进程未能停止，请检查 $LOG_DIR" >&2
+    return 1
+  fi
+  echo "ZTX 应用进程已停止。PostgreSQL 数据库保持运行；如需停止数据库，请执行 docker compose stop postgres。"
+}
+
+status() {
+  local name
+  for name in server worker web; do
+    if is_running "$name"; then
+      echo "$name：运行中（PID $(cat "$PID_DIR/$name.pid")）"
+    else
+      echo "$name：未运行"
+    fi
+  done
+  if command -v docker >/dev/null 2>&1; then
+    docker compose ps postgres 2>/dev/null || true
+  fi
+}
+
+case "\${1:-help}" in
+  dev) dev ;;
+  start) start ;;
+  stop) stop ;;
+  status) status ;;
+  help|-h|--help) usage ;;
+  *)
+    echo "未知命令：$1" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

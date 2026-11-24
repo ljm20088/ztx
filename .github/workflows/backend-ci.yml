@@ -13,6 +13,8 @@ on:
       - ".devcontainer/**"
       - ".env.example"
       - "README.md"
+      - "ztx"
+      - "docs/operations/**"
       - ".github/workflows/backend-ci.yml"
   workflow_dispatch:
 
@@ -48,14 +50,16 @@ jobs:
           ./gradlew --version
           ./gradlew --version | grep -F "Gradle 9.7.0"
 
-      - name: Build and test
-        run: ./gradlew --no-daemon clean test build
-
-      - name: Validate Dev Container and Compose configuration
+      - name: Validate launcher and Compose configuration
         run: |
+          bash -n ztx
+          ./ztx help
           python -m json.tool .devcontainer/devcontainer.json >/dev/null
           bash -n .devcontainer/post-create.sh
           docker compose config --quiet
+
+      - name: Build and test
+        run: ./gradlew --no-daemon clean test build
 
       - name: Start PostgreSQL with Docker Compose and verify health
         run: |
