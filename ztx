@@ -143,9 +143,16 @@ wait_for_worker() {
 
 start_database_and_backend() {
   check_database
-  start_service server "$ROOT_DIR/gradlew" --no-daemon :apps:server:run --args=--ztx.profile=dev
+  echo "构建后端运行发行包..."
+  "$ROOT_DIR/gradlew" --no-daemon :apps:server:installDist
+  local executable="$ROOT_DIR/backend/apps/server/build/install/server/bin/server"
+  [[ -x "$executable" ]] || {
+    echo "未找到 Server 发布程序：$executable" >&2
+    exit 1
+  }
+  start_service server "$executable" --ztx.profile=dev
   wait_for_http "$HEALTH_URL" "API Server" "$LOG_DIR/server.log"
-  start_service worker env ZTX_APP_ROLE=worker ZTX_DB_MIGRATE_ON_START=false "$ROOT_DIR/gradlew" --no-daemon :apps:server:run --args=--ztx.profile=dev
+  start_service worker env ZTX_APP_ROLE=worker ZTX_DB_MIGRATE_ON_START=false "$executable" --ztx.profile=dev
   wait_for_worker
 }
 
@@ -156,7 +163,7 @@ dev() {
   ensure_stopped
   start_database_and_backend
   pnpm --dir "$ROOT_DIR/frontend" install --frozen-lockfile
-  start_service web pnpm --dir "$ROOT_DIR/frontend" --filter @ztx/erp-web dev --host 0.0.0.0
+  start_service web node "$ROOT_DIR/frontend/apps/erp-web/node_modules/vite/bin/vite.js" --host 0.0.0.0
   wait_for_http "http://127.0.0.1:$WEB_PORT/" "Vite" "$LOG_DIR/web.log"
   cat <<EOF
 
