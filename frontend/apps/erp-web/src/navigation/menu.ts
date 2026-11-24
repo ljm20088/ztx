@@ -2,18 +2,13 @@ import type { Component } from 'vue'
 import {
   BarChart3,
   Boxes,
-  Building2,
   Calculator,
   ClipboardCheck,
-  Code2,
   Factory,
   Handshake,
   House,
-  Package,
   Settings,
-  ShieldCheck,
   ShoppingCart,
-  Users,
 } from 'lucide-vue-next'
 
 export interface MenuFeature { id:string; label:string; path:string; description:string }
