@@ -56,46 +56,176 @@ onMounted(()=>{isTouch.value=window.matchMedia('(pointer: coarse)').matches;wind
 onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGlobalKeydown)})
 </script>
 <template>
-<div class="ztx-shell">
- <header class="workspace-header">
-  <div class="brand-lockup" aria-label="ZTX 企业工作区"><div class="brand-mark"><ZCommand :size="18" :stroke-width="2.2"/></div><div class="brand-wordmark"><strong>ZTX ERP</strong></div></div>
-  <nav class="workspace-tabs" aria-label="工作区标签">
-   <button v-for="tab in workspace.tabs" :key="tab.path" class="workspace-tab" :class="{'is-active':workspace.activePath===tab.path}" :aria-current="workspace.activePath===tab.path?'page':undefined" @click="activateTab(tab.path)">
-    <span>{{tab.title}}</span><span v-if="tab.closable" class="tab-close" role="button" :aria-label="'关闭 '+tab.title" tabindex="0" @click="closeTab(tab.path,$event)" @keydown.enter.stop="closeTab(tab.path,$event)"><ZX :size="12"/></span>
-   </button>
-  </nav>
-  <div class="header-actions"><ZIconButton label="全屏" @click="toggleFullscreen"><ZMaximize2/></ZIconButton><ZIconButton label="通知"><ZBell/></ZIconButton><ZIconButton label="用户"><ZUserRound/></ZIconButton></div>
- </header>
- <div class="workspace-body" :class="{'is-nav-collapsed':navCollapsed}">
-  <aside ref="navRoot" class="ztx-sidebar" :class="{'is-collapsed':navCollapsed,'has-collapsed-menu':collapsedMenuOpen}" aria-label="一级菜单" @pointerenter="clearCloseTimer">
-   <nav class="sidebar-navigation" aria-label="一级菜单">
-    <div v-for="module in menuModules" :key="module.id" class="module-group">
-     <button class="module-entry" :aria-label="module.label" :title="navCollapsed?module.label:undefined" :class="{'is-active':activeModuleId===module.id}" :aria-expanded="activeModuleId===module.id&&!navCollapsed" @click="selectModule(module.id)">
-      <component :is="module.icon" :size="19" :stroke-width="1.8"/><span>{{module.label}}</span><ZChevronRight v-if="!navCollapsed" class="module-chevron" :class="{'is-expanded':activeModuleId===module.id}" :size="15"/>
-     </button>
-     <div v-if="activeModuleId===module.id&&!navCollapsed" class="inline-category-list" :aria-label="module.label+'二级菜单'">
-      <button v-for="(category,index) in module.categories" :key="category.id" :ref="element=>setCategoryButton(category.id,element as HTMLButtonElement|null)" class="category-entry" :class="{'is-open':openCategoryId===category.id&&flyoutOpen}" :aria-expanded="openCategoryId===category.id&&flyoutOpen" aria-haspopup="menu" @pointerenter="onCategoryPointerEnter(category.id)" @click="onCategoryClick(category.id)" @keydown="onCategoryKeydown($event,category.id,index)">
-       <span>{{category.label}}</span><ZChevronRight :size="15"/>
-      </button>
-     </div>
-     <div v-if="activeModuleId===module.id&&navCollapsed&&collapsedMenuOpen" class="collapsed-category-popover" :aria-label="module.label+'二级菜单'">
-      <button v-for="(category,index) in module.categories" :key="category.id" :ref="element=>setCategoryButton(category.id,element as HTMLButtonElement|null)" class="category-entry" :class="{'is-open':openCategoryId===category.id&&flyoutOpen}" :aria-expanded="openCategoryId===category.id&&flyoutOpen" aria-haspopup="menu" @pointerenter="onCategoryPointerEnter(category.id)" @click="onCategoryClick(category.id)" @keydown="onCategoryKeydown($event,category.id,index)">
-       <span>{{category.label}}</span><ZChevronRight :size="15"/>
-      </button>
-     </div>
+  <div class="ztx-shell">
+    <header class="workspace-header">
+      <div class="brand-lockup" aria-label="ZTX 企业工作区">
+        <div class="brand-mark">
+          <ZCommand :size="18" :stroke-width="2.2" />
+        </div>
+        <div class="brand-wordmark">
+          <strong>ZTX ERP</strong>
+        </div>
+      </div>
+      <nav class="workspace-tabs" aria-label="工作区标签">
+        <button
+          v-for="tab in workspace.tabs"
+          :key="tab.path"
+          class="workspace-tab"
+          :class="{ 'is-active': workspace.activePath === tab.path }"
+          :aria-current="workspace.activePath === tab.path ? 'page' : undefined"
+          @click="activateTab(tab.path)"
+        >
+          <span>{{ tab.title }}</span>
+          <span
+            v-if="tab.closable"
+            class="tab-close"
+            role="button"
+            :aria-label="'关闭 ' + tab.title"
+            tabindex="0"
+            @click="closeTab(tab.path, $event)"
+            @keydown.enter.stop="closeTab(tab.path, $event)"
+          >
+            <ZX :size="12" />
+          </span>
+        </button>
+      </nav>
+      <div class="header-actions">
+        <ZIconButton label="全屏" @click="toggleFullscreen">
+          <ZMaximize2 />
+        </ZIconButton>
+        <ZIconButton label="通知">
+          <ZBell />
+        </ZIconButton>
+        <ZIconButton label="用户">
+          <ZUserRound />
+        </ZIconButton>
+      </div>
+    </header>
+    <div class="workspace-body" :class="{ 'is-nav-collapsed': navCollapsed }">
+      <aside
+        ref="navRoot"
+        class="ztx-sidebar"
+        :class="{ 'is-collapsed': navCollapsed, 'has-collapsed-menu': collapsedMenuOpen }"
+        aria-label="一级菜单"
+        @pointerenter="clearCloseTimer"
+      >
+        <nav class="sidebar-navigation" aria-label="一级菜单">
+          <div v-for="module in menuModules" :key="module.id" class="module-group">
+            <button
+              class="module-entry"
+              :aria-label="module.label"
+              :title="navCollapsed ? module.label : undefined"
+              :class="{ 'is-active': activeModuleId === module.id }"
+              :aria-expanded="activeModuleId === module.id && !navCollapsed"
+              @click="selectModule(module.id)"
+            >
+              <component :is="module.icon" :size="19" :stroke-width="1.8" />
+              <span>{{ module.label }}</span>
+              <ZChevronRight
+                v-if="!navCollapsed"
+                class="module-chevron"
+                :class="{ 'is-expanded': activeModuleId === module.id }"
+                :size="15"
+              />
+            </button>
+            <div
+              v-if="activeModuleId === module.id && !navCollapsed"
+              class="inline-category-list"
+              :aria-label="module.label + '二级菜单'"
+            >
+              <button
+                v-for="(category, index) in module.categories"
+                :key="category.id"
+                :ref="element => setCategoryButton(category.id, element as HTMLButtonElement | null)"
+                class="category-entry"
+                :class="{ 'is-open': openCategoryId === category.id && flyoutOpen }"
+                :aria-expanded="openCategoryId === category.id && flyoutOpen"
+                aria-haspopup="menu"
+                @pointerenter="onCategoryPointerEnter(category.id)"
+                @click="onCategoryClick(category.id)"
+                @keydown="onCategoryKeydown($event, category.id, index)"
+              >
+                <span>{{ category.label }}</span>
+                <ZChevronRight :size="15" />
+              </button>
+            </div>
+            <div
+              v-if="activeModuleId === module.id && navCollapsed && collapsedMenuOpen"
+              class="collapsed-category-popover"
+              :aria-label="module.label + '二级菜单'"
+            >
+              <button
+                v-for="(category, index) in module.categories"
+                :key="category.id"
+                :ref="element => setCategoryButton(category.id, element as HTMLButtonElement | null)"
+                class="category-entry"
+                :class="{ 'is-open': openCategoryId === category.id && flyoutOpen }"
+                :aria-expanded="openCategoryId === category.id && flyoutOpen"
+                aria-haspopup="menu"
+                @pointerenter="onCategoryPointerEnter(category.id)"
+                @click="onCategoryClick(category.id)"
+                @keydown="onCategoryKeydown($event, category.id, index)"
+              >
+                <span>{{ category.label }}</span>
+                <ZChevronRight :size="15" />
+              </button>
+            </div>
+          </div>
+        </nav>
+        <div class="rail-footer">
+          <span class="environment-dot" />
+          <span class="environment-label">演示环境</span>
+          <button
+            class="nav-collapse-toggle"
+            type="button"
+            :aria-label="navCollapsed ? '展开导航栏' : '折叠导航栏'"
+            :aria-expanded="!navCollapsed"
+            @click="toggleNavigation"
+          >
+            <ZChevronRight :size="17" />
+          </button>
+        </div>
+        <Transition name="flyout">
+          <div
+            v-if="flyoutOpen && activeCategory"
+            class="feature-flyout"
+            :style="{ top: flyoutTop + 'px' }"
+            role="menu"
+            :aria-label="activeCategory.label + '功能菜单'"
+            @pointerenter="clearCloseTimer"
+            @pointerleave="scheduleClose"
+            @keydown="onFlyoutKeydown"
+          >
+            <div class="flyout-heading">
+              <div>
+                <span class="eyebrow">FUNCTIONS</span>
+                <strong>{{ activeCategory.label }}</strong>
+              </div>
+            </div>
+            <button
+              v-for="(feature, index) in activeCategory.features"
+              :key="feature.id"
+              class="feature-entry"
+              role="menuitem"
+              :data-feature-first="index === 0 ? 'true' : undefined"
+              @click="navigateTo(feature.path)"
+            >
+              <span class="feature-copy">
+                <strong>{{ feature.label }}</strong>
+                <small>{{ feature.description }}</small>
+              </span>
+              <ZChevronRight :size="14" />
+            </button>
+          </div>
+        </Transition>
+      </aside>
+      <main class="workspace-main">
+        <RouterView />
+        <footer class="workspace-footer">
+          <span>© 2026 ZTX · 制造业低代码 ERP 平台</span>
+          <span>平台工作区 <i /> 安全连接</span>
+        </footer>
+      </main>
     </div>
-   </nav>
-   <div class="rail-footer"><span class="environment-dot"/><span class="environment-label">演示环境</span><button class="nav-collapse-toggle" type="button" :aria-label="navCollapsed?'展开导航栏':'折叠导航栏'" :aria-expanded="!navCollapsed" @click="toggleNavigation"><ZChevronRight :size="17"/></button></div>
-   <Transition name="flyout">
-    <div v-if="flyoutOpen&&activeCategory" class="feature-flyout" :style="{top:flyoutTop+'px'}" role="menu" :aria-label="activeCategory.label+'功能菜单'" @pointerenter="clearCloseTimer" @pointerleave="scheduleClose" @keydown="onFlyoutKeydown">
-     <div class="flyout-heading"><div><span class="eyebrow">FUNCTIONS</span><strong>{{activeCategory.label}}</strong></div></div>
-     <button v-for="(feature,index) in activeCategory.features" :key="feature.id" class="feature-entry" role="menuitem" :data-feature-first="index===0?'true':undefined" @click="navigateTo(feature.path)">
-      <span class="feature-copy"><strong>{{feature.label}}</strong><small>{{feature.description}}</small></span><ZChevronRight :size="14"/>
-     </button>
-    </div>
-   </Transition>
-  </aside>
-  <main class="workspace-main"><RouterView/><footer class="workspace-footer"><span>© 2026 ZTX · 制造业低代码 ERP 平台</span><span>平台工作区 <i/> 安全连接</span></footer></main>
- </div>
-</div>
+  </div>
 </template>
