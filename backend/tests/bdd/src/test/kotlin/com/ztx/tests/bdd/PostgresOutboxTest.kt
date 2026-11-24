@@ -137,6 +137,38 @@ class PostgresOutboxTest {
     }
 
     @Test
+    fun expiredLeaseCannotBeRenewedOrCommitConsumerEffects() {
+        // Given：Worker A 领取任务后超过租约期限，且尚未被其他 Worker 接管
+        val id = await(database.withTransaction { connection ->
+            store.enqueue(connection, event("expired-owner:${UUID.randomUUID()}"))
+        })
+        val task = await(store.claim("worker-a", batchSize = 1, leaseSeconds = 1, taskTypes = setOf("test.created"))).single()
+        Thread.sleep(1200)
+
+        // When：过期 Worker 尝试续租、执行副作用或记录失败
+        assertFalse(await(store.renew(task, leaseSeconds = 30)))
+        val effectId = UUID.randomUUID()
+        val staleProcess = database.withTransaction { connection ->
+            store.process(connection, task) { transaction ->
+                transaction.preparedQuery("INSERT INTO platform.outbox_probe(id, value) VALUES ($1, $2)")
+                    .execute(Tuple.of(effectId.toString(), "stale-worker")).mapEmpty()
+            }
+        }
+        assertThrows(ExecutionException::class.java) { await(staleProcess) }
+        assertThrows(ExecutionException::class.java) {
+            await(store.fail(task, IllegalStateException("stale worker failure")))
+        }
+
+        // Then：过期 Worker 的数据库副作用和幂等标记回滚，任务可由新 Worker 接管
+        assertEquals(0L, scalar("SELECT count(*) FROM platform.outbox_probe WHERE id = '$effectId'"))
+        assertEquals(0L, scalar("SELECT count(*) FROM platform.processed_task"))
+        val recovered = await(store.claim("worker-b", batchSize = 1, leaseSeconds = 30, taskTypes = setOf("test.created"))).single()
+        assertEquals(id, recovered.id)
+        assertEquals(2, recovered.attemptCount)
+        assertNotEquals(task.leaseToken, recovered.leaseToken)
+    }
+
+    @Test
     fun failedTaskCanBeManuallyReplayedAfterRetryLimit() {
         // Given：任务最大尝试次数为 1，首次领取后处理失败
         val id = await(database.withTransaction { connection ->
