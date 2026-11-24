@@ -117,6 +117,8 @@ class PostgresOutboxTest {
         // Then：两个 Worker 领取到的任务 ID 没有交集
         assertEquals(20, claimed.size)
         assertEquals(20, claimed.map { it.id }.distinct().size)
+        // Then：JSONB 载荷通过 Vert.x JSON codec 解码后仍保留业务字段
+        assertTrue(claimed.all { it.payload.getString("value")?.startsWith("concurrent:") == true })
         assertEquals(20L, scalar("SELECT count(*) FROM platform.background_task WHERE status = 'RUNNING'"))
     }
 
