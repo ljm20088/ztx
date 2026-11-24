@@ -34,11 +34,6 @@ onMounted(async () => {
   catch (cause) { error.value = cause instanceof Error ? cause.message : '无法读取平台身份' }
 })
 
-async function logout() {
-  await request('/api/v1/platform/auth/logout', 'POST')
-  await router.replace('/platform/login')
-}
-
 async function beginMfa() {
   try {
     enrollment.value = await request('/api/v1/platform/auth/mfa/enroll', 'POST')
@@ -73,7 +68,7 @@ async function changePassword() {
   <section class="platform-admin-page">
     <header class="platform-admin-heading">
       <div><span class="eyebrow">PLATFORM CONTROL PLANE</span><h1>平台控制台</h1><p>平台级身份与安全设置。此处不管理租户业务用户。</p></div>
-      <button class="admin-secondary" @click="logout">退出登录</button>
+      
     </header>
     <p v-if="message" class="admin-message" role="status">{{ message }}</p>
     <p v-if="error" class="admin-error" role="alert">{{ error }}</p>
@@ -86,7 +81,7 @@ async function changePassword() {
         <span class="eyebrow">ACCOUNT SECURITY</span><h2>安全设置</h2>
         <div class="admin-action-row"><div><strong>多因素认证（TOTP）</strong><small>使用认证器动态验证码保护平台登录。</small></div><button class="admin-primary" :disabled="admin.mfaEnabled" @click="beginMfa">{{ admin.mfaEnabled ? '已启用' : '设置 MFA' }}</button></div>
         <div v-if="enrollment" class="mfa-enrollment"><label>手动录入密钥</label><code>{{ enrollment.secret }}</code><small>认证器 URI：{{ enrollment.otpauthUri }}</small><input v-model="code" inputmode="numeric" maxlength="6" placeholder="输入 6 位动态验证码" /><button class="admin-primary" @click="enableMfa">验证并启用</button></div>
-        <div class="password-form"><label>当前密码<input v-model="oldPassword" type="password" autocomplete="current-password" /></label><label>新密码<input v-model="newPassword" type="password" autocomplete="new-password" placeholder="至少 8 位，包含字母和数字" /></label><button class="admin-secondary" @click="changePassword">更新密码</button></div>
+        <div id="password-settings" class="password-form"><label>当前密码<input v-model="oldPassword" type="password" autocomplete="current-password" /></label><label>新密码<input v-model="newPassword" type="password" autocomplete="new-password" placeholder="至少 8 位，包含字母和数字" /></label><button class="admin-secondary" @click="changePassword">更新密码</button></div>
       </section>
     </div>
   </section>
