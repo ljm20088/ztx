@@ -13,6 +13,7 @@ snakeyaml = "2.4"
 vertx-core = { module = "io.vertx:vertx-core", version.ref = "vertx" }
 vertx-web = { module = "io.vertx:vertx-web", version.ref = "vertx" }
 vertx-pg-client = { module = "io.vertx:vertx-pg-client", version.ref = "vertx" }
+vertx-codegen-annotations = { module = "io.vertx:vertx-codegen-annotations", version.ref = "vertx" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 postgresql-driver = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
