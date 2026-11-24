@@ -10,12 +10,14 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.nio.ByteBuffer
 import java.nio.file.Path
+import java.security.MessageDigest
 import java.sql.DriverManager
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
@@ -31,7 +33,7 @@ class PlatformAuthIntegrationTest {
     }
 
     @Test
-    fun oneTimeSetupLoginLogoutAndTotpAreEnforced() {
+    fun setupExpiryReplaySessionExpiryMfaAndLoginThrottlingAreEnforced() {
         // Given：全新的控制面数据库，尚未创建任何平台管理员
         val projectDir = Path.of(System.getProperty("ztx.projectDir"))
         val config = DatabaseConfig(
@@ -49,7 +51,23 @@ class PlatformAuthIntegrationTest {
         val service = PlatformAuthService(database, "test-mfa-encryption-key-32-bytes-minimum")
 
         try {
-            // When：部署人员生成一次性凭据，并据此创建首个平台管理员
+            // Given：部署人员生成了一次性初始化凭据，随后该凭据超过有效期
+            val expiredToken = service.createSetupCredential().await()
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.prepareStatement(
+                    "UPDATE iam.platform_admin_setup_token SET expires_at = clock_timestamp() - INTERVAL '1 second' WHERE token_hash = ?"
+                ).use { statement ->
+                    statement.setString(1, sha256(expiredToken))
+                    statement.executeUpdate()
+                }
+            }
+
+            // When / Then：过期初始化凭据不能创建管理员
+            assertThrows(ExecutionException::class.java) {
+                service.initialize(expiredToken, "expired.admin", "ZtxAdmin123", "127.0.0.1").await()
+            }
+
+            // When：重新生成有效凭据并创建首个平台管理员
             val setupToken = service.createSetupCredential().await()
             val admin = service.initialize(setupToken, "platform.admin", "ZtxAdmin123", "127.0.0.1").await()
 
@@ -77,16 +95,38 @@ class PlatformAuthIntegrationTest {
                 "platform.admin", "ZtxAdmin123", currentTotp(enrollment.secret), "127.0.0.1", "bdd-test"
             ).await()
 
-            // Then：登录成功且退出后会话立即失效
+            // Then：会话在有效期内可认证；超过有效期后服务端拒绝该会话
             assertNotNull(service.authenticate(mfaLogin.sessionToken).await())
-            service.logout(mfaLogin.sessionToken, "127.0.0.1").await()
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.prepareStatement(
+                    "UPDATE iam.platform_admin_session SET expires_at = clock_timestamp() - INTERVAL '1 second' WHERE token_hash = ?"
+                ).use { statement ->
+                    statement.setString(1, sha256(mfaLogin.sessionToken))
+                    statement.executeUpdate()
+                }
+            }
             assertNull(service.authenticate(mfaLogin.sessionToken).await())
+
+            // Given：同一来源 IP 与账号在 15 分钟窗口内连续输错密码
+            repeat(5) {
+                // When / Then：连续错误凭据均被拒绝
+                assertThrows(ExecutionException::class.java) {
+                    service.login("platform.admin", "WrongPass123", currentTotp(enrollment.secret),
+                        "127.0.0.1", "bdd-test").await()
+                }
+            }
+
+            // Then：达到失败阈值后，即使提供正确密码和 MFA 也必须暂时拒绝
+            assertThrows(ExecutionException::class.java) {
+                service.login("platform.admin", "ZtxAdmin123", currentTotp(enrollment.secret),
+                    "127.0.0.1", "bdd-test").await()
+            }
 
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
                 connection.createStatement().use { statement ->
                     statement.executeQuery("SELECT count(*) FROM audit.platform_security_event").use { rows ->
                         rows.next()
-                        assertEquals(true, rows.getInt(1) >= 6)
+                        assertTrue(rows.getInt(1) >= 13)
                     }
                 }
             }
@@ -120,6 +160,10 @@ class PlatformAuthIntegrationTest {
             (digest[offset + 3].toInt() and 0xff)
         return (binary % 1_000_000).toString().padStart(6, '0')
     }
+
+    private fun sha256(value: String): String =
+        MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
+            .joinToString("") { "%02x".format(it) }
 
     private fun <T> Future<T>.await(): T =
         toCompletionStage().toCompletableFuture().get(30, TimeUnit.SECONDS)
