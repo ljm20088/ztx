@@ -1,0 +1,1 @@
+export const testEnvironmentName = 'ztx-frontend-test' as const
