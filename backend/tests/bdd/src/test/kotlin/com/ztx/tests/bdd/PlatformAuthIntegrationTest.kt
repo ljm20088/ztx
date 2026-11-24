@@ -201,7 +201,7 @@ class PlatformAuthIntegrationTest {
             .joinToString("") { "%02x".format(it) }
 
     private fun assertFailureContaining(expectedMessage: String, action: () -> Unit) {
-        val failure = assertThrows(Exception::class.java, action)
+        val failure = assertThrows(Exception::class.java) { action() }
         val messages = generateSequence(failure as Throwable?) { it.cause }
             .mapNotNull { it.message }
         assertTrue(messages.any { expectedMessage in it }, "异常链中应包含：$expectedMessage")
