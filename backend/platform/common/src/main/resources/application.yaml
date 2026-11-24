@@ -1,11 +1,9 @@
 # ZTX 默认配置。环境差异放在 application-{profile}.yaml 中。
 app:
   role: server
-
 server:
   host: 0.0.0.0
   port: 8080
-
 database:
   host: localhost
   port: 5432
@@ -15,6 +13,9 @@ database:
   pool-size: 10
   migrations: filesystem:database/migrations
   migrate-on-start: false
-
+security:
+  # 生产环境必须通过外部配置或 ZTX_MFA_ENCRYPTION_KEY 提供至少 32 字节随机密钥。
+  mfa-encryption-key: ""
+  secure-cookies: false
 logging:
   level: INFO

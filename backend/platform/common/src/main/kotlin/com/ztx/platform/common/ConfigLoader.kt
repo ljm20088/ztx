@@ -98,6 +98,10 @@ object ConfigLoader {
         env["ZTX_APP_ROLE"]?.let { app["role"] = it }
         if (app.isNotEmpty()) root["app"] = app
         env["ZTX_LOG_LEVEL"]?.let { root["logging"] = mapOf("level" to it) }
+        val security = linkedMapOf<String, Any?>()
+        env["ZTX_MFA_ENCRYPTION_KEY"]?.let { security["mfa-encryption-key"] = it }
+        env["ZTX_SECURE_COOKIES"]?.let { security["secure-cookies"] = it }
+        if (security.isNotEmpty()) root["security"] = security
         return root
     }
 

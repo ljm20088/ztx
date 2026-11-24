@@ -5,6 +5,8 @@ data class AppConfig(
     val httpHost: String,
     val httpPort: Int,
     val migrateOnStart: Boolean,
+    val mfaEncryptionKey: String,
+    val secureCookies: Boolean,
     val database: DatabaseConfig
 ) {
     companion object {
@@ -20,14 +22,16 @@ data class AppConfig(
             val app = config.section("app")
             val server = config.section("server")
             val database = config.section("database")
+            val security = config.section("security")
             val port = server.int("port", 8080)
             require(port in 1..65535) { "server.port 必须在 1 到 65535 之间" }
-            val migrate = database.boolean("migrate-on-start", false)
             return AppConfig(
                 role = RuntimeRole.fromEnvironment(app.string("role", "server")),
                 httpHost = server.string("host", "0.0.0.0"),
                 httpPort = port,
-                migrateOnStart = migrate,
+                migrateOnStart = database.boolean("migrate-on-start", false),
+                mfaEncryptionKey = security.string("mfa-encryption-key", ""),
+                secureCookies = security.boolean("secure-cookies", false),
                 database = DatabaseConfig.fromConfig(database)
             )
         }
