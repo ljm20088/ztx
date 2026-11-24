@@ -125,7 +125,8 @@ jobs:
           grep -F "NOT_FOUND" /tmp/ztx-proxy-api.json
           ./ztx stop
 
-          echo "验证 ./ztx start："
+          echo "验证 ./ztx start（前端构建与启动分离）："
+          pnpm --dir frontend build
           ./ztx start
           curl -fsS http://127.0.0.1:8080/ >/tmp/ztx-vertx-home.html
           grep -F "assets/" /tmp/ztx-vertx-home.html

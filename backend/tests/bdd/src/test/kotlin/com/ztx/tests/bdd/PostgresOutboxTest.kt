@@ -85,6 +85,23 @@ class PostgresOutboxTest {
     }
 
     @Test
+    fun transactionCanCommitWhenWorkReturnsVoid() {
+        // Given：事务工作只执行数据库写入，返回 Vert.x 的 Future<Void>
+        val id = UUID.randomUUID()
+        val operation = database.withTransaction { connection ->
+            connection.preparedQuery("INSERT INTO platform.outbox_probe(id, value) VALUES ($1, $2)")
+                .execute(Tuple.of(id, "void-transaction"))
+                .mapEmpty()
+        }
+
+        // When：事务正常完成
+        await(operation)
+
+        // Then：Void 的 null 成功结果不会被事务包装层误判为异常
+        assertEquals(1L, scalar("SELECT count(*) FROM platform.outbox_probe WHERE id = '$id'"))
+    }
+
+    @Test
     fun duplicateIdempotencyKeyDoesNotCreateAnotherEventOrTask() {
         // Given：调用方为同一业务事件重复使用幂等键
         val event = event("duplicate:${UUID.randomUUID()}")

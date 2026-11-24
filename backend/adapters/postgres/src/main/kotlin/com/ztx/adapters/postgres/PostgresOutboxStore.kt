@@ -46,7 +46,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
             RETURNING id
             """.trimIndent()
         ).execute(Tuple.of(
-            eventId.toString(), event.eventType, event.payload.encode(),
+            eventId, event.eventType, event.payload.encode(),
             event.aggregateType, event.aggregateId, event.idempotencyKey, event.correlationId
         )).compose { inserted ->
             if (inserted.rowCount() == 0) {
@@ -64,7 +64,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
                     VALUES ($1, $2, $3, $4, $5, $6)
                     """.trimIndent()
                 ).execute(Tuple.of(
-                    eventId.toString(), eventId.toString(), event.eventType,
+                    eventId, eventId, event.eventType,
                     event.idempotencyKey, event.maxAttempts, event.requestedBy
                 )).map(eventId)
             }
@@ -133,7 +133,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
                 WHERE id = $1 AND status = 'RUNNING' AND lease_token = $2
                   AND lease_until > clock_timestamp()
                 """.trimIndent()
-            ).execute(Tuple.of(task.id.toString(), task.leaseToken.toString(), leaseSeconds))
+            ).execute(Tuple.of(task.id, task.leaseToken, leaseSeconds))
                 .map { it.rowCount() == 1 }
         }
     }
@@ -159,7 +159,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
                     WHERE id = $1 AND status = 'RUNNING' AND lease_token = $2
                       AND lease_until > clock_timestamp()
                     """.trimIndent()
-                ).execute(Tuple.of(task.id.toString(), task.leaseToken.toString())).compose { updated ->
+                ).execute(Tuple.of(task.id, task.leaseToken)).compose { updated ->
                     if (updated.rowCount() == 1) Future.succeededFuture()
                     else Future.failedFuture("任务租约已失效，拒绝提交处理结果")
                 }
@@ -190,7 +190,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
                   AND lease_until > clock_timestamp()
                 """.trimIndent()
             ).execute(Tuple.of(
-                task.id.toString(), task.leaseToken.toString(),
+                task.id, task.leaseToken,
                 baseDelaySeconds, maxDelaySeconds, summary
             )).compose { updated ->
                 if (updated.rowCount() == 1) Future.succeededFuture()
@@ -212,7 +212,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
                     updated_at = clock_timestamp()
                 WHERE id = $1 AND status = 'DEAD'
                 """.trimIndent()
-            ).execute(Tuple.of(taskId.toString(), operator)).map { it.rowCount() == 1 }
+            ).execute(Tuple.of(taskId, operator)).map { it.rowCount() == 1 }
         }
     }
 

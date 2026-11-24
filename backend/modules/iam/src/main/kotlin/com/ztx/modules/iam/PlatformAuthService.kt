@@ -69,7 +69,7 @@ class PlatformAuthService(
                         connection.preparedQuery(
                             """INSERT INTO iam.platform_admin_setup_token (id, token_hash, expires_at)
                                VALUES ($1, $2, clock_timestamp() + INTERVAL '15 minutes')"""
-                        ).execute(Tuple.of(UUID.randomUUID().toString(), sha256(token))).map(token)
+                        ).execute(Tuple.of(UUID.randomUUID(), sha256(token))).map(token)
                     }
                 }
             }
@@ -101,17 +101,17 @@ class PlatformAuthService(
                     val rawSession = randomToken(32)
                     connection.preparedQuery(
                         "INSERT INTO iam.platform_admin (id, username, password_hash) VALUES ($1, $2, $3)"
-                    ).execute(Tuple.of(id.toString(), username, passwordHash)).compose {
+                    ).execute(Tuple.of(id, username, passwordHash)).compose {
                         connection.preparedQuery(
                             """UPDATE iam.platform_admin_setup_token SET consumed_at = clock_timestamp()
                                WHERE id = $1 AND consumed_at IS NULL"""
-                        ).execute(Tuple.of(tokens.first().getString("id"))).compose { consumed ->
+                        ).execute(Tuple.of(UUID.fromString(tokens.first().getString("id")))).compose { consumed ->
                             if (consumed.rowCount() != 1) Future.failedFuture("初始化凭据已被使用")
                             else connection.preparedQuery(
                                 """INSERT INTO iam.platform_admin_session
                                    (id, admin_id, token_hash, expires_at, user_agent, ip_address)
                                    VALUES ($1, $2, $3, clock_timestamp() + INTERVAL '8 hours', $4, $5::inet)"""
-                            ).execute(Tuple.of(UUID.randomUUID().toString(), id.toString(), sha256(rawSession),
+                            ).execute(Tuple.of(UUID.randomUUID(), id, sha256(rawSession),
                                 userAgent?.take(512), postgresInet(ip))).compose {
                                 audit(connection, id, "ADMIN_INITIALIZED", "SUCCESS", ip)
                                     .map(PlatformLogin(rawSession, PlatformAdmin(id, username, false)))
@@ -160,12 +160,12 @@ class PlatformAuthService(
                                             """INSERT INTO iam.platform_admin_session
                                                (id, admin_id, token_hash, expires_at, user_agent, ip_address)
                                                VALUES ($1, $2, $3, clock_timestamp() + INTERVAL '8 hours', $4, $5::inet)"""
-                                        ).execute(Tuple.of(UUID.randomUUID().toString(), adminId.toString(),
+                                        ).execute(Tuple.of(UUID.randomUUID(), adminId,
                                             sha256(rawSession), userAgent?.take(512), postgresInet(ip)))
                                     }.compose {
                                         connection.preparedQuery(
                                             "UPDATE iam.platform_admin SET last_login_at = clock_timestamp() WHERE id = $1"
-                                        ).execute(Tuple.of(adminId.toString()))
+                                        ).execute(Tuple.of(adminId))
                                     }.compose {
                                         audit(connection, adminId, "LOGIN", "SUCCESS", ip)
                                     }.map(LoginOutcome(PlatformLogin(rawSession, PlatformAdmin(adminId, authenticatedAdmin.getString("username"), authenticatedAdmin.getBoolean("mfa_enabled")))))
@@ -211,17 +211,17 @@ class PlatformAuthService(
         val newHash = hashPassword(newPassword)
         return database.withTransaction { connection ->
             connection.preparedQuery("SELECT password_hash FROM iam.platform_admin WHERE id = $1")
-                .execute(Tuple.of(admin.id.toString())).compose { rows ->
+                .execute(Tuple.of(admin.id)).compose { rows ->
                     if (rows.size() != 1 || !verifyPassword(oldPassword, rows.first().getString("password_hash"))) {
                         Future.failedFuture("当前密码不正确")
                     } else {
                         connection.preparedQuery(
                             "UPDATE iam.platform_admin SET password_hash = $2, updated_at = clock_timestamp() WHERE id = $1"
-                        ).execute(Tuple.of(admin.id.toString(), newHash)).compose {
+                        ).execute(Tuple.of(admin.id, newHash)).compose {
                             connection.preparedQuery(
                                 """UPDATE iam.platform_admin_session SET revoked_at = clock_timestamp()
                                    WHERE admin_id = $1 AND token_hash <> $2 AND revoked_at IS NULL"""
-                            ).execute(Tuple.of(admin.id.toString(), sha256(currentToken)))
+                            ).execute(Tuple.of(admin.id, sha256(currentToken)))
                         }.compose {
                             audit(connection, admin.id, "PASSWORD_CHANGED", "SUCCESS", ip)
                         }
@@ -239,7 +239,7 @@ class PlatformAuthService(
             connection.preparedQuery(
                 """UPDATE iam.platform_admin SET mfa_secret_ciphertext = $2, mfa_enabled = FALSE,
                    updated_at = clock_timestamp() WHERE id = $1"""
-            ).execute(Tuple.of(admin.id.toString(), encrypt(secret))).compose {
+            ).execute(Tuple.of(admin.id, encrypt(secret))).compose {
                 audit(connection, admin.id, "MFA_ENROLLMENT_STARTED", "SUCCESS", null)
             }.map {
                 val label = "ZTX:" + admin.username
@@ -252,14 +252,14 @@ class PlatformAuthService(
     fun enableMfa(admin: PlatformAdmin, code: String, ip: String?): Future<Void> =
         database.withTransaction { connection ->
             connection.preparedQuery("SELECT mfa_secret_ciphertext FROM iam.platform_admin WHERE id = $1")
-                .execute(Tuple.of(admin.id.toString())).compose { rows ->
+                .execute(Tuple.of(admin.id)).compose { rows ->
                     val encrypted = rows.firstOrNull()?.getString("mfa_secret_ciphertext")
                     if (encrypted.isNullOrBlank() || !verifyTotp(decrypt(encrypted), code)) {
                         audit(connection, admin.id, "MFA_ENABLED", "FAILURE", ip).map<Boolean>(false)
                     } else {
                         connection.preparedQuery(
                             "UPDATE iam.platform_admin SET mfa_enabled = TRUE, updated_at = clock_timestamp() WHERE id = $1"
-                        ).execute(Tuple.of(admin.id.toString())).compose {
+                        ).execute(Tuple.of(admin.id)).compose {
                             audit(connection, admin.id, "MFA_ENABLED", "SUCCESS", ip).map<Boolean>(true)
                         }
                     }
@@ -289,7 +289,7 @@ class PlatformAuthService(
         connection.preparedQuery(
             """INSERT INTO audit.platform_security_event (id, admin_id, event_type, outcome, source_ip)
                VALUES ($1, $2, $3, $4, $5::inet)"""
-        ).execute(Tuple.of(UUID.randomUUID().toString(), adminId?.toString(), event, outcome, postgresInet(ip))).mapEmpty()
+        ).execute(Tuple.of(UUID.randomUUID(), adminId, event, outcome, postgresInet(ip))).mapEmpty()
 
     private fun encrypt(value: String): String {
         val nonce = ByteArray(12).also(random::nextBytes)

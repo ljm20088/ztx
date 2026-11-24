@@ -18,7 +18,7 @@ ZTX 项目启动器
 
 用法：
   ./ztx dev      启动完整开发环境（Vite + Server + Worker + PostgreSQL）
-  ./ztx start    构建前端，由 Vert.x 托管静态页面和 API，并启动 Worker
+  ./ztx start    启动已打包 Web 资源的 Vert.x Server 和 Worker（不需要 Node.js）
   ./ztx stop     停止本启动器启动的进程
   ./ztx status   查看运行状态
   ./ztx help     显示帮助
@@ -177,19 +177,127 @@ ZTX 开发环境已启动：
 EOF
 }
 
+has_packaged_webroot() {
+  local jar_file
+  for jar_file in "$ROOT_DIR"/backend/apps/server/build/install/server/lib/*.jar; do
+    [[ -f "$jar_file" ]] || continue
+    if jar tf "$jar_file" 2>/dev/null | grep -Fqx 'webroot/index.html'; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 start() {
   check_java
-  check_frontend_toolchain
   prepare_state
   ensure_stopped
   check_database
-  echo "安装前端依赖并构建静态资源..."
-  pnpm --dir "$ROOT_DIR/frontend" install --frozen-lockfile
-  pnpm --dir "$ROOT_DIR/frontend" build
-  echo "将前端静态资源打包进 Vert.x Server..."
-  "$ROOT_DIR/gradlew" --no-daemon :apps:server:installDist \
-    "-Pztx.frontendDist=$ROOT_DIR/frontend/apps/erp-web/dist"
+
+  local frontend_dist="${ZTX_FRONTEND_DIST:-$ROOT_DIR/frontend/apps/erp-web/dist}"
   local executable="$ROOT_DIR/backend/apps/server/build/install/server/bin/server"
+  local source_webroot="$ROOT_DIR/backend/apps/server/src/main/resources/webroot"
+
+  if [[ -d "$frontend_dist" && -f "$frontend_dist/index.html" ]]; then
+    echo "将已构建的前端静态资源打包进 Vert.x Server..."
+    "$ROOT_DIR/gradlew" --no-daemon :apps:server:installDist "-Pztx.frontendDist=$frontend_dist"
+  elif [[ -f "$source_webroot/index.html" ]]; then
+    echo "使用 Server classpath 中已提供的 Web 静态资源..."
+    "$ROOT_DIR/gradlew" --no-daemon :apps:server:installDist
+  elif [[ -x "$executable" ]] && has_packaged_webroot; then
+    echo "复用已包含前端静态资源的 Server 发行包..."
+  else
+    echo "缺少预构建的前端静态资源或完整 Server 发行包。" >&2
+    echo "请使用发布流水线生成包含 webroot/index.html 的发行包，或设置 ZTX_FRONTEND_DIST 指向已构建的 dist 目录。" >&2
+    echo "开发环境请使用 ./ztx dev（需要 Node.js 和 pnpm 以支持 Vite 热更新）。" >&2
+    exit 1
+  fi
+
+  [[ -x "$executable" ]] || {
+    echo "未找到 Server 发布程序：$executable" >&2
+    exit 1
+  }
+  start_service server "$executable" --ztx.profile=dev
+  wait_for_http "$HEALTH_URL" "API Server/Web" "$LOG_DIR/server.log"
+  start_service worker env ZTX_APP_ROLE=worker ZTX_DB_MIGRATE_ON_START=false "$executable" --ztx.profile=dev
+  wait_for_worker
+  cat <<EOF
+
+ZTX 已启动（由 Vert.x 提供页面和 API）：
+  Web/API： http://localhost:$HTTP_PORT
+  健康检查：$HEALTH_URL
+
+日志目录：$LOG_DIR
+停止环境：./ztx stop
+EOF
+}
+stop() {
+  local name pid
+  local failed=0
+  for name in web worker server; do
+    local pid_file="$PID_DIR/$name.pid"
+    [[ -f "$pid_file" ]] || continue
+    pid="$(cat "$pid_file")"
+    if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+      echo "停止 $name（PID $pid）..."
+      kill -TERM "$pid" 2>/dev/null || true
+      for _ in $(seq 1 10); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 1
+      done
+      if kill -0 "$pid" 2>/dev/null; then
+        echo "$name 未正常退出，发送 SIGKILL" >&2
+        kill -KILL "$pid" 2>/dev/null || failed=1
+      fi
+    fi
+    rm -f "$pid_file"
+  done
+  if (( failed != 0 )); then
+    echo "部分进程未能停止，请检查 $LOG_DIR" >&2
+    return 1
+  fi
+  echo "ZTX 应用进程已停止。PostgreSQL 数据库保持运行；如需停止数据库，请执行 docker compose stop postgres。"
+}
+
+status() {
+  local name
+  for name in server worker web; do
+    if is_running "$name"; then
+      echo "$name：运行中（PID $(cat "$PID_DIR/$name.pid")）"
+    else
+      echo "$name：未运行"
+    fi
+  done
+  if command -v docker >/dev/null 2>&1; then
+    docker compose ps postgres 2>/dev/null || true
+  fi
+}
+
+case "${1:-help}" in
+  dev) dev ;;
+  start) start ;;
+  stop) stop ;;
+  status) status ;;
+  help|-h|--help) usage ;;
+  *)
+    echo "未知命令：$1" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
+; then exit 42; fi
+    done; then
+    echo "未检测到已打包的 webroot 静态资源。"
+    echo "请先通过发布流水线生成包含前端资源的 Server 发行包，或设置 ZTX_FRONTEND_DIST 指向已构建的 dist 目录。" >&2
+    exit 1
+  elif [[ -x "$executable" ]]; then
+    echo "复用已构建的 Server 发行包..."
+  else
+    echo "缺少 Server 发行包和预构建前端资源。" >&2
+    echo "开发模式请使用 ./ztx dev；无 Node.js 环境的部署请使用 CI 生成的完整发行包。" >&2
+    exit 1
+  fi
+
   [[ -x "$executable" ]] || {
     echo "未找到 Server 发布程序：$executable" >&2
     exit 1
