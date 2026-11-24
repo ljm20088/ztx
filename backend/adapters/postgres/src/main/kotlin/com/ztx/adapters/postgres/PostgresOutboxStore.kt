@@ -51,7 +51,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
         )).compose { inserted ->
             if (inserted.rowCount() == 0) {
                 connection.preparedQuery(
-                    "SELECT id FROM platform.outbox_event WHERE idempotency_key = $1"
+                    "SELECT id::text AS id FROM platform.outbox_event WHERE idempotency_key = $1"
                 ).execute(Tuple.of(event.idempotencyKey)).map { rows ->
                     require(rows.size() == 1) { "Outbox 幂等记录不存在" }
                     UUID.fromString(rows.first().getString("id"))
@@ -87,7 +87,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
             "AND task_type IN (${it.indices.joinToString { index -> "$${index + 4}" }})"
         } ?: ""
         val parameters = mutableListOf<Any>(workerId, batchSize, leaseSeconds)
-        types?.let(parameters::addAll)
+        if (types != null) parameters.addAll(types)
 
         return database.withTransaction { connection ->
             connection.preparedQuery(
