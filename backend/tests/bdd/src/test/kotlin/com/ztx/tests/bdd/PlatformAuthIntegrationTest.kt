@@ -200,6 +200,13 @@ class PlatformAuthIntegrationTest {
         MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
             .joinToString("") { "%02x".format(it) }
 
+    private fun assertFailureContaining(expectedMessage: String, action: () -> Unit) {
+        val failure = assertThrows(Exception::class.java, action)
+        val messages = generateSequence(failure as Throwable?) { it.cause }
+            .mapNotNull { it.message }
+        assertTrue(messages.any { expectedMessage in it }, "异常链中应包含：$expectedMessage")
+    }
+
     private fun <T> Future<T>.await(): T =
         toCompletionStage().toCompletableFuture().get(30, TimeUnit.SECONDS)
 }
