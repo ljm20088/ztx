@@ -41,9 +41,9 @@ test('一级点击、二级悬停后指针可移入三级浮层', async ({ page 
   // Given 用户位于工作台
   await page.goto('/workspace')
 
-  // When 点击一级菜单“开发中心”，悬停二级菜单“元数据开发”
-  await page.getByRole('button', { name: '开发中心', exact: true }).click()
-  const category = page.getByRole('button', { name: '元数据开发', exact: true })
+  // When 点击一级菜单“管理中心”，悬停二级菜单“低代码开发”
+  await page.getByRole('button', { name: '管理中心', exact: true }).click()
+  const category = page.getByRole('button', { name: '低代码开发', exact: true })
   await category.hover()
 
   // Then 三级功能菜单出现
@@ -70,23 +70,23 @@ test('二级菜单可点击展开并通过 Escape 关闭', async ({ page }) => {
   await page.getByRole('button', { name: '企业管理', exact: true }).click()
 
   // When 点击二级菜单“组织基础”
-  await page.getByRole('button', { name: '组织基础', exact: true }).click()
+  await page.getByRole('button', { name: '企业与组织', exact: true }).click()
 
   // Then 三级功能可见
-  await expect(page.getByRole('menuitem', { name: /企业管理/ })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: /企业信息/ })).toBeVisible()
 
   // When 按下 Escape
   await page.keyboard.press('Escape')
 
   // Then 三级浮层关闭
-  await expect(page.getByRole('menu', { name: '组织基础功能菜单' })).toBeHidden()
+  await expect(page.getByRole('menu', { name: '企业与组织功能菜单' })).toBeHidden()
 })
 
 test('键盘方向键可以展开三级菜单并移动焦点', async ({ page }) => {
   // Given 用户使用键盘聚焦二级菜单
   await page.goto('/workspace')
-  await page.getByRole('button', { name: '开发中心', exact: true }).click()
-  const category = page.getByRole('button', { name: '元数据开发', exact: true })
+  await page.getByRole('button', { name: '管理中心', exact: true }).click()
+  const category = page.getByRole('button', { name: '低代码开发', exact: true })
   await category.focus()
 
   // When 按下右方向键
@@ -102,8 +102,8 @@ test('触屏尺寸下可点击展开三级菜单', async ({ page }) => {
   await page.goto('/workspace')
 
   // When 点击一级与二级菜单
-  await page.getByRole('button', { name: '开发中心', exact: true }).click()
-  await page.getByRole('button', { name: '元数据开发', exact: true }).click()
+  await page.getByRole('button', { name: '管理中心', exact: true }).click()
+  await page.getByRole('button', { name: '低代码开发', exact: true }).click()
 
   // Then 三级功能可见且可点击
   await expect(page.getByRole('menuitem', { name: /表单设计器/ })).toBeVisible()
@@ -128,11 +128,11 @@ test('左侧导航可整体折叠、展开并记住状态', async ({ page }) => 
   await expect(page.locator('.workspace-body')).toHaveClass(/is-nav-collapsed/)
 
   // When 用户点击一个一级菜单图标
-  await page.getByRole('button', { name: '开发中心', exact: true }).click()
+  await page.getByRole('button', { name: '管理中心', exact: true }).click()
 
   // Then 折叠模式仍可打开二级菜单并访问三级功能
   await expect(page.locator('.collapsed-category-popover')).toBeVisible()
-  await page.getByRole('button', { name: '元数据开发', exact: true }).click()
+  await page.getByRole('button', { name: '低代码开发', exact: true }).click()
   await expect(page.getByRole('menuitem', { name: /DocType 管理/ })).toBeVisible()
 
   // When 用户重新展开导航栏并刷新页面
@@ -142,4 +142,48 @@ test('左侧导航可整体折叠、展开并记住状态', async ({ page }) => 
 
   // Then 展开状态被持久化
   await expect(page.getByRole('button', { name: '折叠导航栏' })).toBeVisible()
+})
+
+
+test('平台管理员可从右上角账户菜单进入控制台和账户安全', async ({ page }) => {
+  // Given：当前浏览器持有有效的平台管理员会话
+  await page.route('**/api/v1/platform/auth/me', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ id: 'admin-1', username: 'platform.admin', mfaEnabled: false }),
+  }))
+  await page.goto('/workspace')
+
+  // When：打开右上角用户菜单
+  await page.getByRole('button', { name: '用户账户菜单' }).click()
+
+  // Then：菜单显示当前身份、平台控制台和账户安全入口
+  await expect(page.getByText('platform.admin')).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: '平台控制台' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: '账户与安全（修改密码）' })).toBeVisible()
+
+  // When：进入账户安全
+  await page.getByRole('menuitem', { name: '账户与安全（修改密码）' }).click()
+
+  // Then：跳转到密码设置所在的控制台区域
+  await expect(page).toHaveURL(/\/platform\/admin#password-settings$/)
+  await expect(page.locator('#password-settings')).toBeVisible()
+})
+
+test('平台管理员可从右上角用户菜单安全退出', async ({ page }) => {
+  // Given：用户已登录平台控制面
+  await page.route('**/api/v1/platform/auth/me', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ id: 'admin-1', username: 'platform.admin', mfaEnabled: false }),
+  }))
+  await page.route('**/api/v1/platform/auth/logout', route => route.fulfill({ status: 204 }))
+  await page.goto('/workspace')
+
+  // When：打开用户菜单并退出登录
+  await page.getByRole('button', { name: '用户账户菜单' }).click()
+  await page.getByRole('menuitem', { name: '退出登录' }).click()
+
+  // Then：调用注销接口后返回平台登录页
+  await expect(page).toHaveURL(/\/platform\/login$/)
 })
