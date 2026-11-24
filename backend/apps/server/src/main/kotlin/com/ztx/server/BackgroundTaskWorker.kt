@@ -57,10 +57,10 @@ class BackgroundTaskWorker(
 
     private fun processOne(task: ClaimedBackgroundTask): Future<Void> {
         val handler = handlers[task.taskType] ?: return Future.succeededFuture()
-        val heartbeatId = vertx.setPeriodic((leaseSeconds * 1000L / 3).coerceAtLeast(1000)) {
-            store.renew(task, leaseSeconds).onFailure { error ->
-                logger.warn("后台任务租约续期失败，taskId={}", task.id, error)
-            }
+        val heartbeatId = vertx.setPeriodic((leaseSeconds * 1000L / 3).coerceAtLeast(100)) {
+            store.renew(task, leaseSeconds)
+                .onSuccess { renewed -> if (!renewed) logger.warn("后台任务租约已失效，taskId={}", task.id) }
+                .onFailure { error -> logger.warn("后台任务租约续期失败，taskId={}", task.id, error) }
         }
         return database.withTransaction { connection ->
             store.process(connection, task) { transaction -> handler.handle(task, transaction) }
