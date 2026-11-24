@@ -4,7 +4,7 @@ ZTX 是面向制造业的元数据驱动低代码 ERP 平台。当前仓库采�
 
 ## 本地开发与启动
 
-环境要求：JDK 21 LTS、Gradle Wrapper 9.7.0、Docker Engine / Docker Compose。完整开发环境另需 Node.js 26.13.1 和 pnpm 12.18.0。
+环境要求：JDK 21 LTS、Gradle Wrapper 9.7.0、Docker Engine / Docker Compose。只有前端开发热更新或自行构建 Vue 静态资源时才需要 Node.js 26.13.1 和 pnpm 12.18.0。
 
 首次初始化：
 
@@ -26,7 +26,7 @@ cp .env.example .env
 ./ztx start
 ```
 
-该命令构建 Vue 前端，将 dist 资源纳入 Server 发布产物，再启动 Server 和 Worker。浏览器访问 `http://localhost:8080`，页面和 API 使用同一个入口；此运行形态不需要 Vite 提供页面，但本地构建仍需要 Node.js 和 pnpm。
+该命令不调用 Node.js、pnpm 或 Vite。它使用已经构建好的 `frontend/apps/erp-web/dist`（可通过 `ZTX_FRONTEND_DIST` 指定）打包 Server；也可以直接复用发布流水线生成的、已包含 `webroot/index.html` 的 Server 发行包。随后启动 Server 和独立 Worker，浏览器访问 `http://localhost:8080`，页面和 API 使用同一个入口。若本机尚无前端构建产物，可在有 Node.js 的构建环境执行 `pnpm --dir frontend build`，或直接使用 CI 发布的完整发行包。
 
 其他命令：
 
@@ -101,7 +101,7 @@ curl -fsS http://127.0.0.1:18080/api/v1/platform/auth/setup-token
 ## 常用命令
 
 - `./ztx dev`：完整本地开发环境（Vite + Server + Worker + PostgreSQL）。
-- `./ztx start`：前端构建后由 Vert.x 托管 Web/API，并启动 Worker。
+- `./ztx start`：使用预构建静态资源启动 Vert.x Web/API，并启动 Worker；启动阶段不依赖 Node.js/pnpm。
 - `./ztx stop`：停止启动器管理的应用进程。
 - `./ztx status`：查看应用进程状态。
 - `./gradlew clean test build`：运行全部后端测试并构建。
