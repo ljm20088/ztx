@@ -80,6 +80,16 @@ is_running() {
   kill -0 "$pid" 2>/dev/null
 }
 
+ensure_stopped() {
+  local name
+  for name in server worker web; do
+    if is_running "$name"; then
+      echo "$name 已在运行。请先执行 ./ztx stop，再切换启动模式。" >&2
+      exit 1
+    fi
+  done
+}
+
 start_service() {
   local name="$1" log_file="$LOG_DIR/$1.log"
   shift
@@ -143,6 +153,7 @@ dev() {
   check_java
   check_frontend_toolchain
   prepare_state
+  ensure_stopped
   start_database_and_backend
   pnpm --dir "$ROOT_DIR/frontend" install --frozen-lockfile
   start_service web pnpm --dir "$ROOT_DIR/frontend" --filter @ztx/erp-web dev --host 0.0.0.0
@@ -163,6 +174,7 @@ start() {
   check_java
   check_frontend_toolchain
   prepare_state
+  ensure_stopped
   check_database
   echo "安装前端依赖并构建静态资源..."
   pnpm --dir "$ROOT_DIR/frontend" install --frozen-lockfile
