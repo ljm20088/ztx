@@ -90,7 +90,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
             .addValue(workerId)
             .addValue(batchSize)
             .addValue(leaseSeconds)
-        types?.forEach(parameters::addValue)
+        types?.forEach { parameters.addValue(it) }
 
         return database.withTransaction { connection ->
             connection.preparedQuery(
@@ -131,6 +131,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
                 SET lease_until = clock_timestamp() + ($3 * INTERVAL '1 second'),
                     updated_at = clock_timestamp()
                 WHERE id = $1 AND status = 'RUNNING' AND lease_token = $2
+                  AND lease_until > clock_timestamp()
                 """.trimIndent()
             ).execute(Tuple.of(task.id.toString(), task.leaseToken.toString(), leaseSeconds))
                 .map { it.rowCount() == 1 }
@@ -156,6 +157,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
                     SET status = 'SUCCEEDED', lease_owner = NULL, lease_token = NULL, lease_until = NULL,
                         last_error = NULL, completed_at = clock_timestamp(), updated_at = clock_timestamp()
                     WHERE id = $1 AND status = 'RUNNING' AND lease_token = $2
+                      AND lease_until > clock_timestamp()
                     """.trimIndent()
                 ).execute(Tuple.of(task.id.toString(), task.leaseToken.toString())).compose { updated ->
                     if (updated.rowCount() == 1) Future.succeededFuture()
@@ -185,6 +187,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
                     lease_owner = NULL, lease_token = NULL, lease_until = NULL,
                     last_error = $5, updated_at = clock_timestamp()
                 WHERE id = $1 AND status = 'RUNNING' AND lease_token = $2
+                  AND lease_until > clock_timestamp()
                 """.trimIndent()
             ).execute(Tuple.of(
                 task.id.toString(), task.leaseToken.toString(),
