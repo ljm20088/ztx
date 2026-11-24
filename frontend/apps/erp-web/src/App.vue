@@ -17,6 +17,8 @@ watch(()=>route.fullPath,path=>{
  if(path==='/')return
  const feature=findFeature(path)
  workspace.openTab({path,title:feature?.label??String(route.meta.title??'功能页面'),closable:path!='/workspace'})
+ accountMenuOpen.value=false
+ void refreshAccount()
 },{immediate:true})
 function setCategoryButton(id:string,element:HTMLButtonElement|null){if(element)categoryButtons.set(id,element);else categoryButtons.delete(id)}
 function clearCloseTimer(){if(closeTimer)clearTimeout(closeTimer);closeTimer=undefined}
