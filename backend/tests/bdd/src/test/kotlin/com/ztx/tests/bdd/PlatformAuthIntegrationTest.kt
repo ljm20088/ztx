@@ -19,7 +19,6 @@ import java.nio.ByteBuffer
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.sql.DriverManager
-import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -63,16 +62,18 @@ class PlatformAuthIntegrationTest {
             }
 
             // When / Then：过期初始化凭据不能创建管理员
-            assertThrows(Exception::class.java) {
+            val expiredFailure = assertThrows(Exception::class.java) {
                 service.initialize(expiredToken, "expired.admin", "ZtxAdmin123", "127.0.0.1").await()
             }
+            assertTrue(expiredFailure.message?.contains("初始化凭据无效或已过期") == true)
 
             // When：重新生成有效凭据；新口令立即使此前未使用的口令失效
             val staleToken = service.createSetupCredential().await()
             val setupToken = service.createSetupCredential().await()
-            assertThrows(Exception::class.java) {
+            val staleFailure = assertThrows(Exception::class.java) {
                 service.initialize(staleToken, "stale.admin", "ZtxAdmin123", "127.0.0.1").await()
             }
+            assertTrue(staleFailure.message?.contains("初始化凭据无效或已过期") == true)
 
             // When：两个初始化请求并发使用同一有效口令
             val concurrentAttempts = listOf(
