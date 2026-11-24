@@ -19,7 +19,6 @@ import java.nio.ByteBuffer
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.sql.DriverManager
-import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -63,14 +62,14 @@ class PlatformAuthIntegrationTest {
             }
 
             // When / Then：过期初始化凭据不能创建管理员
-            assertThrows(ExecutionException::class.java) {
+            assertFailureContaining("初始化凭据无效或已过期") {
                 service.initialize(expiredToken, "expired.admin", "ZtxAdmin123", "127.0.0.1").await()
             }
 
             // When：重新生成有效凭据；新口令立即使此前未使用的口令失效
             val staleToken = service.createSetupCredential().await()
             val setupToken = service.createSetupCredential().await()
-            assertThrows(ExecutionException::class.java) {
+            assertFailureContaining("初始化凭据无效或已过期") {
                 service.initialize(staleToken, "stale.admin", "ZtxAdmin123", "127.0.0.1").await()
             }
 
@@ -108,7 +107,7 @@ class PlatformAuthIntegrationTest {
             }
 
             // Then：同一初始化凭据不可重放
-            assertThrows(ExecutionException::class.java) {
+            assertFailureContaining("初始化凭据无效或已过期") {
                 service.initialize(setupToken, "second.admin", "ZtxAdmin123", "127.0.0.1").await()
             }
 
@@ -122,7 +121,7 @@ class PlatformAuthIntegrationTest {
             service.logout(login.sessionToken, "127.0.0.1").await()
 
             // Then：启用 MFA 后，不提供动态验证码不能登录
-            assertThrows(ExecutionException::class.java) {
+            assertFailureContaining("账号、密码或动态验证码不正确") {
                 service.login("platform.admin", "ZtxAdmin123", null, "127.0.0.1", "bdd-test").await()
             }
 
@@ -146,14 +145,14 @@ class PlatformAuthIntegrationTest {
             // Given：同一来源 IP 与账号在 15 分钟窗口内连续输错密码
             repeat(5) {
                 // When / Then：连续错误凭据均被拒绝
-                assertThrows(ExecutionException::class.java) {
+                assertFailureContaining("账号、密码或动态验证码不正确") {
                     service.login("platform.admin", "WrongPass123", currentTotp(enrollment.secret),
                         "127.0.0.1", "bdd-test").await()
                 }
             }
 
             // Then：达到失败阈值后，即使提供正确密码和 MFA 也必须暂时拒绝
-            assertThrows(ExecutionException::class.java) {
+            assertFailureContaining("账号、密码或动态验证码不正确") {
                 service.login("platform.admin", "ZtxAdmin123", currentTotp(enrollment.secret),
                     "127.0.0.1", "bdd-test").await()
             }
@@ -200,6 +199,13 @@ class PlatformAuthIntegrationTest {
     private fun sha256(value: String): String =
         MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
             .joinToString("") { "%02x".format(it) }
+
+    private fun assertFailureContaining(expectedMessage: String, action: () -> Unit) {
+        val failure = assertThrows(Exception::class.java) { action() }
+        val messages = generateSequence(failure as Throwable?) { it.cause }
+            .mapNotNull { it.message }
+        assertTrue(messages.any { expectedMessage in it }, "异常链中应包含：$expectedMessage")
+    }
 
     private fun <T> Future<T>.await(): T =
         toCompletionStage().toCompletableFuture().get(30, TimeUnit.SECONDS)
