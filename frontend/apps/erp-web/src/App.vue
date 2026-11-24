@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ZBell, ZChevronRight, ZCommand, ZMaximize2, ZUserRound, ZX, ZIconButton } from '@ztx/ui'
+import { ZBell, ZChevronRight, ZCommand, ZMaximize2, ZUserRound, ZShieldCheck, ZX, ZIconButton } from '@ztx/ui'
 import { menuModules, findFeature } from './navigation/menu'
 import { useWorkspaceStore } from './stores/workspace'
 const route=useRoute(),router=useRouter(),workspace=useWorkspaceStore()
