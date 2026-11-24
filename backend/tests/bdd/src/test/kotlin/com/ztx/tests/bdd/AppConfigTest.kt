@@ -58,13 +58,17 @@ class AppConfigTest {
             env = mapOf(
                 "ZTX_HTTP_PORT" to "9090",
                 "ZTX_DB_MIGRATE_ON_START" to "true",
-                "ZTX_DB_PASSWORD" to "test-secret"
+                "ZTX_DB_PASSWORD" to "test-secret",
+                "ZTX_MFA_ENCRYPTION_KEY" to "test-mfa-key-that-is-long-enough",
+                "ZTX_SECURE_COOKIES" to "true"
             )
         )
         // When：加载配置
         // Then：环境变量作为可选覆盖生效
         assertEquals(9090, config.httpPort)
         assertTrue(config.migrateOnStart)
+        assertEquals("test-mfa-key-that-is-long-enough", config.mfaEncryptionKey)
+        assertTrue(config.secureCookies)
     }
 
     @Test

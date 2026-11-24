@@ -1,0 +1,121 @@
+package com.ztx.modules.iam
+
+import io.vertx.core.Vertx
+import io.vertx.core.json.JsonObject
+import io.vertx.ext.web.Router
+import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.handler.BodyHandler
+
+class PlatformAuthRoutes(
+    private val service: PlatformAuthService,
+    private val secureCookies: Boolean
+) {
+    fun register(router: Router) {
+        router.route("/api/v1/platform/auth/*").handler(BodyHandler.create().setBodyLimit(16 * 1024))
+        router.post("/api/v1/platform/auth/initialize").handler(::initialize)
+        router.post("/api/v1/platform/auth/login").handler(::login)
+        router.post("/api/v1/platform/auth/logout").handler(::logout)
+        router.get("/api/v1/platform/auth/me").handler(::me)
+        router.post("/api/v1/platform/auth/password").handler(::changePassword)
+        router.post("/api/v1/platform/auth/mfa/enroll").handler(::enrollMfa)
+        router.post("/api/v1/platform/auth/mfa/enable").handler(::enableMfa)
+    }
+
+    private fun initialize(context: RoutingContext) {
+        val body = body(context)
+        service.initialize(body.getString("token", ""), body.getString("username", ""),
+            body.getString("password", ""), ip(context))
+            .onSuccess { admin ->
+                context.response().setStatusCode(201).putHeader("content-type", "application/json")
+                    .end(JsonObject().put("id", admin.id.toString()).put("username", admin.username).encode())
+            }.onFailure { fail(context, it, 400) }
+    }
+
+    private fun login(context: RoutingContext) {
+        val body = body(context)
+        service.login(body.getString("username", ""), body.getString("password", ""),
+            body.getString("totp"), ip(context), context.request().getHeader("user-agent"))
+            .onSuccess { result ->
+                context.response().putHeader("set-cookie", cookie(result.sessionToken))
+                    .putHeader("content-type", "application/json")
+                    .end(JsonObject().put("id", result.admin.id.toString())
+                        .put("username", result.admin.username).put("mfaEnabled", result.admin.mfaEnabled).encode())
+            }.onFailure { fail(context, it, 401) }
+    }
+
+    private fun logout(context: RoutingContext) {
+        val token = sessionToken(context)
+        if (token == null) {
+            context.response().putHeader("set-cookie", clearCookie()).setStatusCode(204).end()
+            return
+        }
+        service.logout(token, ip(context)).onSuccess {
+            context.response().putHeader("set-cookie", clearCookie()).setStatusCode(204).end()
+        }.onFailure { fail(context, it, 500) }
+    }
+
+    private fun me(context: RoutingContext) = withAdmin(context) { admin ->
+        context.response().putHeader("content-type", "application/json")
+            .end(JsonObject().put("id", admin.id.toString()).put("username", admin.username)
+                .put("mfaEnabled", admin.mfaEnabled).encode())
+    }
+
+    private fun changePassword(context: RoutingContext) = withAdmin(context) { admin ->
+        val body = body(context)
+        service.changePassword(admin, body.getString("oldPassword", ""), body.getString("newPassword", ""),
+            sessionToken(context)!!, ip(context))
+            .onSuccess { context.response().setStatusCode(204).end() }
+            .onFailure { fail(context, it, 400) }
+    }
+
+    private fun enrollMfa(context: RoutingContext) = withAdmin(context) { admin ->
+        service.enrollMfa(admin).onSuccess { enrollment ->
+            context.response().putHeader("content-type", "application/json")
+                .end(JsonObject().put("secret", enrollment.secret).put("otpauthUri", enrollment.otpauthUri).encode())
+        }.onFailure { fail(context, it, 503) }
+    }
+
+    private fun enableMfa(context: RoutingContext) = withAdmin(context) { admin ->
+        service.enableMfa(admin, body(context).getString("code", ""), ip(context))
+            .onSuccess { context.response().setStatusCode(204).end() }
+            .onFailure { fail(context, it, 400) }
+    }
+
+    private fun withAdmin(context: RoutingContext, action: (PlatformAdmin) -> Unit) {
+        val token = sessionToken(context)
+        if (token == null) {
+            fail(context, IllegalStateException("未登录"), 401)
+            return
+        }
+        service.authenticate(token).onSuccess { admin ->
+            if (admin == null) fail(context, IllegalStateException("会话已失效"), 401) else action(admin)
+        }.onFailure { fail(context, it, 500) }
+    }
+
+    private fun sessionToken(context: RoutingContext): String? =
+        context.request().getHeader("cookie")?.split(';')
+            ?.map { it.trim() }?.firstOrNull { it.startsWith("ztx_platform_session=") }
+            ?.substringAfter('=')?.takeIf { it.isNotBlank() }
+
+    private fun cookie(token: String): String =
+        "ztx_platform_session=$token; Path=/api/v1/platform; Max-Age=28800; HttpOnly; SameSite=Strict" +
+            if (secureCookies) "; Secure" else ""
+
+    private fun clearCookie(): String =
+        "ztx_platform_session=; Path=/api/v1/platform; Max-Age=0; HttpOnly; SameSite=Strict" +
+            if (secureCookies) "; Secure" else ""
+
+    private fun body(context: RoutingContext): JsonObject = context.body().asJsonObject() ?: JsonObject()
+
+    private fun ip(context: RoutingContext): String? =
+        context.request().remoteAddress()?.host()?.takeIf { it.matches(Regex("[0-9a-fA-F:.]+")) }
+
+    private fun fail(context: RoutingContext, error: Throwable, status: Int) {
+        if (context.response().ended()) return
+        val message = if (status >= 500) "认证服务暂不可用" else (error.message ?: "认证请求被拒绝")
+        context.response().setStatusCode(status).putHeader("content-type", "application/json")
+            .end(JsonObject().put("error", JsonObject()
+                .put("code", if (status >= 500) "PLATFORM_AUTH_UNAVAILABLE" else "PLATFORM_AUTH_REJECTED")
+                .put("message", message)).encode())
+    }
+}

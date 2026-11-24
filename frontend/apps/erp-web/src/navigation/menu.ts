@@ -15,7 +15,7 @@ export const menuModules:MenuModule[]=[
  {id:'platform',label:'平台管理',icon:ZShieldCheck,categories:[
   {id:'platform-ops',label:'平台运营',features:[
    {id:'tenants',label:'租户管理',path:'/platform/tenants',description:'管理租户开通、启用与停用'},
-   {id:'platform-users',label:'平台用户',path:'/platform/users',description:'管理平台控制面用户'},
+   {id:'platform-admin',label:'平台控制台',path:'/platform/admin',description:'管理平台管理员身份与安全设置'},
    {id:'monitoring',label:'运行状态',path:'/platform/monitoring',description:'查看服务运行与健康状态'}]},
   {id:'platform-config',label:'平台配置',features:[
    {id:'global-settings',label:'全局设置',path:'/platform/settings',description:'维护平台级基础配置'},
