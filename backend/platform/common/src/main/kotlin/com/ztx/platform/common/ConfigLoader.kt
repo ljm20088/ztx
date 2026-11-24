@@ -24,10 +24,10 @@ object ConfigLoader {
         val externalConfig = options["ztx.config"] ?: systemProperties["ztx.config"] ?: env["ZTX_CONFIG_FILE"]
 
         val merged = linkedMapOf<String, Any?>()
-        mergeInto(merged, readResource(classLoader, "application.yml", required = true))
+        mergeInto(merged, readResource(classLoader, "application.yaml", required = true))
         if (!profile.isNullOrBlank()) {
             require(PROFILE_PATTERN.matches(profile)) { "ZTX Profile 名称格式不合法" }
-            mergeInto(merged, readResource(classLoader, "application-$profile.yml", required = true))
+            mergeInto(merged, readResource(classLoader, "application-$profile.yaml", required = true))
         }
         if (!externalConfig.isNullOrBlank()) {
             val path = Path.of(externalConfig).toAbsolutePath().normalize()

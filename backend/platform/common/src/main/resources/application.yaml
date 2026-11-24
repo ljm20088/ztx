@@ -1,4 +1,4 @@
-# ZTX 默认配置。环境差异放在 application-{profile}.yml 中。
+# ZTX 默认配置。环境差异放在 application-{profile}.yaml 中。
 app:
   role: server
 
