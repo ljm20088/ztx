@@ -135,7 +135,7 @@ start_database_and_backend() {
   check_database
   start_service server "$ROOT_DIR/gradlew" --no-daemon :apps:server:run --args=--ztx.profile=dev
   wait_for_http "$HEALTH_URL" "API Server" "$LOG_DIR/server.log"
-  start_service worker env ZTX_APP_ROLE=worker "$ROOT_DIR/gradlew" --no-daemon :apps:server:run --args=--ztx.profile=dev
+  start_service worker env ZTX_APP_ROLE=worker ZTX_DB_MIGRATE_ON_START=false "$ROOT_DIR/gradlew" --no-daemon :apps:server:run --args=--ztx.profile=dev
   wait_for_worker
 }
 
@@ -144,6 +144,7 @@ dev() {
   check_frontend_toolchain
   prepare_state
   start_database_and_backend
+  pnpm --dir "$ROOT_DIR/frontend" install --frozen-lockfile
   start_service web pnpm --dir "$ROOT_DIR/frontend" --filter @ztx/erp-web dev --host 0.0.0.0
   wait_for_http "http://127.0.0.1:$WEB_PORT/" "Vite" "$LOG_DIR/web.log"
   cat <<EOF
@@ -176,7 +177,7 @@ start() {
   }
   start_service server "$executable" --ztx.profile=dev
   wait_for_http "$HEALTH_URL" "API Server/Web" "$LOG_DIR/server.log"
-  start_service worker env ZTX_APP_ROLE=worker "$executable" --ztx.profile=dev
+  start_service worker env ZTX_APP_ROLE=worker ZTX_DB_MIGRATE_ON_START=false "$executable" --ztx.profile=dev
   wait_for_worker
   cat <<EOF
 
