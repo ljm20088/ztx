@@ -63,7 +63,7 @@ class TenantAuthRoutes(
 
     private fun setup(context: RoutingContext) {
         val body = body(context)
-        val code = body.getString("tenantCode", "").trim().lowercase().trim().lowercase()
+        val code = body.getString("tenantCode", "").trim().lowercase()
         val username = body.getString("username", "")
         val password = body.getString("password", "")
         lifecycle.initializeTenantAdmin(code, body.getString("token", ""), username, password)
@@ -77,7 +77,7 @@ class TenantAuthRoutes(
 
     private fun login(context: RoutingContext) {
         val body = body(context)
-        val code = body.getString("tenantCode", "")
+        val code = body.getString("tenantCode", "").trim().lowercase()
         auth.login(code, body.getString("username", ""), body.getString("password", ""),
             ip(context), context.request().getHeader("user-agent"))
             .onSuccess { result ->
@@ -90,7 +90,7 @@ class TenantAuthRoutes(
     private fun logout(context: RoutingContext) {
         val current = session(context)
         val revoke = if (current == null) io.vertx.core.Future.succeededFuture<Void>()
-            else auth.logout(current.first, current.second)
+            else auth.logout(current.first, current.second, ip(context))
         revoke.onComplete {
             context.response().putHeader("set-cookie", clearCookie()).setStatusCode(204).end()
         }

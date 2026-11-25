@@ -120,14 +120,20 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
             }
         }.map { it.principal }.recover { Future.succeededFuture(null) }
 
-    fun logout(tenantCode: String, rawToken: String): Future<Void> =
+    fun logout(tenantCode: String, rawToken: String, ip: String? = null): Future<Void> =
         databases.resolve(tenantCode).compose { tenantDatabase ->
             tenantDatabase.database.withTransaction { connection ->
                 connection.preparedQuery(
-                    "UPDATE iam.tenant_admin_session SET revoked_at = clock_timestamp() WHERE token_hash = $1 AND revoked_at IS NULL"
-                ).execute(Tuple.of(sha256(rawToken))).mapEmpty()
+                    """UPDATE iam.tenant_admin_session SET revoked_at = clock_timestamp()
+                       WHERE token_hash = $1 AND revoked_at IS NULL
+                       RETURNING admin_id::text AS admin_id"""
+                ).execute(Tuple.of(sha256(rawToken))).compose { rows ->
+                    val adminId = rows.firstOrNull()?.getString("admin_id")?.let(UUID::fromString)
+                    if (adminId == null) Future.succeededFuture<Void>()
+                    else audit(connection, adminId, "LOGOUT", "SUCCESS", ip)
+                }
             }
-        }.recover { Future.succeededFuture() }
+        }.recover { Future.succeededFuture<Void>() }
 
     fun changePassword(
         principal: TenantPrincipal, currentToken: String, oldPassword: String, newPassword: String, ip: String?

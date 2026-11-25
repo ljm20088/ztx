@@ -27,6 +27,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.sql.DriverManager
+import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -88,6 +89,35 @@ class TenantAuthIntegrationTest {
             assertNotEquals(loginA.principal.databaseName, loginB.principal.databaseName)
             assertNotNull(auth.authenticate("tenant_a", loginA.sessionToken).await())
             assertNull(auth.authenticate("tenant_b", loginA.sessionToken).await())
+            assertEquals(tenantA.databaseName, registry.resolve(tenantA.id).await().tenant.databaseName)
+
+            // When：租户 B 的另一个会话到达数据库过期时间
+            val expiringLogin = auth.login("tenant_b", "shared.admin", "TenantPass123", null, "bdd").await()
+            val expiredHash = MessageDigest.getInstance("SHA-256").digest(expiringLogin.sessionToken.toByteArray())
+                .joinToString("") { "%02x".format(it) }
+            DriverManager.getConnection(
+                "jdbc:postgresql://${config.host}:${config.port}/${tenantB.databaseName}", config.user, config.password
+            ).use { connection ->
+                connection.prepareStatement(
+                    "UPDATE iam.tenant_admin_session SET expires_at = clock_timestamp() - INTERVAL '1 second' WHERE token_hash = ?"
+                ).use { statement ->
+                    statement.setString(1, expiredHash)
+                    statement.executeUpdate()
+                }
+            }
+
+            // Then：数据库过期的会话立即失效
+            assertNull(auth.authenticate("tenant_b", expiringLogin.sessionToken).await())
+
+            // When：租户 B 管理员使用当前密码修改凭据
+            auth.changePassword(loginB.principal, loginB.sessionToken,
+                "TenantPass123", "TenantPass456", null).await()
+
+            // Then：当前会话保留，其他会话撤销，新密码可登录
+            assertNotNull(auth.authenticate("tenant_b", loginB.sessionToken).await())
+            assertNull(auth.authenticate("tenant_b", expiringLogin.sessionToken).await())
+            val changedPasswordLogin = auth.login("tenant_b", "shared.admin", "TenantPass456", null, "bdd").await()
+            assertNotNull(auth.authenticate("tenant_b", changedPasswordLogin.sessionToken).await())
 
             // When：客户端携带租户 B 的伪造请求头和查询参数，却使用租户 A 的有效会话
             val router = Router.router(vertx)
