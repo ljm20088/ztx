@@ -65,10 +65,11 @@ class BackgroundTaskWorker(
                 .onSuccess { renewed -> if (!renewed) logger.warn("后台任务租约已失效，taskId={}", task.id) }
                 .onFailure { error -> logger.warn("后台任务租约续期失败，taskId={}", task.id, error) }
         }
+        val tenantId = task.tenantId
         val tenantContext = when {
-            task.tenantId == null -> Future.succeededFuture<TenantTaskContext?>(null)
+            tenantId == null -> Future.succeededFuture<TenantTaskContext?>(null)
             tenantDatabases == null -> Future.failedFuture("租户任务缺少可信租户数据库注册表")
-            else -> tenantDatabases.resolve(task.tenantId).map { resolved ->
+            else -> tenantDatabases.resolve(tenantId).map { resolved ->
                 TenantTaskContext(resolved.tenant.id, resolved.tenant.code,
                     resolved.tenant.databaseName, resolved.database)
             }
