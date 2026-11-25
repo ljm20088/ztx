@@ -188,9 +188,14 @@ test('折叠导航下悬停菜单跟随一级图标，鼠标离开后关闭', as
   const alignment = await page.evaluate(() => {
     const trigger = document.querySelector('.module-entry[aria-label="管理中心"]')!.getBoundingClientRect()
     const menu = document.querySelector('.collapsed-category-popover')!.getBoundingClientRect()
-    return { triggerTop: trigger.top, menuTop: menu.top, menuLeft: menu.left, triggerRight: trigger.right }
+    const heading = document.querySelector('.collapsed-menu-heading')!.getBoundingClientRect()
+    const firstItem = document.querySelector('.collapsed-category-popover .category-entry')!.getBoundingClientRect()
+    return { triggerTop: trigger.top, menuTop: menu.top, headingBottom: heading.bottom, firstItemTop: firstItem.top, menuLeft: menu.left, triggerRight: trigger.right }
   })
-  expect(Math.abs(alignment.triggerTop - alignment.menuTop)).toBeLessThan(2)
+  // Then 弹窗标题位于上方，第一个菜单项与触发图标对齐，鼠标右移可直接进入菜单项。
+  expect(alignment.menuTop).toBeLessThan(alignment.triggerTop)
+  expect(alignment.headingBottom).toBeLessThanOrEqual(alignment.firstItemTop)
+  expect(Math.abs(alignment.triggerTop - alignment.firstItemTop)).toBeLessThan(2)
   expect(alignment.menuLeft).toBeGreaterThanOrEqual(alignment.triggerRight - 1)
 
   // When 悬停二级分类，再移动到三级功能菜单
