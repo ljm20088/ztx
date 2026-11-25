@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ZAlert, ZButton, ZFormField, ZInput } from '@ztx/ui'
 
 const route = useRoute()
 const router = useRouter()
@@ -74,29 +75,29 @@ async function submit() {
         <p>{{ mode === 'login' ? '使用平台控制面账号登录。此账号与企业用户账号相互独立。' : '首次初始化只需设置用户名和密码。创建成功后将自动进入平台控制台。' }}</p>
       </div>
       <form class="platform-auth-form" @submit.prevent="submit">
-        <label v-if="mode === 'initialize'">一次性初始化口令
-          <input v-model="setupToken" autocomplete="off" required placeholder="输入部署人员提供的一次性口令" />
-        </label>
-        <label>用户名
-          <input v-model="username" autocomplete="username" required minlength="3" maxlength="80" placeholder="请输入平台管理员用户名" />
-        </label>
-        <label>密码
-          <input v-model="password" :autocomplete="mode === 'login' ? 'current-password' : 'new-password'" type="password" required minlength="8" placeholder="至少 8 位，包含字母和数字" />
-        </label>
-        <label v-if="mode === 'initialize'">确认密码
-          <input v-model="confirmPassword" autocomplete="new-password" type="password" required minlength="8" placeholder="请再次输入密码" />
-        </label>
-        <label v-if="mode === 'login'">动态验证码（启用 MFA 后填写）
-          <input v-model="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
-        </label>
-        <p v-if="error" class="platform-auth-message" role="status">{{ error }}</p>
-        <button class="platform-auth-submit" type="submit" :disabled="busy">
+        <ZFormField v-if="mode === 'initialize'" label="一次性初始化口令" field-id="setup-token" required>
+          <ZInput id="setup-token" v-model="setupToken" autocomplete="off" required placeholder="输入部署人员提供的一次性口令" />
+        </ZFormField>
+        <ZFormField label="用户名" field-id="platform-username" required>
+          <ZInput id="platform-username" v-model="username" autocomplete="username" required minlength="3" maxlength="80" placeholder="请输入平台管理员用户名" />
+        </ZFormField>
+        <ZFormField label="密码" field-id="platform-password" required>
+          <ZInput id="platform-password" v-model="password" :autocomplete="mode === 'login' ? 'current-password' : 'new-password'" type="password" required minlength="8" placeholder="至少 8 位，包含字母和数字" />
+        </ZFormField>
+        <ZFormField v-if="mode === 'initialize'" label="确认密码" field-id="confirm-password" required>
+          <ZInput id="confirm-password" v-model="confirmPassword" autocomplete="new-password" type="password" required minlength="8" placeholder="请再次输入密码" />
+        </ZFormField>
+        <ZFormField v-if="mode === 'login'" label="动态验证码（启用 MFA 后填写）" field-id="totp">
+          <ZInput id="totp" v-model="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
+        </ZFormField>
+        <ZAlert v-if="error" tone="error" role="alert">{{ error }}</ZAlert>
+        <ZButton class="platform-auth-submit" type="submit" size="lg" :disabled="busy">
           {{ busy ? '正在处理…' : mode === 'login' ? '安全登录' : '创建平台管理员' }}
-        </button>
+        </ZButton>
       </form>
-      <p v-if="mode === 'initialize'" class="platform-auth-hint">
+      <ZAlert v-if="mode === 'initialize'" class="platform-auth-hint" tone="info">
         正式部署可通过服务器本机安装管理入口（或 SSH 本地端口转发）获取口令；服务器终端也可作为备用方式。
-      </p>
+      </ZAlert>
       <div class="platform-auth-foot">平台身份独立存储 · 会话加密保护 · 安全操作留痕</div>
       <div class="platform-auth-enterprise-link"><span>企业用户？</span><RouterLink to="/tenant/login">返回企业登录</RouterLink></div>
     </section>
@@ -108,9 +109,7 @@ async function submit() {
 .platform-auth-card{width:min(100%,440px);padding:30px 32px;border:1px solid var(--ztx-border);border-radius:9px;background:var(--ztx-surface);box-shadow:var(--ztx-shadow-popover)}
 .platform-auth-brand{display:flex;align-items:center;gap:11px;margin-bottom:32px}.platform-auth-brand>span{width:38px;height:38px;display:grid;place-items:center;border-radius:8px;background:var(--ztx-primary);color:#fff;font-weight:800;font-size:19px}.platform-auth-brand>div{display:flex;flex-direction:column;gap:3px}.platform-auth-brand strong{font-size:17px;letter-spacing:.12em}.platform-auth-brand small{font-size:8px;letter-spacing:.13em;color:var(--ztx-muted)}
 .platform-auth-heading{margin-bottom:24px}.eyebrow{font-size:var(--ztx-font-size-caption);font-weight:700;letter-spacing:.14em;color:var(--ztx-muted)}h1{margin:7px 0 8px;font-size:var(--ztx-font-size-page-title);color:var(--ztx-text)}.platform-auth-heading p{margin:0;color:var(--ztx-muted);font-size:12px;line-height:1.7}
-.platform-auth-form{display:flex;flex-direction:column;gap:15px}.platform-auth-form label{display:flex;flex-direction:column;gap:7px;color:var(--ztx-text-secondary);font-size:var(--ztx-font-size-body);font-weight:650}.platform-auth-form input{height:39px;padding:0 11px;border:1px solid var(--ztx-border-strong);border-radius:5px;background:#fffefa;color:var(--ztx-text);font:inherit;font-size:var(--ztx-font-size-body);outline:none}.platform-auth-form input:focus{border-color:var(--ztx-primary);box-shadow:0 0 0 2px color-mix(in srgb,var(--ztx-primary) 15%,transparent)}
-.platform-auth-message{margin:0;padding:9px 10px;border-radius:5px;background:var(--ztx-surface-warm);color:var(--ztx-primary-strong);font-size:var(--ztx-font-size-caption);line-height:1.6}
-.platform-auth-submit{height:40px;border:0;border-radius:5px;background:var(--ztx-primary);color:#fff;font-size:var(--ztx-font-size-body);font-weight:700;cursor:pointer}.platform-auth-submit:disabled{opacity:.6;cursor:wait}.platform-auth-hint{margin:14px 0 0;color:var(--ztx-muted);font-size:var(--ztx-font-size-caption);line-height:1.7}
+.platform-auth-form{display:flex;flex-direction:column;gap:15px}.platform-auth-submit{width:100%}.platform-auth-hint{margin:14px 0 0}
 .platform-auth-foot{margin-top:25px;padding-top:15px;border-top:1px solid var(--ztx-border);color:var(--ztx-muted);font-size:var(--ztx-font-size-caption);text-align:center}
 @media(max-width:520px){.platform-auth-card{padding:24px 20px}}
 .platform-auth-enterprise-link{display:flex;justify-content:center;gap:6px;margin-top:14px;color:var(--ztx-muted);font-size:var(--ztx-font-size-caption)}
