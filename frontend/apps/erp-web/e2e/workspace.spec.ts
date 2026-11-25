@@ -123,6 +123,7 @@ test('触屏尺寸下可点击展开三级菜单', async ({ page }) => {
 test('左侧导航可整体折叠、展开并记住状态', async ({ page }) => {
   // Given 用户打开工作台，导航栏默认展开
   await page.goto('/workspace')
+  const expandedMainWidth = await page.locator('.workspace-main').evaluate(element => element.getBoundingClientRect().width)
   const collapse = page.getByRole('button', { name: '折叠导航栏' })
   await expect(collapse).toBeVisible()
   await expect(page.locator('.inline-category-list')).toBeVisible()
@@ -130,17 +131,33 @@ test('左侧导航可整体折叠、展开并记住状态', async ({ page }) => 
   // When 用户折叠整个导航栏
   await collapse.click()
 
-  // Then 左侧只保留图标入口，二级菜单收起，工作区获得更多宽度
+  // Then 品牌区与导航同步收缩，内容区获得更多宽度
   await expect(page.getByRole('button', { name: '展开导航栏' })).toBeVisible()
   await expect(page.locator('.inline-category-list')).toBeHidden()
   await expect(page.locator('.workspace-body')).toHaveClass(/is-nav-collapsed/)
+  await expect.poll(async () => page.evaluate(() => Math.abs(
+    document.querySelector('.workspace-header .brand-lockup')!.getBoundingClientRect().width -
+    document.querySelector('.ztx-sidebar')!.getBoundingClientRect().width
+  ))).toBeLessThan(1)
+  const collapsedLayout = await page.evaluate(() => ({
+    brand: document.querySelector('.workspace-header .brand-lockup')!.getBoundingClientRect().width,
+    sidebar: document.querySelector('.ztx-sidebar')!.getBoundingClientRect().width,
+    main: document.querySelector('.workspace-main')!.getBoundingClientRect().width,
+  }))
+  expect(collapsedLayout.brand).toBe(collapsedLayout.sidebar)
+  expect(collapsedLayout.main).toBeGreaterThan(expandedMainWidth)
 
-  // When 用户点击一个一级菜单图标
-  await page.getByRole('button', { name: '管理中心', exact: true }).click()
+  // When 鼠标悬停一级模块图标（触屏端改用点击）
+  const management = page.getByRole('button', { name: '管理中心', exact: true })
+  if (await page.evaluate(() => window.matchMedia('(pointer: coarse)').matches)) await management.click()
+  else await management.hover()
 
-  // Then 折叠模式仍可打开二级菜单并访问三级功能
+  // Then 折叠模式弹出带模块标题的二级菜单，并可访问三级功能
   await expect(page.locator('.collapsed-category-popover')).toBeVisible()
-  await page.getByRole('button', { name: '低代码开发', exact: true }).click()
+  await expect(page.locator('.collapsed-menu-heading')).toHaveText('管理中心')
+  const lowCode = page.getByRole('button', { name: '低代码开发', exact: true })
+  if (await page.evaluate(() => window.matchMedia('(pointer: coarse)').matches)) await lowCode.click()
+  else await lowCode.hover()
   await expect(page.getByRole('menuitem', { name: /DocType 管理/ })).toBeVisible()
 
   // When 用户重新展开导航栏并刷新页面
@@ -152,6 +169,48 @@ test('左侧导航可整体折叠、展开并记住状态', async ({ page }) => 
   await expect(page.getByRole('button', { name: '折叠导航栏' })).toBeVisible()
 })
 
+
+
+test('折叠导航下悬停菜单跟随一级图标，鼠标离开后关闭', async ({ page }, testInfo) => {
+  // Given 桌面端用户已折叠导航栏
+  test.skip(testInfo.project.name === 'mobile-chrome', '触屏端使用点击展开，不验证悬停行为')
+  await page.goto('/workspace')
+  await page.getByRole('button', { name: '折叠导航栏' }).click()
+
+  // When 鼠标悬停管理中心图标
+  const module = page.getByRole('button', { name: '管理中心', exact: true })
+  await module.hover()
+  const popover = page.locator('.collapsed-category-popover')
+
+  // Then 二级菜单显示模块标题，且顶部跟随当前图标垂直定位
+  await expect(popover).toBeVisible()
+  await expect(popover.locator('.collapsed-menu-heading')).toHaveText('管理中心')
+  const alignment = await page.evaluate(() => {
+    const trigger = document.querySelector('.module-entry[aria-label="管理中心"]')!.getBoundingClientRect()
+    const menu = document.querySelector('.collapsed-category-popover')!.getBoundingClientRect()
+    return { triggerTop: trigger.top, menuTop: menu.top, menuLeft: menu.left, triggerRight: trigger.right }
+  })
+  expect(Math.abs(alignment.triggerTop - alignment.menuTop)).toBeLessThan(2)
+  expect(alignment.menuLeft).toBeGreaterThanOrEqual(alignment.triggerRight - 1)
+
+  // When 悬停二级分类，再移动到三级功能菜单
+  const category = page.getByRole('button', { name: '低代码开发', exact: true })
+  await category.hover()
+  const featureMenu = page.locator('.feature-flyout')
+  await expect(featureMenu).toBeVisible()
+  await expect(featureMenu.locator('.flyout-heading')).toHaveCount(0)
+  await page.getByRole('menuitem', { name: 'DocType 管理' }).hover()
+
+  // Then 点击事件不会反向关闭已由悬停打开的三级菜单
+  await category.click()
+  await expect(featureMenu).toBeVisible()
+
+  // When 鼠标离开整个导航及其弹出菜单区域
+  await page.locator('.workspace-main').hover()
+  // Then 二级与三级菜单一起关闭
+  await expect(popover).toBeHidden()
+  await expect(featureMenu).toBeHidden()
+})
 
 test('平台管理员可从右上角账户菜单进入控制台和账户安全', async ({ page }) => {
   // Given：当前浏览器持有有效的平台管理员会话
