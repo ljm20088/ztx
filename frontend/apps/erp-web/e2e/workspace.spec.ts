@@ -250,18 +250,36 @@ test('折叠导航下二级与三级弹窗左右分离', async ({ page }) => {
 })
 
 
-test('工作区内容正文采用 13px，辅助说明不低于 12px', async ({ page }) => {
+test('工作区内容区按统一字号令牌呈现层级', async ({ page }) => {
   // Given 用户进入工作台内容区
   await page.goto('/workspace')
   await expect(page.locator('.quick-panel')).toBeVisible()
 
-  // Then 卡片标题采用 13px，辅助说明采用 12px，不再沿用原先 9–11px 的小字号
+  // Then 根字号令牌与正文、辅助说明、区块标题和页面标题保持一致
   const contentTypography = await page.evaluate(() => ({
-    title: getComputedStyle(document.querySelector('.quick-text strong')!).fontSize,
-    description: getComputedStyle(document.querySelector('.quick-text small')!).fontSize,
-    section: getComputedStyle(document.querySelector('.panel-heading h2')!).fontSize,
+    bodyToken: getComputedStyle(document.documentElement).getPropertyValue('--ztx-font-size-body').trim(),
+    captionToken: getComputedStyle(document.documentElement).getPropertyValue('--ztx-font-size-caption').trim(),
+    sectionToken: getComputedStyle(document.documentElement).getPropertyValue('--ztx-font-size-section-title').trim(),
+    pageToken: getComputedStyle(document.documentElement).getPropertyValue('--ztx-font-size-page-title').trim(),
+    pageTitle: getComputedStyle(document.querySelector('.page-intro h1')!).fontSize,
+    quickTitle: getComputedStyle(document.querySelector('.quick-text strong')!).fontSize,
+    quickDescription: getComputedStyle(document.querySelector('.quick-text small')!).fontSize,
+    sectionTitle: getComputedStyle(document.querySelector('.panel-heading h2')!).fontSize,
+    recentTitle: getComputedStyle(document.querySelector('.recent-copy strong')!).fontSize,
+    foundationTitle: getComputedStyle(document.querySelector('.foundation-item strong')!).fontSize,
+    foundationDescription: getComputedStyle(document.querySelector('.foundation-item small')!).fontSize,
   }))
-  expect(contentTypography.title).toBe('13px')
-  expect(contentTypography.description).toBe('12px')
-  expect(contentTypography.section).toBe('15px')
+  expect(contentTypography).toEqual({
+    bodyToken: '13px',
+    captionToken: '12px',
+    sectionToken: '15px',
+    pageToken: '18px',
+    pageTitle: '18px',
+    quickTitle: '13px',
+    quickDescription: '12px',
+    sectionTitle: '15px',
+    recentTitle: '13px',
+    foundationTitle: '13px',
+    foundationDescription: '12px',
+  })
 })
