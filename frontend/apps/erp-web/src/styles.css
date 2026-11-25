@@ -120,3 +120,24 @@
   .workspace-tab{min-height:44px;min-width:78px;padding:0 7px;font-size:11px}
   .workspace-main{padding-top:12px}
 }
+
+
+/* ZTX 字体层级与紧凑内容布局 */
+:root{font-size:13px}
+body{font-size:13px}
+.workspace-tab{font-size:13px}
+.ztx-sidebar .module-entry{font-size:15px}
+.ztx-sidebar .category-entry{font-size:14px}
+.ztx-sidebar.is-collapsed .collapsed-category-popover .category-entry{font-size:14px}
+.feature-entry{justify-content:flex-start;min-height:36px;padding:8px 10px;font-size:14px}
+.feature-copy strong{font-size:14px}
+.feature-copy small{display:none}
+.flyout-heading{display:none}
+.feature-entry>svg{display:none}
+
+/* 折叠导航下，三级弹窗从二级弹窗右侧展开，避免两个弹窗互相覆盖 */
+.ztx-sidebar.is-collapsed .feature-flyout{left:270px;z-index:30}
+.ztx-sidebar.is-collapsed .collapsed-category-popover{z-index:25}
+@media(max-width:720px){
+  .ztx-sidebar.is-collapsed .feature-flyout{left:244px}
+}

@@ -16,17 +16,16 @@ const recentItems=[
 </script>
 <template>
 <section class="home-page">
- <div class="page-intro"><div><div class="eyebrow">OVERVIEW / WORKSPACE</div><h1>工作台</h1><p>欢迎使用 ZTX。这里是平台功能的统一入口。</p></div><div class="intro-meta"><span class="demo-tag">演示数据</span><span>2026 年 11 月 24 日</span></div></div>
  <section class="welcome-strip"><div class="welcome-symbol"><ZCommand :size="22"/></div><div class="welcome-copy"><strong>让业务与平台协同工作</strong><span>从工作区进入平台管理、企业基础设置和低代码开发工具。</span></div><ZButton size="sm" variant="secondary" @click="router.push('/developer/doctypes')">进入开发中心 <ZArrowUpRight :size="14"/></ZButton></section>
  <div class="home-grid">
-  <section class="panel quick-panel"><div class="panel-heading"><div><span class="eyebrow">QUICK ACCESS</span><h2>常用功能</h2></div><span class="panel-note">QUICK LINKS</span></div>
+  <section class="panel quick-panel"><div class="panel-heading"><div><h2>常用功能</h2></div></div>
    <div class="quick-grid"><button v-for="item in quickLinks" :key="item.path" class="quick-card" @click="router.push(item.path)"><span class="quick-icon"><component :is="item.icon" :size="18"/></span><span class="quick-text"><strong>{{item.title}}</strong><small>{{item.description}}</small></span><ZArrowUpRight :size="14" class="quick-arrow"/><span class="quick-group">{{item.group}}</span></button></div>
   </section>
-  <section class="panel recent-panel"><div class="panel-heading"><div><span class="eyebrow">RECENT ACTIVITY</span><h2>最近访问</h2></div><ZClock3 :size="16" class="muted-icon"/></div>
+  <section class="panel recent-panel"><div class="panel-heading"><div><h2>最近访问</h2></div><ZClock3 :size="16" class="muted-icon"/></div>
    <div class="recent-list"><button v-for="(item,index) in recentItems" :key="item.path" class="recent-row" @click="router.push(item.path)"><span class="recent-index">0{{index+1}}</span><span class="recent-copy"><strong>{{item.title}}</strong><small>{{item.area}}</small></span><time>{{item.time}}</time></button></div><div class="recent-foot">最近访问记录仅用于展示工作区交互</div>
   </section>
  </div>
- <section class="panel foundation-panel"><div class="panel-heading"><div><span class="eyebrow">PLATFORM FOUNDATION</span><h2>平台能力导航</h2></div><span class="panel-note">S0 — S3</span></div>
+ <section class="panel foundation-panel"><div class="panel-heading"><div><h2>平台能力导航</h2></div></div>
   <div class="foundation-grid">
    <div class="foundation-item"><span class="foundation-number">01</span><div><strong>工程与工作区</strong><small>统一入口、导航、多标签与组件体系</small></div><span class="foundation-state">当前建设</span></div>
    <div class="foundation-item"><span class="foundation-number">02</span><div><strong>身份与组织</strong><small>租户、企业、账套、员工与权限</small></div><span class="foundation-state is-planned">规划中</span></div>
