@@ -248,3 +248,20 @@ test('折叠导航下二级与三级弹窗左右分离', async ({ page }) => {
   }).toBeGreaterThanOrEqual(-1)
   await expect(feature.getByRole('menuitem', { name: 'DocType 管理' })).toBeVisible()
 })
+
+
+test('工作区内容正文采用 13px，辅助说明不低于 12px', async ({ page }) => {
+  // Given 用户进入工作台内容区
+  await page.goto('/workspace')
+  await expect(page.locator('.quick-panel')).toBeVisible()
+
+  // Then 卡片标题采用 13px，辅助说明采用 12px，不再沿用原先 9–11px 的小字号
+  const contentTypography = await page.evaluate(() => ({
+    title: getComputedStyle(document.querySelector('.quick-text strong')!).fontSize,
+    description: getComputedStyle(document.querySelector('.quick-text small')!).fontSize,
+    section: getComputedStyle(document.querySelector('.panel-heading h2')!).fontSize,
+  }))
+  expect(contentTypography.title).toBe('13px')
+  expect(contentTypography.description).toBe('12px')
+  expect(contentTypography.section).toBe('15px')
+})
