@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test'
 
+test.beforeEach(async ({ page }) => {
+  // 工作区用例预置租户会话；未登录与会话过期由 tenant-auth.spec.ts 单独验证。
+  await page.route('**/api/v1/tenant/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ id: 'tenant-user-1', username: 'tenant.admin', tenantId: 'tenant-1', tenantCode: 'demo', role: 'TENANT_ADMIN' }),
+  }))
+})
+
 test('工作区首屏与页面截图', async ({ page }) => {
   // Given 用户打开 ZTX Web 工作区
   await page.goto('/workspace')
@@ -224,7 +232,7 @@ test('平台管理员可从右上角账户菜单进入控制台和账户安全',
     contentType: 'application/json',
     body: JSON.stringify({ id: 'admin-1', username: 'platform.admin', mfaEnabled: false }),
   }))
-  await page.goto('/workspace')
+  await page.goto('/platform/admin')
 
   // When：打开右上角用户菜单
   await page.getByRole('button', { name: '用户账户菜单' }).click()
@@ -256,7 +264,7 @@ test('平台管理员可从右上角用户菜单安全退出', async ({ page }) 
     body: JSON.stringify({ id: 'admin-1', username: 'platform.admin', mfaEnabled: false }),
   }))
   await page.route('**/api/v1/platform/auth/logout', route => route.fulfill({ status: 204 }))
-  await page.goto('/workspace')
+  await page.goto('/platform/admin')
 
   // When：打开用户菜单并退出登录
   await page.getByRole('button', { name: '用户账户菜单' }).click()

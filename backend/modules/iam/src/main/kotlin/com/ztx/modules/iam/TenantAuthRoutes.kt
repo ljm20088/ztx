@@ -63,7 +63,7 @@ class TenantAuthRoutes(
 
     private fun setup(context: RoutingContext) {
         val body = body(context)
-        val code = body.getString("tenantCode", "")
+        val code = body.getString("tenantCode", "").trim().lowercase()
         val username = body.getString("username", "")
         val password = body.getString("password", "")
         lifecycle.initializeTenantAdmin(code, body.getString("token", ""), username, password)
