@@ -3,6 +3,8 @@ package com.ztx.server
 import com.ztx.adapters.postgres.ClaimedBackgroundTask
 import com.ztx.adapters.postgres.PgDatabase
 import com.ztx.adapters.postgres.PostgresOutboxStore
+import com.ztx.modules.iam.TenantDatabaseRegistry
+import com.ztx.modules.iam.TenantTaskContext
 import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.sqlclient.SqlConnection
@@ -10,7 +12,7 @@ import org.slf4j.LoggerFactory
 
 fun interface BackgroundTaskHandler {
     /** 处理器使用传入连接完成数据库副作用，使副作用、幂等标记和任务状态同事务提交。 */
-    fun handle(task: ClaimedBackgroundTask, connection: SqlConnection): Future<Void>
+    fun handle(task: ClaimedBackgroundTask, connection: SqlConnection, tenant: TenantTaskContext?): Future<Void>
 }
 
 /** PostgreSQL 任务轮询器；多实例并发由 SKIP LOCKED、租约和租约令牌协调。 */
@@ -22,7 +24,8 @@ class BackgroundTaskWorker(
     private val handlers: Map<String, BackgroundTaskHandler> = emptyMap(),
     private val pollIntervalMs: Long = 1000,
     private val batchSize: Int = 1,
-    private val leaseSeconds: Int = 60
+    private val leaseSeconds: Int = 60,
+    private val tenantDatabases: TenantDatabaseRegistry? = null
 ) : AutoCloseable {
     private val logger = LoggerFactory.getLogger(BackgroundTaskWorker::class.java)
     private var timerId: Long? = null
@@ -62,8 +65,19 @@ class BackgroundTaskWorker(
                 .onSuccess { renewed -> if (!renewed) logger.warn("后台任务租约已失效，taskId={}", task.id) }
                 .onFailure { error -> logger.warn("后台任务租约续期失败，taskId={}", task.id, error) }
         }
-        return database.withTransaction { connection ->
-            store.process(connection, task) { transaction -> handler.handle(task, transaction) }
+        val tenantId = task.tenantId
+        val tenantContext = when {
+            tenantId == null -> Future.succeededFuture<TenantTaskContext?>(null)
+            tenantDatabases == null -> Future.failedFuture("租户任务缺少可信租户数据库注册表")
+            else -> tenantDatabases.resolve(tenantId).map { resolved ->
+                TenantTaskContext(resolved.tenant.id, resolved.tenant.code,
+                    resolved.tenant.databaseName, resolved.database)
+            }
+        }
+        return tenantContext.compose { tenant ->
+            database.withTransaction { connection ->
+                store.process(connection, task) { transaction -> handler.handle(task, transaction, tenant) }
+            }
         }.recover { error ->
             store.fail(task, error)
                 .onFailure { updateError -> logger.error("任务失败状态写入失败，taskId={}", task.id, updateError) }

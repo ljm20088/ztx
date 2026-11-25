@@ -14,7 +14,8 @@ data class OutboxEvent(
     val aggregateId: String? = null,
     val correlationId: String? = null,
     val requestedBy: String? = null,
-    val maxAttempts: Int = 8
+    val maxAttempts: Int = 8,
+    val tenantId: UUID? = null
 ) {
     init {
         require(eventType.isNotBlank()) { "eventType 不能为空" }
@@ -30,7 +31,8 @@ data class ClaimedBackgroundTask(
     val idempotencyKey: String,
     val attemptCount: Int,
     val maxAttempts: Int,
-    val leaseToken: UUID
+    val leaseToken: UUID,
+    val tenantId: UUID? = null
 )
 
 /** PostgreSQL Outbox 与任务状态存储。enqueue 必须复用业务事务的 SqlConnection。 */
@@ -60,12 +62,12 @@ class PostgresOutboxStore(private val database: PgDatabase) {
                 connection.preparedQuery(
                     """
                     INSERT INTO platform.background_task
-                        (id, outbox_event_id, task_type, idempotency_key, max_attempts, requested_by)
-                    VALUES ($1, $2, $3, $4, $5, $6)
+                        (id, outbox_event_id, task_type, idempotency_key, max_attempts, requested_by, tenant_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
                     """.trimIndent()
                 ).execute(Tuple.of(
                     eventId, eventId, event.eventType,
-                    event.idempotencyKey, event.maxAttempts, event.requestedBy
+                    event.idempotencyKey, event.maxAttempts, event.requestedBy, event.tenantId
                 )).map(eventId)
             }
         }
@@ -114,7 +116,8 @@ class PostgresOutboxStore(private val database: PgDatabase) {
                                 idempotencyKey = row.getString("idempotency_key"),
                                 attemptCount = row.getInteger("attempt_count"),
                                 maxAttempts = row.getInteger("max_attempts"),
-                                leaseToken = UUID.fromString(row.getString("lease_token"))
+                                leaseToken = UUID.fromString(row.getString("lease_token")),
+                                tenantId = row.getString("tenant_id")?.let(UUID::fromString)
                             )
                         }.toList()
                     }
@@ -241,7 +244,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
             WHERE task.id = candidates.id AND event.id = task.outbox_event_id
             RETURNING task.id::text AS id, task.task_type, event.payload::text AS payload,
                       task.idempotency_key, task.attempt_count, task.max_attempts,
-                      task.lease_token::text AS lease_token
+                      task.lease_token::text AS lease_token, task.tenant_id::text AS tenant_id
         """
     }
 }

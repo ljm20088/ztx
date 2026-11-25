@@ -121,8 +121,8 @@ jobs:
           grep -F "/src/main.ts" /tmp/ztx-vite-home.html
           curl -fsS http://127.0.0.1:8080/health/ready | grep -F '"status":"READY"'
           api_status="$(curl -sS -o /tmp/ztx-proxy-api.json -w '%{http_code}' http://127.0.0.1:5173/api/v1/not-found)"
-          test "$api_status" = "404"
-          grep -F "NOT_FOUND" /tmp/ztx-proxy-api.json
+          test "$api_status" = "401"
+          grep -F "TENANT_AUTH_REQUIRED" /tmp/ztx-proxy-api.json
           ./ztx stop
 
           echo "验证 ./ztx start（前端构建与启动分离）："
@@ -133,8 +133,8 @@ jobs:
           curl -fsS http://127.0.0.1:8080/health/ready | grep -F '"status":"READY"'
           curl -fsS http://127.0.0.1:8080/platform/login | grep -F "assets/"
           api_status="$(curl -sS -o /tmp/ztx-static-api.json -w '%{http_code}' http://127.0.0.1:8080/api/v1/not-found)"
-          test "$api_status" = "404"
-          grep -F "NOT_FOUND" /tmp/ztx-static-api.json
+          test "$api_status" = "401"
+          grep -F "TENANT_AUTH_REQUIRED" /tmp/ztx-static-api.json
           ./ztx stop
           echo "Unified launcher smoke tests passed."
 

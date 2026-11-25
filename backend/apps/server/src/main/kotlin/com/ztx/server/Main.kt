@@ -10,6 +10,9 @@ import com.ztx.modules.iam.PlatformAuthRoutes
 import com.ztx.modules.iam.PlatformAuthService
 import com.ztx.modules.iam.TenantLifecycleRoutes
 import com.ztx.modules.iam.TenantLifecycleService
+import com.ztx.modules.iam.TenantDatabaseRegistry
+import com.ztx.modules.iam.TenantAuthService
+import com.ztx.modules.iam.TenantAuthRoutes
 import com.ztx.modules.metadata.MetadataModule
 import com.ztx.platform.common.AppConfig
 import com.ztx.platform.common.ModuleRegistry
@@ -47,14 +50,18 @@ fun main(args: Array<String>) {
     val authService = PlatformAuthService(database, config.mfaEncryptionKey)
     val tenantService = TenantLifecycleService(vertx, database, config.database)
     val tenantRoutes = TenantLifecycleRoutes(authService, tenantService)
+    val tenantDatabases = TenantDatabaseRegistry(vertx, tenantService, config.database)
+    val tenantAuthService = TenantAuthService(tenantDatabases)
+    val tenantAuthRoutes = TenantAuthRoutes(tenantAuthService, tenantService, config.secureCookies)
 
     // 具体业务处理器由后续平台能力/业务扩展注册；空处理器集合不会领取未知任务。
     val worker = BackgroundTaskWorker(
         vertx = vertx, database = database, store = outboxStore,
-        workerId = "ztx-worker-" + UUID.randomUUID(), handlers = emptyMap()
+        workerId = "ztx-worker-" + UUID.randomUUID(), handlers = emptyMap(), tenantDatabases = tenantDatabases
     )
     Runtime.getRuntime().addShutdownHook(Thread {
         worker.close()
+        tenantDatabases.close()
         database.close()
         vertx.close()
     })
@@ -85,12 +92,13 @@ fun main(args: Array<String>) {
                 }
                 HealthServer(
                     vertx, database, config.httpHost, config.httpPort,
-                    PlatformAuthRoutes(authService, config.secureCookies), tenantRoutes
+                    PlatformAuthRoutes(authService, config.secureCookies), tenantRoutes, tenantAuthRoutes
                 ).start()
             }
             .onSuccess { logger.info("ZTX API Server 已启动，监听 {}:{}", config.httpHost, config.httpPort) }
             .onFailure { error ->
                 logger.error("ZTX API Server 启动失败", error)
+                tenantDatabases.close()
                 database.close()
                 vertx.close()
                 exitProcess(1)
@@ -101,6 +109,7 @@ fun main(args: Array<String>) {
             .onFailure { error ->
                 logger.error("ZTX Worker 启动失败", error)
                 worker.close()
+                tenantDatabases.close()
                 database.close()
                 vertx.close()
                 exitProcess(1)
