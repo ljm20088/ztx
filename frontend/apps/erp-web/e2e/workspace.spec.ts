@@ -5,7 +5,7 @@ test('工作区首屏与页面截图', async ({ page }) => {
   await page.goto('/workspace')
 
   // When 页面完成加载
-  await expect(page.getByRole('heading', { name: '工作台' })).toBeVisible()
+  await expect(page.locator('.home-page')).toBeVisible()
 
   // Then 展示工作区标签、一级菜单和主内容区，并保存可复现截图
   await expect(page.getByRole('navigation', { name: '工作区标签' })).toBeVisible()
@@ -68,7 +68,7 @@ test('一级点击、二级悬停后指针可移入三级浮层', async ({ page 
   await feature.click()
 
   // Then 对应页面进入顶部工作区标签
-  await expect(page.getByRole('heading', { name: 'DocType 管理' })).toBeVisible()
+  await expect(page.locator('.placeholder-state')).toHaveText('该功能尚未开放')
   await expect(page.getByRole('navigation', { name: '工作区标签' }).getByText('DocType 管理')).toBeVisible()
 })
 
@@ -116,7 +116,7 @@ test('触屏尺寸下可点击展开三级菜单', async ({ page }) => {
   // Then 三级功能可见且可点击
   await expect(page.getByRole('menuitem', { name: /表单设计器/ })).toBeVisible()
   await page.getByRole('menuitem', { name: /表单设计器/ }).click()
-  await expect(page.getByRole('heading', { name: '表单设计器' })).toBeVisible()
+  await expect(page.locator('.placeholder-state')).toHaveText('该功能尚未开放')
 })
 
 
@@ -194,4 +194,54 @@ test('平台管理员可从右上角用户菜单安全退出', async ({ page }) 
 
   // Then：调用注销接口后返回平台登录页
   await expect(page).toHaveURL(/\/platform\/login$/)
+})
+
+
+test('界面字号、三级菜单和页面标题保持精简', async ({ page }) => {
+  // Given 用户进入工作区
+  await page.goto('/workspace')
+
+  // Then 常规字号为 13px，一级模块名称比二级菜单更醒目
+  const typography = await page.evaluate(() => ({
+    body: getComputedStyle(document.body).fontSize,
+    module: getComputedStyle(document.querySelector('.module-entry')!).fontSize,
+    category: getComputedStyle(document.querySelector('.category-entry')!).fontSize,
+  }))
+  expect(typography.body).toBe('13px')
+  expect(typography.module).toBe('15px')
+  expect(typography.category).toBe('14px')
+
+  // When 展开一级和二级菜单
+  await page.getByRole('button', { name: '管理中心', exact: true }).click()
+  await page.getByRole('button', { name: '低代码开发', exact: true }).hover()
+
+  // Then 三级菜单不显示标题、说明文字和四级菜单箭头
+  const flyout = page.locator('.feature-flyout')
+  await expect(flyout.locator('.flyout-heading')).toHaveCount(0)
+  await expect(flyout.locator('.feature-entry small')).toHaveCount(0)
+  await expect(flyout.locator('.feature-entry svg')).toHaveCount(0)
+  await expect(flyout.getByRole('menuitem', { name: 'DocType 管理' })).toBeVisible()
+  await expect(page.locator('.home-page .eyebrow')).toHaveCount(0)
+})
+
+test('折叠导航下二级与三级弹窗左右分离', async ({ page }) => {
+  // Given 用户折叠导航栏并打开一个一级菜单
+  await page.goto('/workspace')
+  await page.getByRole('button', { name: '折叠导航栏' }).click()
+  await page.getByRole('button', { name: '管理中心', exact: true }).click()
+
+  // When 打开二级菜单“低代码开发”
+  await page.getByRole('button', { name: '低代码开发', exact: true }).click()
+  const category = page.locator('.collapsed-category-popover')
+  const feature = page.locator('.feature-flyout')
+  await expect(feature).toBeVisible()
+
+  // Then 三级弹窗位于二级弹窗右侧，不发生重叠
+  const bounds = await page.evaluate(() => {
+    const a = document.querySelector('.collapsed-category-popover')!.getBoundingClientRect()
+    const b = document.querySelector('.feature-flyout')!.getBoundingClientRect()
+    return { categoryRight: a.right, featureLeft: b.left }
+  })
+  expect(bounds.featureLeft).toBeGreaterThanOrEqual(bounds.categoryRight - 1)
+  await expect(feature.getByRole('menuitem', { name: 'DocType 管理' })).toBeVisible()
 })

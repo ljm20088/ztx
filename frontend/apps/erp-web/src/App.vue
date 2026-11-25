@@ -245,12 +245,6 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
             @pointerleave="scheduleClose"
             @keydown="onFlyoutKeydown"
           >
-            <div class="flyout-heading">
-              <div>
-                <span class="eyebrow">FUNCTIONS</span>
-                <strong>{{ activeCategory.label }}</strong>
-              </div>
-            </div>
             <button
               v-for="(feature, index) in activeCategory.features"
               :key="feature.id"
@@ -261,9 +255,7 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
             >
               <span class="feature-copy">
                 <strong>{{ feature.label }}</strong>
-                <small>{{ feature.description }}</small>
               </span>
-              <ZChevronRight :size="14" />
             </button>
           </div>
         </Transition>
@@ -284,10 +276,10 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
 .account-menu-trigger:hover,.account-menu-trigger[aria-expanded="true"]{background:var(--ztx-surface-warm);color:var(--ztx-primary-strong)}
 .account-menu-panel{position:absolute;z-index:80;top:calc(100% + 7px);right:0;width:224px;padding:7px;border:1px solid var(--ztx-border);border-radius:7px;background:var(--ztx-surface);box-shadow:var(--ztx-shadow-popover)}
 .account-menu-identity{display:flex;flex-direction:column;gap:3px;padding:9px 10px 11px;border-bottom:1px solid var(--ztx-border)}
-.account-menu-identity strong{font-size:12px;color:var(--ztx-text)}
-.account-menu-identity small{font-size:10px;color:var(--ztx-muted)}
-.account-menu-panel>button{width:100%;display:flex;align-items:center;gap:9px;padding:9px 10px;border:0;border-radius:4px;background:transparent;color:var(--ztx-text-secondary);text-align:left;font:inherit;font-size:11px;cursor:pointer}
+.account-menu-identity strong{font-size:13px;color:var(--ztx-text)}
+.account-menu-identity small{font-size:12px;color:var(--ztx-muted)}
+.account-menu-panel>button{width:100%;display:flex;align-items:center;gap:9px;padding:9px 10px;border:0;border-radius:4px;background:transparent;color:var(--ztx-text-secondary);text-align:left;font:inherit;font-size:13px;cursor:pointer}
 .account-menu-panel>button:hover{background:var(--ztx-surface-warm);color:var(--ztx-primary-strong)}
 .account-menu-panel>button.account-menu-logout{margin-top:4px;border-top:1px solid var(--ztx-border);border-radius:0;color:#a3473c}
-.account-menu-error{margin:5px 8px;color:#a3473c;font-size:10px}
+.account-menu-error{margin:5px 8px;color:#a3473c;font-size:12px}
 </style>
