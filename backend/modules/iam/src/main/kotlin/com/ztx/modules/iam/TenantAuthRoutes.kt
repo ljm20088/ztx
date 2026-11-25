@@ -13,7 +13,6 @@ class TenantAuthRoutes(
     private val secureCookies: Boolean
 ) {
     fun register(router: Router) {
-        router.route("/api/v1/tenant/auth/*").handler(BodyHandler.create().setBodyLimit(16 * 1024))
         router.post("/api/v1/tenant/auth/setup").handler(::setup)
         router.post("/api/v1/tenant/auth/login").handler(::login)
         router.post("/api/v1/tenant/auth/logout").handler(::logout)
@@ -34,7 +33,10 @@ class TenantAuthRoutes(
                     .onFailure { fail(context, 400, "当前密码不正确或新密码不符合安全要求") }
             }
         }
-        // 所有未显式注册的 API 默认要求租户会话；平台控制面 API 保持独立认证。
+    }
+
+    /** 必须在业务 API 路由注册之前安装，避免新路由遗漏租户认证。 */
+    fun registerGuard(router: Router) {
         router.route("/api/v1/*").handler { context ->
             val path = context.normalizedPath()
             if (path.startsWith("/api/v1/platform/") ||

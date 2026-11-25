@@ -22,6 +22,7 @@ class HealthServer(
 ) {
     fun start(): Future<HttpServer> {
         val router = Router.router(vertx)
+        tenantAuthRoutes?.registerGuard(router)
         platformAuthRoutes?.register(router)
         tenantLifecycleRoutes?.register(router)
         tenantAuthRoutes?.register(router)

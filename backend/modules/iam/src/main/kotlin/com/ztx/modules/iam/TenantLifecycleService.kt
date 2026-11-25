@@ -91,6 +91,17 @@ class TenantLifecycleService(
             }
         }
 
+    fun activeTenant(tenantId: UUID): Future<TenantRecord> =
+        controlDatabase.withTransaction { connection ->
+            connection.preparedQuery(
+                """SELECT id::text, code, name, status, database_name, last_error
+                   FROM platform.tenant WHERE id = $1 AND status = 'ACTIVE'"""
+            ).execute(Tuple.of(tenantId)).map { rows ->
+                require(rows.size() == 1) { "租户不存在或已停用" }
+                toTenantRecord(rows.first())
+            }
+        }
+
     /** 业务请求必须通过此检查取得路由；不得信任浏览器提交的数据库名称。 */
     fun activeDatabaseName(code: String): Future<String> =
         controlDatabase.withTransaction { connection ->

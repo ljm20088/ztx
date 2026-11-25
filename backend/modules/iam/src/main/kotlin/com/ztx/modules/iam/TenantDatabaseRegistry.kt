@@ -11,6 +11,13 @@ data class TenantDatabase(
     val database: PgDatabase
 )
 
+data class TenantTaskContext(
+    val tenantId: java.util.UUID,
+    val tenantCode: String,
+    val databaseName: String,
+    val database: PgDatabase
+)
+
 /**
  * 按控制面可信租户记录创建业务数据库连接池。
  * 请求中的数据库地址永远不会进入此注册表；只允许使用控制面保存的 database_name。
@@ -29,6 +36,9 @@ class TenantDatabaseRegistry(
 
     fun resolve(code: String): Future<TenantDatabase> =
         lifecycle.activeTenant(code).map(::poolFor)
+
+    fun resolve(tenantId: java.util.UUID): Future<TenantDatabase> =
+        lifecycle.activeTenant(tenantId).map(::poolFor)
 
     private fun poolFor(tenant: TenantRecord): TenantDatabase = synchronized(pools) {
         pools[tenant.id]?.let { cached ->
