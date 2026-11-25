@@ -37,10 +37,10 @@ class TenantLifecycleService(
     fun create(code: String, name: String, actor: PlatformAdmin): Future<TenantProvisioningResult> {
         val normalizedCode = code.trim().lowercase()
         val normalizedName = name.trim()
-        require(normalizedCode.matches(Regex("[a-z][a-z0-9_-]{1,39}"))) {
-            "租户编码须为 2–40 位小写字母、数字、下划线或连字符，且以字母开头"
+        if (!normalizedCode.matches(Regex("[a-z][a-z0-9_-]{1,39}"))) {
+            return Future.failedFuture("租户编码须为 2–40 位小写字母、数字、下划线或连字符，且以字母开头")
         }
-        require(normalizedName.length in 2..160) { "租户名称须为 2–160 个字符" }
+        if (normalizedName.length !in 2..160) return Future.failedFuture("租户名称须为 2–160 个字符")
         val id = UUID.randomUUID()
         val dbName = databaseName(normalizedCode, id)
         return controlDatabase.withTransaction { connection ->
@@ -93,9 +93,11 @@ class TenantLifecycleService(
     /** 租户管理员凭租户开通时签发的一次性凭据设置首个账号。 */
     fun initializeTenantAdmin(code: String, token: String, username: String, password: String): Future<Void> {
         val normalizedUsername = username.trim()
-        require(normalizedUsername.matches(Regex("[A-Za-z0-9._-]{3,80}"))) { "管理员账号格式不正确" }
-        require(password.length >= 8 && password.any(Char::isLetter) && password.any(Char::isDigit)) {
-            "密码至少 8 位，且必须同时包含字母和数字"
+        if (!normalizedUsername.matches(Regex("[A-Za-z0-9._-]{3,80}"))) {
+            return Future.failedFuture("管理员账号格式不正确")
+        }
+        if (password.length < 8 || !password.any(Char::isLetter) || !password.any(Char::isDigit)) {
+            return Future.failedFuture("密码至少 8 位，且必须同时包含字母和数字")
         }
         return activeDatabaseName(code).compose { dbName ->
             vertx.executeBlocking<Void>({ promise ->
