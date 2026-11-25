@@ -156,8 +156,8 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                     }
                 }
         }.compose { result ->
-            if (result.changed) Future.succeededFuture()
-            else Future.failedFuture("当前密码不正确")
+            if (result.changed) Future.succeededFuture<Void>()
+            else Future.failedFuture<Void>("当前密码不正确")
         }
     }
 

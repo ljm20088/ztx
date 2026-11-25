@@ -26,7 +26,7 @@ class TenantDatabaseRegistry(
     private val vertx: Vertx,
     private val lifecycle: TenantLifecycleService,
     private val controlConfig: DatabaseConfig,
-    private val maxPools: Int = 64
+    private val maxPools: Int = 32
 ) : AutoCloseable {
     private val pools = LinkedHashMap<java.util.UUID, TenantDatabase>(16, 0.75f, true)
 
@@ -51,7 +51,7 @@ class TenantDatabaseRegistry(
             database = tenant.databaseName,
             user = controlConfig.user,
             password = controlConfig.password,
-            poolSize = controlConfig.poolSize,
+            poolSize = controlConfig.poolSize.coerceAtMost(2),
             migrationLocations = "filesystem:database/tenant-migrations"
         )
         val created = TenantDatabase(tenant, PgDatabase(vertx, config))
