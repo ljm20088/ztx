@@ -28,7 +28,7 @@ test('租户用户登录和会话失效后返回登录页', async ({ page }) => 
   // Given 用户尚未登录，访问租户工作区
   await page.goto('/workspace')
   await expect(page).toHaveURL(/tenant\/login/)
-  await page.getByLabel('租户编码').fill('acme')
+  await page.getByLabel('企业编码').fill('acme')
   await page.getByLabel('用户名').fill('tenant.admin')
   await page.getByLabel('密码').fill('TenantPass123')
 
@@ -39,7 +39,7 @@ test('租户用户登录和会话失效后返回登录页', async ({ page }) => 
   await expect(page).toHaveURL(/workspace/)
   await page.getByRole('button', { name: '用户账户菜单' }).click()
   await expect(page.getByText('tenant.admin')).toBeVisible()
-  await expect(page.getByText('租户用户', { exact: true })).toBeVisible()
+  await expect(page.getByText('企业用户', { exact: true })).toBeVisible()
 
   // When 用户退出登录并重新访问工作区
   await page.getByRole('menuitem', { name: '退出登录' }).click()
