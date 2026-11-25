@@ -10,6 +10,6 @@ defineProps<{text:string}>()
   </TooltipProvider>
 </template>
 <style>
-.ztx-tooltip{z-index:100;padding:5px 8px;border:1px solid var(--ztx-border-strong);border-radius:4px;color:var(--ztx-surface);background:#39332d;font-size:10px;box-shadow:0 3px 10px rgba(0,0,0,.12)}
+.ztx-tooltip{z-index:100;padding:5px 8px;border:1px solid var(--ztx-border-strong);border-radius:4px;color:var(--ztx-surface);background:#39332d;font-size:var(--ztx-font-size-caption,12px);box-shadow:0 3px 10px rgba(0,0,0,.12)}
 .ztx-tooltip-arrow{fill:#39332d}
 </style>

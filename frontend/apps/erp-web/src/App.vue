@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ZBell, ZChevronRight, ZCommand, ZMaximize2, ZUserRound, ZShieldCheck, ZX, ZIconButton } from '@ztx/ui'
+import { ZBell, ZChevronRight, ZCommand, ZMaximize2, ZUserRound, ZShieldCheck, ZX, ZIconButton, ZButton, ZAlert } from '@ztx/ui'
 import { menuModules, findFeature } from './navigation/menu'
 import { useWorkspaceStore } from './stores/workspace'
 const route=useRoute(),router=useRouter(),workspace=useWorkspaceStore()
@@ -167,37 +167,36 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
           <ZBell />
         </ZIconButton>
         <div class="account-menu-root" @pointerenter="clearAccountCloseTimer" @pointerleave="onAccountMenuPointerLeave">
-          <button
-            class="account-menu-trigger"
-            type="button"
-            aria-label="用户账户菜单"
-            aria-haspopup="menu"
-            :aria-expanded="accountMenuOpen"
+          <ZIconButton
+            label="用户账户菜单"
+            button-class="account-menu-trigger"
+            has-popup="menu"
+            :expanded="accountMenuOpen"
             @click="toggleAccountMenu"
           >
             <ZUserRound />
-          </button>
+          </ZIconButton>
           <div v-if="accountMenuOpen" class="account-menu-panel" role="menu" aria-label="用户账户菜单">
             <div class="account-menu-identity">
               <strong>{{ account?.username ?? '尚未登录' }}</strong>
               <small>{{ account ? (account.kind === 'platform' ? '平台管理员' : '企业用户') : '账户' }}</small>
             </div>
-            <button v-if="account?.kind === 'platform'" type="button" role="menuitem" @click="openAccountPage('/platform/admin')">
+            <ZButton v-if="account?.kind === 'platform'" class="account-menu-item" variant="ghost" size="sm" role="menuitem" @click="openAccountPage('/platform/admin')">
               <ZShieldCheck :size="15" /> 平台控制台
-            </button>
-            <button v-if="account?.kind === 'platform'" type="button" role="menuitem" @click="openAccountPage('/platform/admin#password-settings')">
+            </ZButton>
+            <ZButton v-if="account?.kind === 'platform'" class="account-menu-item" variant="ghost" size="sm" role="menuitem" @click="openAccountPage('/platform/admin#password-settings')">
               <ZUserRound :size="15" /> 修改密码
-            </button>
-            <button v-if="account?.kind === 'tenant'" type="button" role="menuitem" @click="openAccountPage('/tenant/account')">
+            </ZButton>
+            <ZButton v-if="account?.kind === 'tenant'" class="account-menu-item" variant="ghost" size="sm" role="menuitem" @click="openAccountPage('/tenant/account')">
               <ZUserRound :size="15" /> 修改密码
-            </button>
-            <button v-if="!account" type="button" role="menuitem" @click="openAccountPage(route.path.startsWith('/platform') ? '/platform/login' : '/tenant/login')">
+            </ZButton>
+            <ZButton v-if="!account" class="account-menu-item" variant="ghost" size="sm" role="menuitem" @click="openAccountPage(route.path.startsWith('/platform') ? '/platform/login' : '/tenant/login')">
               <ZUserRound :size="15" /> 登录
-            </button>
-            <p v-if="accountMenuError" class="account-menu-error" role="alert">{{ accountMenuError }}</p>
-            <button v-if="account" class="account-menu-logout" type="button" role="menuitem" @click="logout">
+            </ZButton>
+            <ZAlert v-if="accountMenuError" class="account-menu-error" tone="error" role="alert">{{ accountMenuError }}</ZAlert>
+            <ZButton v-if="account" class="account-menu-logout" variant="ghost" size="sm" role="menuitem" @click="logout">
               <ZX :size="15" /> 退出登录
-            </button>
+            </ZButton>
           </div>
         </div>
       </div>

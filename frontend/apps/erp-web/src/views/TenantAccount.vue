@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ZAlert, ZButton, ZFormField, ZInput } from '@ztx/ui'
 const router=useRouter()
 const oldPassword=ref(''),newPassword=ref(''),confirmPassword=ref(''),message=ref(''),error=ref(''),busy=ref(false)
 async function updatePassword(){
@@ -18,14 +19,14 @@ async function updatePassword(){
 <template>
  <section class="tenant-account-page">
   <section class="account-panel"><h2>修改密码</h2><form @submit.prevent="updatePassword">
-   <label>当前密码<input v-model="oldPassword" type="password" autocomplete="current-password" required/></label>
-   <label>新密码<input v-model="newPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="至少 8 位，且同时包含字母和数字"/><small>至少 8 位，且同时包含字母和数字</small></label>
-   <label>确认新密码<input v-model="confirmPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="再次输入新密码"/></label>
-   <p v-if="message" class="message" role="status">{{message}}</p><p v-if="error" class="error" role="alert">{{error}}</p>
-   <button type="submit" :disabled="busy">{{busy?'正在保存…':'更新密码'}}</button>
+   <ZFormField label="当前密码" field-id="old-password" required><ZInput id="old-password" v-model="oldPassword" type="password" autocomplete="current-password" required/></ZFormField>
+   <ZFormField label="新密码" field-id="new-password" required hint="至少 8 位，且同时包含字母和数字"><ZInput id="new-password" v-model="newPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="至少 8 位，且同时包含字母和数字"/></ZFormField>
+   <ZFormField label="确认新密码" field-id="confirm-password" required><ZInput id="confirm-password" v-model="confirmPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="再次输入新密码"/></ZFormField>
+   <ZAlert v-if="message" tone="success">{{message}}</ZAlert><ZAlert v-if="error" tone="error" role="alert">{{error}}</ZAlert>
+   <ZButton type="submit" :disabled="busy">{{busy?'正在保存…':'更新密码'}}</ZButton>
   </form></section>
  </section>
 </template>
 <style scoped>
-.tenant-account-page{width:min(100%,480px);margin:0 auto;color:var(--ztx-text)}h2{font-size:var(--ztx-font-size-section-title);margin:0 0 14px}.account-panel{padding:18px;border:1px solid var(--ztx-border);border-radius:7px;background:var(--ztx-surface)}form{display:flex;flex-direction:column;gap:12px}label{display:flex;flex-direction:column;gap:6px;font-size:var(--ztx-font-size-body)}label small{color:var(--ztx-muted);font-size:var(--ztx-font-size-caption)}input{height:35px;padding:0 9px;border:1px solid var(--ztx-border-strong);border-radius:4px;background:#fffefa;font-size:var(--ztx-font-size-body)}button{height:34px;padding:0 12px;border:1px solid var(--ztx-primary);border-radius:5px;background:var(--ztx-primary);color:white;font-size:var(--ztx-font-size-body);cursor:pointer;align-self:flex-start}form>p{margin:0}.message,.error{font-size:var(--ztx-font-size-caption)}.message{color:#2d7250}.error{color:#a3473c}
+.tenant-account-page{width:min(100%,480px);margin:0 auto;color:var(--ztx-text)}h2{font-size:var(--ztx-font-size-section-title);margin:0 0 14px}.account-panel{padding:18px;border:1px solid var(--ztx-border);border-radius:7px;background:var(--ztx-surface)}form{display:flex;flex-direction:column;gap:12px}.tenant-account-page form :deep(.ztx-button){align-self:flex-start}form>p{margin:0}
 </style>

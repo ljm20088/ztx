@@ -24,10 +24,10 @@ class TenantAuthRoutes(
         }
         router.post("/api/v1/tenant/auth/password").handler { context ->
             withTenant(context) { principal ->
-                val body = body(context)
+                val body = AuthSupport.body(context)
                 val token = session(context)!!.second
                 auth.changePassword(principal, token, body.getString("oldPassword", ""),
-                    body.getString("newPassword", ""), ip(context))
+                    body.getString("newPassword", ""), AuthSupport.ip(context))
                     .onSuccess { context.response().setStatusCode(204).end() }
                     .onFailure { fail(context, 400, "当前密码不正确或新密码不符合安全要求") }
             }
@@ -62,26 +62,26 @@ class TenantAuthRoutes(
     }
 
     private fun setup(context: RoutingContext) {
-        val body = body(context)
+        val body = AuthSupport.body(context)
         val code = body.getString("tenantCode", "").trim().lowercase()
         val username = body.getString("username", "")
         val password = body.getString("password", "")
         lifecycle.initializeTenantAdmin(code, body.getString("token", ""), username, password)
-            .compose { auth.login(code, username, password, ip(context), context.request().getHeader("user-agent")) }
+            .compose { auth.login(code, username, password, AuthSupport.ip(context), context.request().getHeader("user-agent")) }
             .onSuccess { result ->
-                context.response().setStatusCode(201).putHeader("set-cookie", cookie(code, result.sessionToken))
+                context.response().setStatusCode(201).putHeader("set-cookie", AuthSupport.cookie("ztx_tenant_session", "$code.${result.sessionToken}", "/api/v1/tenant", secureCookies))
                     .putHeader("cache-control", "no-store").putHeader("content-type", "application/json")
                     .end(toJson(result.principal).encode())
             }.onFailure { fail(context, 400, "租户初始化凭据无效、已过期或账号信息不符合要求") }
     }
 
     private fun login(context: RoutingContext) {
-        val body = body(context)
+        val body = AuthSupport.body(context)
         val code = body.getString("tenantCode", "").trim().lowercase()
         auth.login(code, body.getString("username", ""), body.getString("password", ""),
-            ip(context), context.request().getHeader("user-agent"))
+            AuthSupport.ip(context), context.request().getHeader("user-agent"))
             .onSuccess { result ->
-                context.response().putHeader("set-cookie", cookie(code, result.sessionToken))
+                context.response().putHeader("set-cookie", AuthSupport.cookie("ztx_tenant_session", "$code.${result.sessionToken}", "/api/v1/tenant", secureCookies))
                     .putHeader("cache-control", "no-store").putHeader("content-type", "application/json")
                     .end(toJson(result.principal).encode())
             }.onFailure { fail(context, 401, "租户编码、账号或密码不正确") }
@@ -90,9 +90,9 @@ class TenantAuthRoutes(
     private fun logout(context: RoutingContext) {
         val current = session(context)
         val revoke = if (current == null) io.vertx.core.Future.succeededFuture<Void>()
-            else auth.logout(current.first, current.second, ip(context))
+            else auth.logout(current.first, current.second, AuthSupport.ip(context))
         revoke.onComplete {
-            context.response().putHeader("set-cookie", clearCookie()).setStatusCode(204).end()
+            context.response().putHeader("set-cookie", AuthSupport.clearCookie("ztx_tenant_session", "/api/v1/tenant", secureCookies)).setStatusCode(204).end()
         }
     }
 
@@ -122,18 +122,6 @@ class TenantAuthRoutes(
             !token.matches(Regex("[A-Za-z0-9_-]{40,64}"))) return null
         return code to token
     }
-
-    private fun cookie(code: String, token: String): String =
-        "ztx_tenant_session=$code.$token; Path=/api/v1/tenant; Max-Age=28800; HttpOnly; SameSite=Strict" +
-            if (secureCookies) "; Secure" else ""
-
-    private fun clearCookie(): String =
-        "ztx_tenant_session=; Path=/api/v1/tenant; Max-Age=0; HttpOnly; SameSite=Strict" +
-            if (secureCookies) "; Secure" else ""
-
-    private fun body(context: RoutingContext): JsonObject = context.body().asJsonObject() ?: JsonObject()
-    private fun ip(context: RoutingContext): String? =
-        context.request().remoteAddress()?.host()?.takeIf { it.matches(Regex("[0-9a-fA-F:.]+")) }
 
     private fun toJson(principal: TenantPrincipal) = JsonObject()
         .put("id", principal.userId.toString()).put("username", principal.username)

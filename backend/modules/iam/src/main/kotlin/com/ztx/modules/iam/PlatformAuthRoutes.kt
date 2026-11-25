@@ -59,11 +59,11 @@ class PlatformAuthRoutes(
     }
 
     private fun initialize(context: RoutingContext) {
-        val body = body(context)
+        val body = AuthSupport.body(context)
         service.initialize(body.getString("token", ""), body.getString("username", ""),
-            body.getString("password", ""), ip(context), context.request().getHeader("user-agent"))
+            body.getString("password", ""), AuthSupport.ip(context), context.request().getHeader("user-agent"))
             .onSuccess { result ->
-                context.response().setStatusCode(201).putHeader("set-cookie", cookie(result.sessionToken))
+                context.response().setStatusCode(201).putHeader("set-cookie", AuthSupport.cookie("ztx_platform_session", result.sessionToken, "/api/v1/platform", secureCookies))
                     .putHeader("content-type", "application/json")
                     .end(JsonObject().put("id", result.admin.id.toString())
                         .put("username", result.admin.username).put("mfaEnabled", result.admin.mfaEnabled).encode())
@@ -71,11 +71,11 @@ class PlatformAuthRoutes(
     }
 
     private fun login(context: RoutingContext) {
-        val body = body(context)
+        val body = AuthSupport.body(context)
         service.login(body.getString("username", ""), body.getString("password", ""),
-            body.getString("totp"), ip(context), context.request().getHeader("user-agent"))
+            body.getString("totp"), AuthSupport.ip(context), context.request().getHeader("user-agent"))
             .onSuccess { result ->
-                context.response().putHeader("set-cookie", cookie(result.sessionToken))
+                context.response().putHeader("set-cookie", AuthSupport.cookie("ztx_platform_session", result.sessionToken, "/api/v1/platform", secureCookies))
                     .putHeader("content-type", "application/json")
                     .end(JsonObject().put("id", result.admin.id.toString())
                         .put("username", result.admin.username).put("mfaEnabled", result.admin.mfaEnabled).encode())
@@ -85,11 +85,11 @@ class PlatformAuthRoutes(
     private fun logout(context: RoutingContext) {
         val token = sessionToken(context)
         if (token == null) {
-            context.response().putHeader("set-cookie", clearCookie()).setStatusCode(204).end()
+            context.response().putHeader("set-cookie", AuthSupport.clearCookie("ztx_platform_session", "/api/v1/platform", secureCookies)).setStatusCode(204).end()
             return
         }
-        service.logout(token, ip(context)).onSuccess {
-            context.response().putHeader("set-cookie", clearCookie()).setStatusCode(204).end()
+        service.logout(token, AuthSupport.ip(context)).onSuccess {
+            context.response().putHeader("set-cookie", AuthSupport.clearCookie("ztx_platform_session", "/api/v1/platform", secureCookies)).setStatusCode(204).end()
         }.onFailure { fail(context, it, 500) }
     }
 
@@ -100,9 +100,9 @@ class PlatformAuthRoutes(
     }
 
     private fun changePassword(context: RoutingContext) = withAdmin(context) { admin ->
-        val body = body(context)
+        val body = AuthSupport.body(context)
         service.changePassword(admin, body.getString("oldPassword", ""), body.getString("newPassword", ""),
-            sessionToken(context)!!, ip(context))
+            sessionToken(context)!!, AuthSupport.ip(context))
             .onSuccess { context.response().setStatusCode(204).end() }
             .onFailure { fail(context, it, 400) }
     }
@@ -115,7 +115,7 @@ class PlatformAuthRoutes(
     }
 
     private fun enableMfa(context: RoutingContext) = withAdmin(context) { admin ->
-        service.enableMfa(admin, body(context).getString("code", ""), ip(context))
+        service.enableMfa(admin, AuthSupport.body(context).getString("code", ""), AuthSupport.ip(context))
             .onSuccess { context.response().setStatusCode(204).end() }
             .onFailure { fail(context, it, 400) }
     }
@@ -135,19 +135,6 @@ class PlatformAuthRoutes(
         context.request().getHeader("cookie")?.split(';')
             ?.map { it.trim() }?.firstOrNull { it.startsWith("ztx_platform_session=") }
             ?.substringAfter('=')?.takeIf { it.isNotBlank() }
-
-    private fun cookie(token: String): String =
-        "ztx_platform_session=$token; Path=/api/v1/platform; Max-Age=28800; HttpOnly; SameSite=Strict" +
-            if (secureCookies) "; Secure" else ""
-
-    private fun clearCookie(): String =
-        "ztx_platform_session=; Path=/api/v1/platform; Max-Age=0; HttpOnly; SameSite=Strict" +
-            if (secureCookies) "; Secure" else ""
-
-    private fun body(context: RoutingContext): JsonObject = context.body().asJsonObject() ?: JsonObject()
-
-    private fun ip(context: RoutingContext): String? =
-        context.request().remoteAddress()?.host()?.takeIf { it.matches(Regex("[0-9a-fA-F:.]+")) }
 
     private fun fail(context: RoutingContext, error: Throwable, status: Int) {
         if (context.response().ended()) return

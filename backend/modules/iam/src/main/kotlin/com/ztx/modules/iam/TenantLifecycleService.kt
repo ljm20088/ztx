@@ -7,11 +7,8 @@ import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.Tuple
-import java.security.MessageDigest
-import java.security.SecureRandom
 import java.sql.DriverManager
 import java.sql.SQLException
-import java.util.Base64
 import java.util.UUID
 
 data class TenantRecord(
@@ -133,7 +130,7 @@ class TenantLifecycleService(
                 DriverManager.getConnection(tenantConfig.jdbcUrl, tenantConfig.user, tenantConfig.password).use { connection ->
                     connection.autoCommit = false
                     try {
-                        val tokenHash = sha256(token)
+                        val tokenHash = AuthSupport.sha256(token)
                         val tokenId = connection.prepareStatement(
                             """SELECT id FROM iam.tenant_admin_setup_token
                                WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > clock_timestamp()
@@ -146,15 +143,7 @@ class TenantLifecycleService(
                             "SELECT EXISTS (SELECT 1 FROM iam.tenant_admin)"
                         ).use { rows -> rows.next() && rows.getBoolean(1) }
                         require(!hasAdmin) { "租户管理员已初始化" }
-                        val salt = ByteArray(16).also(SecureRandom()::nextBytes)
-                        val spec = javax.crypto.spec.PBEKeySpec(password.toCharArray(), salt, 310_000, 256)
-                        val hash = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-                            .generateSecret(spec).encoded
-                        spec.clearPassword()
-                        val encoded = listOf(
-                            "pbkdf2", "310000", Base64.getEncoder().encodeToString(salt),
-                            Base64.getEncoder().encodeToString(hash)
-                        ).joinToString("$")
+                        val encoded = AuthSupport.hashPassword(password)
                         connection.prepareStatement(
                             "INSERT INTO iam.tenant_admin(id, username, password_hash) VALUES (?, ?, ?)"
                         ).use { statement ->
@@ -208,7 +197,7 @@ class TenantLifecycleService(
             poolSize = databaseConfig.poolSize, migrationLocations = tenantMigrationLocations
         )
         FlywayMigrator(tenantConfig).migrate()
-        val setupToken = randomToken()
+        val setupToken = AuthSupport.randomToken()
         DriverManager.getConnection(tenantConfig.jdbcUrl, tenantConfig.user, tenantConfig.password).use { connection ->
             connection.prepareStatement(
                 """INSERT INTO platform.tenant_info(id, code, name) VALUES (?, ?, ?)
@@ -227,7 +216,7 @@ class TenantLifecycleService(
                    VALUES (?, ?, clock_timestamp() + INTERVAL '24 hours')"""
             ).use { statement ->
                 statement.setObject(1, UUID.randomUUID())
-                statement.setString(2, sha256(setupToken))
+                statement.setString(2, AuthSupport.sha256(setupToken))
                 statement.executeUpdate()
             }
         }
@@ -332,13 +321,4 @@ class TenantLifecycleService(
         return "ztx_t_${slug}_${id.toString().replace("-", "").take(8)}"
     }
 
-    private fun randomToken(): String {
-        val bytes = ByteArray(32)
-        SecureRandom().nextBytes(bytes)
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
-    }
-
-    private fun sha256(value: String): String =
-        MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
-            .joinToString("") { "%02x".format(it) }
 }
