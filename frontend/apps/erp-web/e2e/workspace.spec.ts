@@ -232,7 +232,6 @@ test('折叠导航下二级与三级弹窗左右分离', async ({ page }) => {
 
   // When 打开二级菜单“低代码开发”
   await page.getByRole('button', { name: '低代码开发', exact: true }).click()
-  const category = page.locator('.collapsed-category-popover')
   const feature = page.locator('.feature-flyout')
   await expect(feature).toBeVisible()
 
