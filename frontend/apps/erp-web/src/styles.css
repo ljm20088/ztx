@@ -141,3 +141,15 @@ body{font-size:13px}
 @media(max-width:720px){
   .ztx-sidebar.is-collapsed .feature-flyout{left:244px}
 }
+
+
+/* 内容区字体规范：13px 为正文基准，辅助说明保持 12px，避免旧的 9–11px 局部样式压过全局字号 */
+.workspace-main{font-size:13px}
+.workspace-main :is(p,label,input,textarea,select,button,td,th,dt,dd,time,span,strong){font-size:13px!important}
+.workspace-main small,
+.workspace-main :is(.eyebrow,.panel-note,.recent-foot,.home-footnote,.workspace-footer){font-size:12px!important}
+.workspace-main :is(h1,h2){font-size:16px!important}
+.workspace-main .platform-auth-heading h1,
+.workspace-main .platform-admin-heading h1{font-size:18px!important}
+.workspace-main .panel-heading h2{font-size:15px!important}
+.workspace-main .placeholder-card h1{font-size:18px!important}
