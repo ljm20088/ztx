@@ -3,6 +3,10 @@ package com.ztx.modules.iam
 import io.vertx.core.json.JsonObject
 import io.vertx.pgclient.data.Inet
 import io.vertx.ext.web.RoutingContext
+import io.vertx.core.Future
+import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.Tuple
+import java.util.UUID
 import java.net.InetAddress
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -11,7 +15,18 @@ import java.util.Base64
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
-/** 平台与企业认证共用的密码、令牌和 HTTP 基础处理；业务策略仍由各自服务负责。 */
+/** 登录尝试与审计表名使用固定枚举，避免动态 SQL 标识符来自外部输入。 */
+internal enum class AuthScope(
+    val attemptTable: String,
+    val auditTable: String,
+    val auditActorColumn: String,
+    val invalidIpAsNull: Boolean
+) {
+    PLATFORM("iam.platform_login_attempt", "audit.platform_security_event", "admin_id", false),
+    TENANT("iam.tenant_login_attempt", "audit.tenant_security_event", "tenant_admin_id", true)
+}
+
+/** 平台与企业认证共用的密码、令牌、审计和 HTTP 基础处理；业务策略仍由各自服务负责。 */
 internal object AuthSupport {
     private val random = SecureRandom()
 
@@ -65,6 +80,37 @@ internal object AuthSupport {
         val convert = { Inet().setAddress(InetAddress.getByName(it)) }
         if (invalidAsNull) runCatching(convert).getOrNull() else convert()
     }
+
+    fun recordFailure(connection: SqlConnection, scope: AuthScope, key: String): Future<Void> =
+        connection.preparedQuery(
+            """INSERT INTO ${scope.attemptTable} (key_hash, failed_count) VALUES ($1, 1)
+               ON CONFLICT (key_hash) DO UPDATE SET
+                 failed_count = CASE WHEN ${scope.attemptTable}.window_started_at < clock_timestamp() - INTERVAL '15 minutes'
+                   THEN 1 ELSE ${scope.attemptTable}.failed_count + 1 END,
+                 window_started_at = CASE WHEN ${scope.attemptTable}.window_started_at < clock_timestamp() - INTERVAL '15 minutes'
+                   THEN clock_timestamp() ELSE ${scope.attemptTable}.window_started_at END,
+                 locked_until = CASE WHEN
+                   (CASE WHEN ${scope.attemptTable}.window_started_at < clock_timestamp() - INTERVAL '15 minutes'
+                     THEN 1 ELSE ${scope.attemptTable}.failed_count + 1 END) >= 5
+                   THEN clock_timestamp() + INTERVAL '15 minutes' ELSE NULL END,
+                 updated_at = clock_timestamp()"""
+        ).execute(Tuple.of(key)).mapEmpty()
+
+    fun audit(
+        connection: SqlConnection,
+        scope: AuthScope,
+        actorId: UUID?,
+        event: String,
+        outcome: String,
+        ip: String?
+    ): Future<Void> = connection.preparedQuery(
+        """INSERT INTO ${scope.auditTable}
+           (id, ${scope.auditActorColumn}, event_type, outcome, source_ip)
+           VALUES ($1, $2, $3, $4, $5::inet)"""
+    ).execute(Tuple.of(
+        UUID.randomUUID(), actorId, event, outcome,
+        postgresInet(ip, invalidAsNull = scope.invalidIpAsNull)
+    )).mapEmpty()
 
     fun body(context: RoutingContext): JsonObject = context.body().asJsonObject() ?: JsonObject()
 
