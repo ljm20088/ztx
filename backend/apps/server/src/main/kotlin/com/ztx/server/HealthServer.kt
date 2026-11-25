@@ -2,6 +2,7 @@ package com.ztx.server
 
 import com.ztx.adapters.postgres.DatabaseHealth
 import com.ztx.modules.iam.PlatformAuthRoutes
+import com.ztx.modules.iam.TenantLifecycleRoutes
 import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpServer
@@ -14,11 +15,13 @@ class HealthServer(
     private val database: DatabaseHealth,
     private val host: String,
     private val port: Int,
-    private val platformAuthRoutes: PlatformAuthRoutes? = null
+    private val platformAuthRoutes: PlatformAuthRoutes? = null,
+    private val tenantLifecycleRoutes: TenantLifecycleRoutes? = null
 ) {
     fun start(): Future<HttpServer> {
         val router = Router.router(vertx)
         platformAuthRoutes?.register(router)
+        tenantLifecycleRoutes?.register(router)
 
         router.route().failureHandler { context ->
             val status = context.statusCode().takeIf { it in 400..599 } ?: 500
@@ -43,7 +46,6 @@ class HealthServer(
                         .put("components", JsonObject().put("database", "DOWN")).encode())
             }
         }
-
         // 未注册的 API 路径保持 404，不能错误地回退成前端 index.html。
         router.route("/api/*").handler { context ->
             context.response().setStatusCode(404)

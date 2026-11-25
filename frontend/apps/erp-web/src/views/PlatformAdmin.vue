@@ -68,6 +68,7 @@ async function changePassword() {
   <section class="platform-admin-page">
     <header class="platform-admin-heading">
       <div><span class="eyebrow">PLATFORM CONTROL PLANE</span><h1>平台控制台</h1><p>平台级身份与安全设置。此处不管理租户业务用户。</p></div>
+      <button class="admin-secondary" @click="router.push('/platform/tenants')">租户管理</button>
       
     </header>
     <p v-if="message" class="admin-message" role="status">{{ message }}</p>

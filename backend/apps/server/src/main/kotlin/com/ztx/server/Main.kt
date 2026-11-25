@@ -8,6 +8,8 @@ import com.ztx.modules.document.DocumentRuntimeModule
 import com.ztx.modules.iam.IamModule
 import com.ztx.modules.iam.PlatformAuthRoutes
 import com.ztx.modules.iam.PlatformAuthService
+import com.ztx.modules.iam.TenantLifecycleRoutes
+import com.ztx.modules.iam.TenantLifecycleService
 import com.ztx.modules.metadata.MetadataModule
 import com.ztx.platform.common.AppConfig
 import com.ztx.platform.common.ModuleRegistry
@@ -43,15 +45,13 @@ fun main(args: Array<String>) {
     val database = PgDatabase(vertx, config.database)
     val outboxStore = PostgresOutboxStore(database)
     val authService = PlatformAuthService(database, config.mfaEncryptionKey)
-
+    val tenantService = TenantLifecycleService(vertx, database, config.database)
+    val tenantRoutes = TenantLifecycleRoutes(authService, tenantService)
 
     // 具体业务处理器由后续平台能力/业务扩展注册；空处理器集合不会领取未知任务。
     val worker = BackgroundTaskWorker(
-        vertx = vertx,
-        database = database,
-        store = outboxStore,
-        workerId = "ztx-worker-" + UUID.randomUUID(),
-        handlers = emptyMap()
+        vertx = vertx, database = database, store = outboxStore,
+        workerId = "ztx-worker-" + UUID.randomUUID(), handlers = emptyMap()
     )
     Runtime.getRuntime().addShutdownHook(Thread {
         worker.close()
@@ -85,7 +85,7 @@ fun main(args: Array<String>) {
                 }
                 HealthServer(
                     vertx, database, config.httpHost, config.httpPort,
-                    PlatformAuthRoutes(authService, config.secureCookies)
+                    PlatformAuthRoutes(authService, config.secureCookies), tenantRoutes
                 ).start()
             }
             .onSuccess { logger.info("ZTX API Server 已启动，监听 {}:{}", config.httpHost, config.httpPort) }
