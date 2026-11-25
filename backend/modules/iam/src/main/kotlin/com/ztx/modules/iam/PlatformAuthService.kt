@@ -2,8 +2,6 @@ package com.ztx.modules.iam
 
 import com.ztx.adapters.postgres.PgDatabase
 import io.vertx.core.Future
-import io.vertx.pgclient.data.Inet
-import java.net.InetAddress
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 import java.nio.ByteBuffer
@@ -15,9 +13,7 @@ import java.util.Base64
 import java.util.UUID
 import javax.crypto.Cipher
 import javax.crypto.Mac
-import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 data class PlatformAdmin(val id: UUID, val username: String, val mfaEnabled: Boolean)
@@ -49,12 +45,12 @@ class PlatformAuthService(
             connection.preparedQuery(
                 """SELECT 1 FROM iam.platform_admin_setup_token
                    WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > clock_timestamp()"""
-            ).execute(Tuple.of(sha256(token))).map { rows -> rows.size() == 1 }
+            ).execute(Tuple.of(AuthSupport.sha256(token))).map { rows -> rows.size() == 1 }
         }.map { isCurrent -> if (isCurrent) token else null }
     }
 
     fun createSetupCredential(): Future<String> {
-        val token = randomToken(32)
+        val token = AuthSupport.randomToken(32)
         return database.withTransaction { connection ->
             connection.preparedQuery(
                 """WITH lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(724193810233))
@@ -69,7 +65,7 @@ class PlatformAuthService(
                         connection.preparedQuery(
                             """INSERT INTO iam.platform_admin_setup_token (id, token_hash, expires_at)
                                VALUES ($1, $2, clock_timestamp() + INTERVAL '15 minutes')"""
-                        ).execute(Tuple.of(UUID.randomUUID(), sha256(token))).map(token)
+                        ).execute(Tuple.of(UUID.randomUUID(), AuthSupport.sha256(token))).map(token)
                     }
                 }
             }
@@ -85,7 +81,7 @@ class PlatformAuthService(
     ): Future<PlatformLogin> {
         require(username.matches(Regex("[A-Za-z0-9._-]{3,80}"))) { "管理员账号格式不正确" }
         validatePassword(password)
-        val passwordHash = hashPassword(password)
+        val passwordHash = AuthSupport.hashPassword(password, PBKDF2_ITERATIONS)
         return database.withTransaction { connection ->
             connection.preparedQuery(
                 """WITH lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(724193810233))
@@ -93,12 +89,12 @@ class PlatformAuthService(
                    WHERE token.token_hash = $1 AND token.consumed_at IS NULL
                      AND token.expires_at > clock_timestamp()
                    FOR UPDATE OF token"""
-            ).execute(Tuple.of(sha256(token))).compose { tokens ->
+            ).execute(Tuple.of(AuthSupport.sha256(token))).compose { tokens ->
                 if (tokens.size() != 1) return@compose Future.failedFuture("初始化凭据无效或已过期")
                 connection.preparedQuery("SELECT count(*) AS total FROM iam.platform_admin").execute().compose { admins ->
                     if (admins.first().getLong("total") > 0L) return@compose Future.failedFuture("平台管理员已初始化")
                     val id = UUID.randomUUID()
-                    val rawSession = randomToken(32)
+                    val rawSession = AuthSupport.randomToken(32)
                     connection.preparedQuery(
                         "INSERT INTO iam.platform_admin (id, username, password_hash) VALUES ($1, $2, $3)"
                     ).execute(Tuple.of(id, username, passwordHash)).compose {
@@ -111,8 +107,8 @@ class PlatformAuthService(
                                 """INSERT INTO iam.platform_admin_session
                                    (id, admin_id, token_hash, expires_at, user_agent, ip_address)
                                    VALUES ($1, $2, $3, clock_timestamp() + INTERVAL '8 hours', $4, $5::inet)"""
-                            ).execute(Tuple.of(UUID.randomUUID(), id, sha256(rawSession),
-                                userAgent?.take(512), postgresInet(ip))).compose {
+                            ).execute(Tuple.of(UUID.randomUUID(), id, AuthSupport.sha256(rawSession),
+                                userAgent?.take(512), AuthSupport.postgresInet(ip))).compose {
                                 audit(connection, id, "ADMIN_INITIALIZED", "SUCCESS", ip)
                                     .map(PlatformLogin(rawSession, PlatformAdmin(id, username, false)))
                             }
@@ -128,7 +124,7 @@ class PlatformAuthService(
     }
 
     fun login(username: String, password: String, totp: String?, ip: String?, userAgent: String?): Future<PlatformLogin> {
-        val attemptKey = sha256((ip ?: "unknown") + "|" + username.trim().lowercase())
+        val attemptKey = AuthSupport.sha256((ip ?: "unknown") + "|" + username.trim().lowercase())
         return database.withTransaction { connection ->
             connection.preparedQuery("SELECT locked_until FROM iam.platform_login_attempt WHERE key_hash = $1")
                 .execute(Tuple.of(attemptKey)).compose { attempts ->
@@ -142,7 +138,7 @@ class PlatformAuthService(
                                WHERE lower(username) = lower($1) AND disabled_at IS NULL"""
                         ).execute(Tuple.of(username.trim())).compose { rows ->
                             val row = rows.firstOrNull()
-                            val validPassword = row != null && verifyPassword(password, row.getString("password_hash"))
+                            val validPassword = row != null && AuthSupport.verifyPassword(password, row.getString("password_hash"))
                             val secret = if (row != null && row.getBoolean("mfa_enabled")) decrypt(row.getString("mfa_secret_ciphertext")) else null
                             val validMfa = secret == null || (totp != null && verifyTotp(secret, totp))
                             if (!validPassword || !validMfa) {
@@ -153,7 +149,7 @@ class PlatformAuthService(
                             } else {
                                 val authenticatedAdmin = requireNotNull(row)
                                 val adminId = UUID.fromString(authenticatedAdmin.getString("id"))
-                                val rawSession = randomToken(32)
+                                val rawSession = AuthSupport.randomToken(32)
                                 connection.preparedQuery("DELETE FROM iam.platform_login_attempt WHERE key_hash = $1")
                                     .execute(Tuple.of(attemptKey)).compose {
                                         connection.preparedQuery(
@@ -161,7 +157,7 @@ class PlatformAuthService(
                                                (id, admin_id, token_hash, expires_at, user_agent, ip_address)
                                                VALUES ($1, $2, $3, clock_timestamp() + INTERVAL '8 hours', $4, $5::inet)"""
                                         ).execute(Tuple.of(UUID.randomUUID(), adminId,
-                                            sha256(rawSession), userAgent?.take(512), postgresInet(ip)))
+                                            AuthSupport.sha256(rawSession), userAgent?.take(512), AuthSupport.postgresInet(ip)))
                                     }.compose {
                                         connection.preparedQuery(
                                             "UPDATE iam.platform_admin SET last_login_at = clock_timestamp() WHERE id = $1"
@@ -187,7 +183,7 @@ class PlatformAuthService(
                    JOIN iam.platform_admin admin ON admin.id = session.admin_id
                    WHERE session.token_hash = $1 AND session.revoked_at IS NULL
                      AND session.expires_at > clock_timestamp() AND admin.disabled_at IS NULL"""
-            ).execute(Tuple.of(sha256(rawToken))).map { rows ->
+            ).execute(Tuple.of(AuthSupport.sha256(rawToken))).map { rows ->
                 AdminLookup(rows.firstOrNull()?.let {
                     PlatformAdmin(UUID.fromString(it.getString("id")), it.getString("username"), it.getBoolean("mfa_enabled"))
                 })
@@ -199,7 +195,7 @@ class PlatformAuthService(
             connection.preparedQuery(
                 """UPDATE iam.platform_admin_session SET revoked_at = clock_timestamp()
                    WHERE token_hash = $1 AND revoked_at IS NULL RETURNING admin_id::text AS admin_id"""
-            ).execute(Tuple.of(sha256(rawToken))).compose { rows ->
+            ).execute(Tuple.of(AuthSupport.sha256(rawToken))).compose { rows ->
                 audit(connection, rows.firstOrNull()?.getString("admin_id")?.let(UUID::fromString), "LOGOUT", "SUCCESS", ip)
             }
         }
@@ -208,14 +204,14 @@ class PlatformAuthService(
         admin: PlatformAdmin, oldPassword: String, newPassword: String, currentToken: String, ip: String?
     ): Future<Void> {
         validatePassword(newPassword)
-        val newHash = hashPassword(newPassword)
+        val newHash = AuthSupport.hashPassword(newPassword, PBKDF2_ITERATIONS)
         return database.withTransaction { connection ->
             connection.preparedQuery("SELECT password_hash FROM iam.platform_admin WHERE id = $1")
                 .execute(Tuple.of(admin.id)).compose { rows ->
                     val currentHash = rows.firstOrNull()?.getString("password_hash")
-                    if (currentHash == null || !verifyPassword(oldPassword, currentHash)) {
+                    if (currentHash == null || !AuthSupport.verifyPassword(oldPassword, currentHash)) {
                         Future.failedFuture("当前密码不正确")
-                    } else if (verifyPassword(newPassword, currentHash)) {
+                    } else if (AuthSupport.verifyPassword(newPassword, currentHash)) {
                         Future.failedFuture("新密码不能与当前密码相同")
                     } else {
                         connection.preparedQuery(
@@ -224,7 +220,7 @@ class PlatformAuthService(
                             connection.preparedQuery(
                                 """UPDATE iam.platform_admin_session SET revoked_at = clock_timestamp()
                                    WHERE admin_id = $1 AND token_hash <> $2 AND revoked_at IS NULL"""
-                            ).execute(Tuple.of(admin.id, sha256(currentToken)))
+                            ).execute(Tuple.of(admin.id, AuthSupport.sha256(currentToken)))
                         }.compose {
                             audit(connection, admin.id, "PASSWORD_CHANGED", "SUCCESS", ip)
                         }
@@ -292,7 +288,7 @@ class PlatformAuthService(
         connection.preparedQuery(
             """INSERT INTO audit.platform_security_event (id, admin_id, event_type, outcome, source_ip)
                VALUES ($1, $2, $3, $4, $5::inet)"""
-        ).execute(Tuple.of(UUID.randomUUID(), adminId, event, outcome, postgresInet(ip))).mapEmpty()
+        ).execute(Tuple.of(UUID.randomUUID(), adminId, event, outcome, AuthSupport.postgresInet(ip))).mapEmpty()
 
     private fun encrypt(value: String): String {
         val nonce = ByteArray(12).also(random::nextBytes)
@@ -317,8 +313,6 @@ class PlatformAuthService(
         )
     }
 
-    private fun postgresInet(ip: String?): Inet? = ip?.let { Inet().setAddress(InetAddress.getByName(it)) }
-
     private fun verifyTotp(secret: String, code: String): Boolean {
         if (!code.matches(Regex("[0-9]{6}"))) return false
         val counter = Instant.now().epochSecond / 30
@@ -337,38 +331,11 @@ class PlatformAuthService(
         return (binary % 1_000_000).toString().padStart(6, '0')
     }
 
-    private fun hashPassword(password: String): String {
-        val salt = ByteArray(16).also(random::nextBytes)
-        val spec = PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, 256)
-        val hash = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
-        spec.clearPassword()
-        return listOf("pbkdf2", PBKDF2_ITERATIONS.toString(),
-            Base64.getEncoder().encodeToString(salt), Base64.getEncoder().encodeToString(hash)).joinToString("$")
-    }
-
-    private fun verifyPassword(password: String, encoded: String): Boolean = try {
-        val parts = encoded.split('$')
-        if (parts.size != 4 || parts[0] != "pbkdf2") return false
-        val spec = PBEKeySpec(password.toCharArray(), Base64.getDecoder().decode(parts[2]), parts[1].toInt(), 256)
-        val candidate = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
-        spec.clearPassword()
-        MessageDigest.isEqual(candidate, Base64.getDecoder().decode(parts[3]))
-    } catch (_: Exception) {
-        false
-    }
-
     private fun validatePassword(password: String) {
         require(password.length >= 8 && password.any(Char::isLetter) && password.any(Char::isDigit)) {
             "密码至少 8 位，且必须同时包含字母和数字"
         }
     }
-
-    private fun sha256(value: String): String =
-        MessageDigest.getInstance("SHA-256").digest(value.toByteArray(StandardCharsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
-
-    private fun randomToken(bytes: Int): String =
-        Base64.getUrlEncoder().withoutPadding().encodeToString(ByteArray(bytes).also(random::nextBytes))
 
     private fun base32(bytes: ByteArray): String {
         val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
