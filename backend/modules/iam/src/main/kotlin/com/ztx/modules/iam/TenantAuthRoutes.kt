@@ -69,7 +69,7 @@ class TenantAuthRoutes(
         lifecycle.initializeTenantAdmin(code, body.getString("token", ""), username, password)
             .compose { auth.login(code, username, password, AuthSupport.ip(context), context.request().getHeader("user-agent")) }
             .onSuccess { result ->
-                context.response().setStatusCode(201).putHeader("set-cookie", AuthSupport.cookie("ztx_tenant_session", "$code.${"${"}result.sessionToken}", "/api/v1/tenant", secureCookies))
+                context.response().setStatusCode(201).putHeader("set-cookie", AuthSupport.cookie("ztx_tenant_session", "$code.${result.sessionToken}", "/api/v1/tenant", secureCookies))
                     .putHeader("cache-control", "no-store").putHeader("content-type", "application/json")
                     .end(toJson(result.principal).encode())
             }.onFailure { fail(context, 400, "租户初始化凭据无效、已过期或账号信息不符合要求") }
@@ -81,7 +81,7 @@ class TenantAuthRoutes(
         auth.login(code, body.getString("username", ""), body.getString("password", ""),
             AuthSupport.ip(context), context.request().getHeader("user-agent"))
             .onSuccess { result ->
-                context.response().putHeader("set-cookie", AuthSupport.cookie("ztx_tenant_session", "$code.${"${"}result.sessionToken}", "/api/v1/tenant", secureCookies))
+                context.response().putHeader("set-cookie", AuthSupport.cookie("ztx_tenant_session", "$code.${result.sessionToken}", "/api/v1/tenant", secureCookies))
                     .putHeader("cache-control", "no-store").putHeader("content-type", "application/json")
                     .end(toJson(result.principal).encode())
             }.onFailure { fail(context, 401, "租户编码、账号或密码不正确") }
