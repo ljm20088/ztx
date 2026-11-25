@@ -7,7 +7,6 @@ import io.vertx.sqlclient.Tuple
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
-import java.security.SecureRandom
 import java.time.Instant
 import java.util.Base64
 import java.util.UUID
@@ -233,7 +232,7 @@ class PlatformAuthService(
         require(mfaEncryptionKey.toByteArray(StandardCharsets.UTF_8).size >= 32) {
             "启用 MFA 前请在 application.yaml 的 security.mfa-encryption-key 中配置至少 32 字节随机密钥；可用 openssl rand -base64 32 生成"
         }
-        val secret = base32(ByteArray(20).also(random::nextBytes))
+        val secret = base32(AuthSupport.randomBytes(20))
         return database.withTransaction { connection ->
             connection.preparedQuery(
                 """UPDATE iam.platform_admin SET mfa_secret_ciphertext = $2, mfa_enabled = FALSE,
@@ -291,7 +290,7 @@ class PlatformAuthService(
         ).execute(Tuple.of(UUID.randomUUID(), adminId, event, outcome, AuthSupport.postgresInet(ip))).mapEmpty()
 
     private fun encrypt(value: String): String {
-        val nonce = ByteArray(12).also(random::nextBytes)
+        val nonce = AuthSupport.randomBytes(12)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, encryptionKey(), GCMParameterSpec(128, nonce))
         return Base64.getEncoder().encodeToString(nonce + cipher.doFinal(value.toByteArray(StandardCharsets.UTF_8)))
@@ -374,6 +373,5 @@ class PlatformAuthService(
 
     private companion object {
         const val PBKDF2_ITERATIONS = 310_000
-        val random = SecureRandom()
     }
 }
