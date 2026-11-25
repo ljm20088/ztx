@@ -18,7 +18,7 @@ async function submit(){
    :{tenantCode:tenantCode.value.trim(),username:username.value.trim(),password:password.value}
   const response=await fetch(endpoint,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(payload)})
   const data=await response.json().catch(()=>null)
-  if(!response.ok)throw new Error(data?.error?.message??'登录失败，请检查租户编码和账号密码。')
+  if(!response.ok)throw new Error(data?.error?.message??'登录失败，请检查企业编码和账号密码。')
   const target=typeof route.query.redirect==='string'&&route.query.redirect.startsWith('/')&&!route.query.redirect.startsWith('//')&&!route.query.redirect.startsWith('/platform')?route.query.redirect:'/workspace'
   await router.replace(target)
  }catch(cause){error.value=cause instanceof Error?cause.message:'认证服务暂不可用'}
@@ -40,7 +40,7 @@ async function submit(){
     <p v-if="error" class="tenant-auth-error" role="alert">{{error}}</p>
     <button class="tenant-auth-submit" type="submit" :disabled="busy">{{busy?'正在处理…':mode==='login'?'安全登录':'完成账号设置'}}</button>
    </form>
-   <button class="tenant-auth-switch" type="button" @click="mode=mode==='login'?'setup':'login';error=''">{{mode==='login'?'首次使用？设置租户管理员账号':'返回登录'}}</button>
+   <button class="tenant-auth-switch" type="button" @click="mode=mode==='login'?'setup':'login';error=''">{{mode==='login'?'首次使用？设置企业管理员账号':'返回登录'}}</button>
    <div class="tenant-auth-foot">企业身份独立验证 · 企业数据由服务端安全隔离</div>
    <div class="tenant-auth-platform-link"><span>平台运营人员？</span><RouterLink to="/platform/login">平台管理登录</RouterLink></div>
   </section>
