@@ -193,7 +193,7 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
         @pointerleave="onSidebarPointerLeave"
       >
         <nav class="sidebar-navigation" aria-label="一级菜单">
-          <div v-for="module in menuModules" :key="module.id" class="module-group">
+          <div v-for="module in menuModules" :key="module.id" class="module-group" @pointerleave="navCollapsed && scheduleClose()">
             <button
               class="module-entry"
               :aria-label="module.label"
@@ -242,6 +242,8 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
           class="collapsed-category-popover"
           :style="{ top: collapsedMenuTop + 'px' }"
           :aria-label="activeModule.label + '二级菜单'"
+          @pointerenter="clearCloseTimer"
+          @pointerleave="scheduleClose"
         >
           <div class="collapsed-menu-heading"><strong>{{ activeModule.label }}</strong></div>
           <button
@@ -281,6 +283,7 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
             role="menu"
             :aria-label="activeCategory.label + '功能菜单'"
             @pointerenter="clearCloseTimer"
+            @pointerleave="scheduleClose"
             @keydown="onFlyoutKeydown"
           >
             <button
