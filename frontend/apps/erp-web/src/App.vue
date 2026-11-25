@@ -283,7 +283,7 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
             role="menu"
             :aria-label="activeCategory.label + '功能菜单'"
             @pointerenter="clearCloseTimer"
-            @pointerleave="scheduleClose"
+            @pointerleave="onMenuPointerLeave"
             @keydown="onFlyoutKeydown"
           >
             <button
