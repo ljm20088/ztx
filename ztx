@@ -56,18 +56,34 @@ check_database() {
   docker compose up -d --wait postgres
 }
 
+# 语义化版本比较：current >= required 返回 0，否则返回 1
+# 兼容 v 前缀和 -beta 等后缀；不用 sort -V（macOS 自带 BSD sort 不支持）
+version_ge() {
+  local current="${1#v}" required="${2#v}"
+  local IFS=.
+  local -a cur_parts=($current) req_parts=($required)
+  local i cur req
+  for ((i = 0; i < ${#req_parts[@]}; i++)); do
+    cur="${cur_parts[i]:-0}"; cur="${cur%%[!0-9]*}"; cur="${cur:-0}"
+    req="${req_parts[i]:-0}"; req="${req%%[!0-9]*}"; req="${req:-0}"
+    if (( 10#$cur > 10#$req )); then return 0; fi
+    if (( 10#$cur < 10#$req )); then return 1; fi
+  done
+  return 0
+}
+
 check_frontend_toolchain() {
   require_command node
   require_command pnpm
   local node_version pnpm_version
   node_version="$(node --version)"
   pnpm_version="$(pnpm --version)"
-  if [[ "$node_version" != "v26.13.1" ]]; then
-    echo "要求 Node.js 26.13.1，当前为 $node_version" >&2
+  if ! version_ge "$node_version" "v26.13.1"; then
+    echo "要求 Node.js >= 26.13.1，当前为 $node_version" >&2
     exit 1
   fi
-  if [[ "$pnpm_version" != "12.18.0" ]]; then
-    echo "要求 pnpm 12.18.0，当前为 $pnpm_version" >&2
+  if ! version_ge "$pnpm_version" "12.18.0"; then
+    echo "要求 pnpm >= 12.18.0，当前为 $pnpm_version" >&2
     exit 1
   fi
 }
@@ -109,7 +125,7 @@ start_service() {
     tail -n 60 "$log_file" >&2 || true
     exit 1
   fi
-  echo "$name 已启动（PID $pid），日志：$log_file"
+  echo "${name} 已启动（PID ${pid}），日志：$log_file"
 }
 
 wait_for_http() {
@@ -239,7 +255,7 @@ stop() {
     [[ -f "$pid_file" ]] || continue
     pid="$(cat "$pid_file")"
     if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
-      echo "停止 $name（PID $pid）..."
+      echo "停止 ${name}（PID ${pid}）..."
       kill -TERM "$pid" 2>/dev/null || true
       for _ in $(seq 1 10); do
         kill -0 "$pid" 2>/dev/null || break
@@ -263,9 +279,9 @@ status() {
   local name
   for name in server worker web; do
     if is_running "$name"; then
-      echo "$name：运行中（PID $(cat "$PID_DIR/$name.pid")）"
+      echo "${name}：运行中（PID $(cat "$PID_DIR/${name}.pid")）"
     else
-      echo "$name：未运行"
+      echo "${name}：未运行"
     fi
   done
   if command -v docker >/dev/null 2>&1; then

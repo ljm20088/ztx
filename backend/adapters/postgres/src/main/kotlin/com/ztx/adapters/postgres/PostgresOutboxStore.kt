@@ -46,7 +46,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
             RETURNING id
             """.trimIndent()
         ).execute(Tuple.of(
-            eventId, event.eventType, event.payload.encode(),
+            eventId, event.eventType, event.payload,
             event.aggregateType, event.aggregateId, event.idempotencyKey, event.correlationId
         )).compose { inserted ->
             if (inserted.rowCount() == 0) {
@@ -110,7 +110,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
                             ClaimedBackgroundTask(
                                 id = UUID.fromString(row.getString("id")),
                                 taskType = row.getString("task_type"),
-                                payload = requireNotNull(row.getJsonObject("payload")) { "Outbox 任务载荷不能为空" },
+                                payload = JsonObject(requireNotNull(row.getString("payload")) { "Outbox 任务载荷不能为空" }),
                                 idempotencyKey = row.getString("idempotency_key"),
                                 attemptCount = row.getInteger("attempt_count"),
                                 maxAttempts = row.getInteger("max_attempts"),
@@ -239,7 +239,7 @@ class PostgresOutboxStore(private val database: PgDatabase) {
                 updated_at = clock_timestamp()
             FROM candidates, platform.outbox_event AS event
             WHERE task.id = candidates.id AND event.id = task.outbox_event_id
-            RETURNING task.id::text AS id, task.task_type, event.payload AS payload,
+            RETURNING task.id::text AS id, task.task_type, event.payload::text AS payload,
                       task.idempotency_key, task.attempt_count, task.max_attempts,
                       task.lease_token::text AS lease_token
         """
