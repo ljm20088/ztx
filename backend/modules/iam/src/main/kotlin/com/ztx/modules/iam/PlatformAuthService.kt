@@ -108,7 +108,7 @@ class PlatformAuthService(
                                    VALUES ($1, $2, $3, clock_timestamp() + INTERVAL '8 hours', $4, $5::inet)"""
                             ).execute(Tuple.of(UUID.randomUUID(), id, AuthSupport.sha256(rawSession),
                                 userAgent?.take(512), AuthSupport.postgresInet(ip))).compose {
-                                audit(connection, id, "ADMIN_INITIALIZED", "SUCCESS", ip)
+                                AuthSupport.audit(connection, AuthScope.PLATFORM, id, "ADMIN_INITIALIZED", "SUCCESS", ip)
                                     .map(PlatformLogin(rawSession, PlatformAdmin(id, username, false)))
                             }
                         }
@@ -129,7 +129,7 @@ class PlatformAuthService(
                 .execute(Tuple.of(attemptKey)).compose { attempts ->
                     val lockedUntil = attempts.firstOrNull()?.getOffsetDateTime("locked_until")
                     if (lockedUntil != null && lockedUntil.toInstant().isAfter(Instant.now())) {
-                        audit(connection, null, "LOGIN", "DENIED", ip).map(LoginOutcome(null))
+                        AuthSupport.audit(connection, AuthScope.PLATFORM, null, "LOGIN", "DENIED", ip).map(LoginOutcome(null))
                     } else {
                         connection.preparedQuery(
                             """SELECT id::text AS id, username, password_hash, mfa_secret_ciphertext, mfa_enabled
@@ -141,8 +141,8 @@ class PlatformAuthService(
                             val secret = if (row != null && row.getBoolean("mfa_enabled")) decrypt(row.getString("mfa_secret_ciphertext")) else null
                             val validMfa = secret == null || (totp != null && verifyTotp(secret, totp))
                             if (!validPassword || !validMfa) {
-                                recordFailure(connection, attemptKey).compose {
-                                    audit(connection, row?.getString("id")?.let(UUID::fromString),
+                                AuthSupport.recordFailure(connection, AuthScope.PLATFORM, attemptKey).compose {
+                                    AuthSupport.audit(connection, AuthScope.PLATFORM, row?.getString("id")?.let(UUID::fromString),
                                         if (validPassword) "MFA_LOGIN" else "LOGIN", "FAILURE", ip)
                                 }.map(LoginOutcome(null))
                             } else {
@@ -162,7 +162,7 @@ class PlatformAuthService(
                                             "UPDATE iam.platform_admin SET last_login_at = clock_timestamp() WHERE id = $1"
                                         ).execute(Tuple.of(adminId))
                                     }.compose {
-                                        audit(connection, adminId, "LOGIN", "SUCCESS", ip)
+                                        AuthSupport.audit(connection, AuthScope.PLATFORM, adminId, "LOGIN", "SUCCESS", ip)
                                     }.map(LoginOutcome(PlatformLogin(rawSession, PlatformAdmin(adminId, authenticatedAdmin.getString("username"), authenticatedAdmin.getBoolean("mfa_enabled")))))
                             }
                         }
@@ -195,7 +195,7 @@ class PlatformAuthService(
                 """UPDATE iam.platform_admin_session SET revoked_at = clock_timestamp()
                    WHERE token_hash = $1 AND revoked_at IS NULL RETURNING admin_id::text AS admin_id"""
             ).execute(Tuple.of(AuthSupport.sha256(rawToken))).compose { rows ->
-                audit(connection, rows.firstOrNull()?.getString("admin_id")?.let(UUID::fromString), "LOGOUT", "SUCCESS", ip)
+                AuthSupport.audit(connection, AuthScope.PLATFORM, rows.firstOrNull()?.getString("admin_id")?.let(UUID::fromString), "LOGOUT", "SUCCESS", ip)
             }
         }
 
@@ -221,7 +221,7 @@ class PlatformAuthService(
                                    WHERE admin_id = $1 AND token_hash <> $2 AND revoked_at IS NULL"""
                             ).execute(Tuple.of(admin.id, AuthSupport.sha256(currentToken)))
                         }.compose {
-                            audit(connection, admin.id, "PASSWORD_CHANGED", "SUCCESS", ip)
+                            AuthSupport.audit(connection, AuthScope.PLATFORM, admin.id, "PASSWORD_CHANGED", "SUCCESS", ip)
                         }
                     }
                 }
@@ -238,7 +238,7 @@ class PlatformAuthService(
                 """UPDATE iam.platform_admin SET mfa_secret_ciphertext = $2, mfa_enabled = FALSE,
                    updated_at = clock_timestamp() WHERE id = $1"""
             ).execute(Tuple.of(admin.id, encrypt(secret))).compose {
-                audit(connection, admin.id, "MFA_ENROLLMENT_STARTED", "SUCCESS", null)
+                AuthSupport.audit(connection, AuthScope.PLATFORM, admin.id, "MFA_ENROLLMENT_STARTED", "SUCCESS", null)
             }.map {
                 val label = "ZTX:" + admin.username
                 MfaEnrollment(secret, "otpauth://totp/" + label + "?secret=" + secret +
@@ -253,41 +253,18 @@ class PlatformAuthService(
                 .execute(Tuple.of(admin.id)).compose { rows ->
                     val encrypted = rows.firstOrNull()?.getString("mfa_secret_ciphertext")
                     if (encrypted.isNullOrBlank() || !verifyTotp(decrypt(encrypted), code)) {
-                        audit(connection, admin.id, "MFA_ENABLED", "FAILURE", ip).map<Boolean>(false)
+                        AuthSupport.audit(connection, AuthScope.PLATFORM, admin.id, "MFA_ENABLED", "FAILURE", ip).map<Boolean>(false)
                     } else {
                         connection.preparedQuery(
                             "UPDATE iam.platform_admin SET mfa_enabled = TRUE, updated_at = clock_timestamp() WHERE id = $1"
                         ).execute(Tuple.of(admin.id)).compose {
-                            audit(connection, admin.id, "MFA_ENABLED", "SUCCESS", ip).map<Boolean>(true)
+                            AuthSupport.audit(connection, AuthScope.PLATFORM, admin.id, "MFA_ENABLED", "SUCCESS", ip).map<Boolean>(true)
                         }
                     }
                 }
         }.compose { enabled ->
             if (enabled) Future.succeededFuture() else Future.failedFuture("动态验证码不正确")
         }
-
-    private fun recordFailure(connection: SqlConnection, key: String): Future<Void> =
-        connection.preparedQuery(
-            """INSERT INTO iam.platform_login_attempt (key_hash, failed_count) VALUES ($1, 1)
-               ON CONFLICT (key_hash) DO UPDATE SET
-                 failed_count = CASE WHEN iam.platform_login_attempt.window_started_at < clock_timestamp() - INTERVAL '15 minutes'
-                   THEN 1 ELSE iam.platform_login_attempt.failed_count + 1 END,
-                 window_started_at = CASE WHEN iam.platform_login_attempt.window_started_at < clock_timestamp() - INTERVAL '15 minutes'
-                   THEN clock_timestamp() ELSE iam.platform_login_attempt.window_started_at END,
-                 locked_until = CASE WHEN
-                   (CASE WHEN iam.platform_login_attempt.window_started_at < clock_timestamp() - INTERVAL '15 minutes'
-                     THEN 1 ELSE iam.platform_login_attempt.failed_count + 1 END) >= 5
-                   THEN clock_timestamp() + INTERVAL '15 minutes' ELSE NULL END,
-                 updated_at = clock_timestamp()"""
-        ).execute(Tuple.of(key)).mapEmpty()
-
-    private fun audit(
-        connection: SqlConnection, adminId: UUID?, event: String, outcome: String, ip: String?
-    ): Future<Void> =
-        connection.preparedQuery(
-            """INSERT INTO audit.platform_security_event (id, admin_id, event_type, outcome, source_ip)
-               VALUES ($1, $2, $3, $4, $5::inet)"""
-        ).execute(Tuple.of(UUID.randomUUID(), adminId, event, outcome, AuthSupport.postgresInet(ip))).mapEmpty()
 
     private fun encrypt(value: String): String {
         val nonce = AuthSupport.randomBytes(12)
