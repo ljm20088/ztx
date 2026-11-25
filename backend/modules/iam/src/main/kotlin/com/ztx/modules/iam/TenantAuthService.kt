@@ -60,7 +60,8 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                                     audit(connection, row?.getString("id")?.let(UUID::fromString), "LOGIN", "FAILURE", ip)
                                 }.map<TenantLogin?>(null)
                             } else {
-                                val userId = UUID.fromString(row!!.getString("id"))
+                                val adminRow = requireNotNull(row)
+                                val userId = UUID.fromString(adminRow.getString("id"))
                                 val token = randomToken()
                                 connection.preparedQuery(
                                     """INSERT INTO iam.tenant_admin_session
@@ -79,7 +80,7 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                                 }.map<TenantLogin?> {
                                     TenantLogin(token, TenantPrincipal(
                                         tenantDatabase.tenant.id, tenantDatabase.tenant.code,
-                                        tenantDatabase.tenant.databaseName, userId, row.getString("username"),
+                                        tenantDatabase.tenant.databaseName, userId, adminRow.getString("username"),
                                         "TENANT_ADMIN", tenantDatabase.database
                                     ))
                                 }
