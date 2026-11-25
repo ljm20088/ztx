@@ -5,7 +5,7 @@ import { ZBell, ZChevronRight, ZCommand, ZMaximize2, ZUserRound, ZShieldCheck, Z
 import { menuModules, findFeature } from './navigation/menu'
 import { useWorkspaceStore } from './stores/workspace'
 const route=useRoute(),router=useRouter(),workspace=useWorkspaceStore()
-const isAuthRoute=computed(()=>route.path==='/tenant/login'||route.path==='/platform/login')
+const isAuthRoute=computed(()=>route.path==='/'||route.path==='/tenant/login'||route.path==='/platform/login')
 const activeModuleId=ref('workspace'),openCategoryId=ref<string|null>('personal'),flyoutOpen=ref(false),isTouch=ref(false)
 const account=ref<{id:string;username:string;mfaEnabled?:boolean;kind:'platform'|'tenant'}|null>(null),accountMenuOpen=ref(false),accountMenuError=ref('')
 const navCollapsed=ref(localStorage.getItem('ztx-nav-collapsed')==='true'),collapsedMenuOpen=ref(false)
