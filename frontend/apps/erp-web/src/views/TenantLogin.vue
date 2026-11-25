@@ -30,7 +30,7 @@ async function submit(){
  <main class="tenant-auth-page">
   <section class="tenant-auth-card">
    <div class="tenant-auth-brand"><span>Z</span><div><strong>ZTX</strong><small>ENTERPRISE WORKSPACE</small></div></div>
-   <div class="tenant-auth-heading"><h1>{{mode==='login'?'租户用户登录':'设置租户管理员账号'}}</h1><p>请输入所属企业的企业编码及个人账号信息。</p></div>
+   <div class="tenant-auth-heading"><h1>{{mode==='login'?'企业登录':'设置企业管理员账号'}}</h1><p>请输入所属企业的企业编码及个人账号信息。</p></div>
    <form class="tenant-auth-form" @submit.prevent="submit">
     <label>企业编码<input v-model.trim="tenantCode" required minlength="2" maxlength="40" autocomplete="organization" placeholder="请输入企业编码"/></label>
     <label v-if="mode==='setup'">一次性初始化凭据<input v-model.trim="setupToken" required autocomplete="off" placeholder="由平台管理员提供"/></label>
