@@ -1,5 +1,3 @@
-<script setup lang="ts"></script>
-
 <template>
   <div class="ztx-table-wrap">
     <table class="ztx-table"><slot /></table>
