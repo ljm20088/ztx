@@ -11,9 +11,8 @@ withDefaults(defineProps<{
 
 <template>
   <div class="ztx-form-field">
-    <label class="ztx-form-field__label" :for="fieldId">
+    <label class="ztx-form-field__label" :class="{ 'is-required': required }" :for="fieldId">
       <span>{{ label }}</span>
-      <span v-if="required" class="ztx-form-field__required" aria-hidden="true">*</span>
     </label>
     <slot />
     <small v-if="hint" class="ztx-form-field__hint">{{ hint }}</small>
@@ -35,7 +34,7 @@ withDefaults(defineProps<{
   font-size: var(--ztx-font-size-body, 13px);
   font-weight: 650;
 }
-.ztx-form-field__required { color: var(--ztx-danger); }
+.ztx-form-field__label.is-required::after { content: "*"; color: var(--ztx-danger); }
 .ztx-form-field__hint {
   color: var(--ztx-muted);
   font-size: var(--ztx-font-size-caption, 12px);
