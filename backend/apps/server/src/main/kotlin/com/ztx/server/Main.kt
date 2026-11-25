@@ -109,6 +109,7 @@ fun main(args: Array<String>) {
             .onFailure { error ->
                 logger.error("ZTX Worker 启动失败", error)
                 worker.close()
+                tenantDatabases.close()
                 database.close()
                 vertx.close()
                 exitProcess(1)

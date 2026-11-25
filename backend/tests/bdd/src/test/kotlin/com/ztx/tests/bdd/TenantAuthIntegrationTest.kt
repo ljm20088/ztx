@@ -67,10 +67,12 @@ class TenantAuthIntegrationTest {
             }
         }
         val actor = PlatformAdmin(adminId, "platform.test", false)
-        val tenantA = lifecycle.create("tenant_a", "租户 A", actor).await().tenant
-        val tenantB = lifecycle.create("tenant_b", "租户 B", actor).await().tenant
-        lifecycle.initializeTenantAdmin("tenant_a", setupToken(config, tenantA.databaseName), "shared.admin", "TenantPass123").await()
-        lifecycle.initializeTenantAdmin("tenant_b", setupToken(config, tenantB.databaseName), "shared.admin", "TenantPass123").await()
+        val provisionA = lifecycle.create("tenant_a", "租户 A", actor).await()
+        val provisionB = lifecycle.create("tenant_b", "租户 B", actor).await()
+        val tenantA = provisionA.tenant
+        val tenantB = provisionB.tenant
+        lifecycle.initializeTenantAdmin("tenant_a", requireNotNull(provisionA.setupToken), "shared.admin", "TenantPass123").await()
+        lifecycle.initializeTenantAdmin("tenant_b", requireNotNull(provisionB.setupToken), "shared.admin", "TenantPass123").await()
         val registry = TenantDatabaseRegistry(vertx, lifecycle, config)
         val auth = TenantAuthService(registry)
 
@@ -123,19 +125,6 @@ class TenantAuthIntegrationTest {
             vertx.close().toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS)
         }
     }
-
-    private fun setupToken(config: DatabaseConfig, databaseName: String): String =
-        DriverManager.getConnection(
-            "jdbc:postgresql://${config.host}:${config.port}/$databaseName", config.user, config.password
-        ).use { connection ->
-            connection.createStatement().executeQuery(
-                "SELECT token_hash FROM iam.tenant_admin_setup_token WHERE consumed_at IS NULL"
-            ).use { rows ->
-                assertTrue(rows.next())
-                // 测试不直接逆向哈希；由开通结果保留的 token 应通过服务返回。
-                rows.getString(1)
-            }
-        }
 
     private fun <T> io.vertx.core.Future<T>.await(): T =
         toCompletionStage().toCompletableFuture().get(60, TimeUnit.SECONDS)
