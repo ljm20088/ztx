@@ -1,4 +1,7 @@
 export { default as ZButton } from './components/ZButton.vue'
+export { default as ZInput } from './components/ZInput.vue'
+export { default as ZFormField } from './components/ZFormField.vue'
+export { default as ZAlert } from './components/ZAlert.vue'
 export { default as ZIconButton } from './components/ZIconButton.vue'
 export { default as ZTooltip } from './components/ZTooltip.vue'
 export { default as ZTabs } from './components/ZTabs.vue'
