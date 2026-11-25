@@ -3,7 +3,6 @@ package com.ztx.modules.iam
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
-import io.vertx.ext.web.handler.BodyHandler
 
 const val TENANT_CONTEXT_KEY = "ztx.tenant.context"
 
@@ -42,6 +41,7 @@ class TenantAuthRoutes(
             if (path.startsWith("/api/v1/platform/") ||
                 path == "/api/v1/tenant/auth/login" ||
                 path == "/api/v1/tenant/auth/setup" ||
+                path == "/api/v1/tenant/auth/logout" ||
                 path == "/api/v1/tenant/setup") {
                 context.next()
             } else {
