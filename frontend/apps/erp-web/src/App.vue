@@ -172,7 +172,7 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
           <div v-if="accountMenuOpen" class="account-menu-panel" role="menu" aria-label="用户账户菜单">
             <div class="account-menu-identity">
               <strong>{{ account?.username ?? '尚未登录' }}</strong>
-              <small>{{ account ? (account.kind === 'platform' ? '平台管理员' : '租户用户') : '账户' }}</small>
+              <small>{{ account ? (account.kind === 'platform' ? '平台管理员' : '企业用户') : '账户' }}</small>
             </div>
             <button v-if="account?.kind === 'platform'" type="button" role="menuitem" @click="openAccountPage('/platform/admin')">
               <ZShieldCheck :size="15" /> 平台控制台
