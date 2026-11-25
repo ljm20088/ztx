@@ -42,7 +42,7 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                 ).execute(Tuple.of(attemptKey)).compose { attempts ->
                     val lockedUntil = attempts.firstOrNull()?.getOffsetDateTime("locked_until")
                     if (lockedUntil != null && lockedUntil.toInstant().isAfter(Instant.now())) {
-                        audit(connection, null, "LOGIN", "DENIED", ip).map { TenantLoginOutcome(null) }
+                        AuthSupport.audit(connection, AuthScope.TENANT, null, "LOGIN", "DENIED", ip).map { TenantLoginOutcome(null) }
                     } else {
                         connection.preparedQuery(
                             """SELECT id::text AS id, username, password_hash
@@ -52,8 +52,8 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                             val row = rows.firstOrNull()
                             val valid = row != null && AuthSupport.verifyPassword(password, row.getString("password_hash"))
                             if (!valid) {
-                                recordFailure(connection, attemptKey).compose {
-                                    audit(connection, row?.getString("id")?.let(UUID::fromString), "LOGIN", "FAILURE", ip)
+                                AuthSupport.recordFailure(connection, AuthScope.TENANT, attemptKey).compose {
+                                    AuthSupport.audit(connection, AuthScope.TENANT, row?.getString("id")?.let(UUID::fromString), "LOGIN", "FAILURE", ip)
                                 }.map { TenantLoginOutcome(null) }
                             } else {
                                 val adminRow = requireNotNull(row)
@@ -72,7 +72,7 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                                     connection.preparedQuery("DELETE FROM iam.tenant_login_attempt WHERE key_hash = $1")
                                         .execute(Tuple.of(attemptKey))
                                 }.compose {
-                                    audit(connection, userId, "LOGIN", "SUCCESS", ip)
+                                    AuthSupport.audit(connection, AuthScope.TENANT, userId, "LOGIN", "SUCCESS", ip)
                                 }.map {
                                     TenantLoginOutcome(TenantLogin(token, TenantPrincipal(
                                         tenantDatabase.tenant.id, tenantDatabase.tenant.code,
@@ -122,7 +122,7 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                 ).execute(Tuple.of(AuthSupport.sha256(rawToken))).compose { rows ->
                     val adminId = rows.firstOrNull()?.getString("admin_id")?.let(UUID::fromString)
                     if (adminId == null) Future.succeededFuture<Void>()
-                    else audit(connection, adminId, "LOGOUT", "SUCCESS", ip)
+                    else AuthSupport.audit(connection, AuthScope.TENANT, adminId, "LOGOUT", "SUCCESS", ip)
                 }
             }
         }.recover { Future.succeededFuture<Void>() }
@@ -139,7 +139,7 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                 .execute(Tuple.of(principal.userId)).compose { rows ->
                     val currentHash = rows.firstOrNull()?.getString("password_hash")
                     if (currentHash == null || !AuthSupport.verifyPassword(oldPassword, currentHash)) {
-                        audit(connection, principal.userId, "PASSWORD_CHANGE", "FAILURE", ip)
+                        AuthSupport.audit(connection, AuthScope.TENANT, principal.userId, "PASSWORD_CHANGE", "FAILURE", ip)
                             .map { TenantPasswordChangeOutcome(false) }
                     } else if (AuthSupport.verifyPassword(newPassword, currentHash)) {
                         Future.failedFuture<TenantPasswordChangeOutcome>("新密码不能与当前密码相同")
@@ -152,7 +152,7 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                                    WHERE admin_id = $1 AND token_hash <> $2 AND revoked_at IS NULL"""
                             ).execute(Tuple.of(principal.userId, AuthSupport.sha256(currentToken)))
                         }.compose {
-                            audit(connection, principal.userId, "PASSWORD_CHANGED", "SUCCESS", ip)
+                            AuthSupport.audit(connection, AuthScope.TENANT, principal.userId, "PASSWORD_CHANGED", "SUCCESS", ip)
                         }.map { TenantPasswordChangeOutcome(true) }
                     }
                 }
@@ -161,29 +161,5 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
             else Future.failedFuture<Void>("当前密码不正确")
         }
     }
-
-    private fun recordFailure(connection: SqlConnection, key: String): Future<Void> =
-        connection.preparedQuery(
-            """INSERT INTO iam.tenant_login_attempt (key_hash, failed_count) VALUES ($1, 1)
-               ON CONFLICT (key_hash) DO UPDATE SET
-                 failed_count = CASE WHEN iam.tenant_login_attempt.window_started_at < clock_timestamp() - INTERVAL '15 minutes'
-                   THEN 1 ELSE iam.tenant_login_attempt.failed_count + 1 END,
-                 window_started_at = CASE WHEN iam.tenant_login_attempt.window_started_at < clock_timestamp() - INTERVAL '15 minutes'
-                   THEN clock_timestamp() ELSE iam.tenant_login_attempt.window_started_at END,
-                 locked_until = CASE WHEN
-                   (CASE WHEN iam.tenant_login_attempt.window_started_at < clock_timestamp() - INTERVAL '15 minutes'
-                     THEN 1 ELSE iam.tenant_login_attempt.failed_count + 1 END) >= 5
-                   THEN clock_timestamp() + INTERVAL '15 minutes' ELSE NULL END,
-                 updated_at = clock_timestamp()"""
-        ).execute(Tuple.of(key)).mapEmpty()
-
-    private fun audit(
-        connection: SqlConnection, userId: UUID?, event: String, outcome: String, ip: String?
-    ): Future<Void> =
-        connection.preparedQuery(
-            """INSERT INTO audit.tenant_security_event
-               (id, tenant_admin_id, event_type, outcome, source_ip)
-               VALUES ($1, $2, $3, $4, $5::inet)"""
-        ).execute(Tuple.of(UUID.randomUUID(), userId, event, outcome, AuthSupport.postgresInet(ip, invalidAsNull = true))).mapEmpty()
 
 }
