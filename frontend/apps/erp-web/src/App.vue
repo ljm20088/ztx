@@ -8,7 +8,8 @@ const route=useRoute(),router=useRouter(),workspace=useWorkspaceStore()
 const activeModuleId=ref('workspace'),openCategoryId=ref<string|null>('personal'),flyoutOpen=ref(false),isTouch=ref(false)
 const account=ref<{id:string;username:string;mfaEnabled:boolean}|null>(null),accountMenuOpen=ref(false),accountMenuError=ref('')
 const navCollapsed=ref(localStorage.getItem('ztx-nav-collapsed')==='true'),collapsedMenuOpen=ref(false)
-const navRoot=ref<HTMLElement|null>(null),categoryButtons=new Map<string,HTMLButtonElement>(),flyoutTop=ref(120)
+const navRoot=ref<HTMLElement|null>(null),categoryButtons=new Map<string,HTMLButtonElement>(),moduleButtons=new Map<string,HTMLButtonElement>(),flyoutTop=ref(120)
+const collapsedMenuRef=ref<HTMLElement|null>(null),collapsedMenuTop=ref(10)
 let closeTimer:ReturnType<typeof setTimeout>|undefined
 let openedByHover=false
 const activeModule=computed(()=>menuModules.find(item=>item.id===activeModuleId.value)??menuModules[0]!)
@@ -22,14 +23,51 @@ watch(()=>route.fullPath,path=>{
  void refreshAccount()
 },{immediate:true})
 function setCategoryButton(id:string,element:HTMLButtonElement|null){if(element)categoryButtons.set(id,element);else categoryButtons.delete(id)}
+function setModuleButton(id:string,element:HTMLButtonElement|null){if(element)moduleButtons.set(id,element);else moduleButtons.delete(id)}
 function clearCloseTimer(){if(closeTimer)clearTimeout(closeTimer);closeTimer=undefined}
-function scheduleClose(){clearCloseTimer();closeTimer=setTimeout(()=>{flyoutOpen.value=false;openedByHover=false},220)}
-function selectModule(id:string){if(navCollapsed.value&&activeModuleId.value===id){collapsedMenuOpen.value=!collapsedMenuOpen.value;return}activeModuleId.value=id;openCategoryId.value=menuModules.find(item=>item.id===id)?.categories[0]?.id??null;flyoutOpen.value=false;openedByHover=false;clearCloseTimer();collapsedMenuOpen.value=navCollapsed.value}
+function scheduleClose(){clearCloseTimer();closeTimer=setTimeout(()=>{flyoutOpen.value=false;collapsedMenuOpen.value=false;openedByHover=false},220)}
+function onMenuPointerLeave(event:PointerEvent){
+ // Given 用户在菜单触发区或弹出菜单内移动指针，When 鼠标离开当前区域，Then 延迟关闭以便进入相邻菜单；触屏抬起不视为离开。
+ if(event.pointerType!=='touch')scheduleClose()
+}
+function selectModule(id:string){
+ if(navCollapsed.value&&activeModuleId.value===id){collapsedMenuOpen.value=!collapsedMenuOpen.value;return}
+ activeModuleId.value=id
+ openCategoryId.value=menuModules.find(item=>item.id===id)?.categories[0]?.id??null
+ flyoutOpen.value=false;openedByHover=false;clearCloseTimer();collapsedMenuOpen.value=navCollapsed.value
+}
+function onModulePointerEnter(id:string){
+ if(!navCollapsed.value||isTouch.value)return
+ clearCloseTimer();activeModuleId.value=id
+ openCategoryId.value=menuModules.find(item=>item.id===id)?.categories[0]?.id??null
+ flyoutOpen.value=false;openedByHover=false;collapsedMenuOpen.value=true
+ void nextTick(()=>{
+  const trigger=moduleButtons.get(id)?.getBoundingClientRect(),root=navRoot.value,menuElement=collapsedMenuRef.value
+  if(!trigger||!root||!menuElement)return
+  // Given 弹窗顶部显示模块名称，When 用户从模块图标向右移动，Then 第一个二级菜单项应与图标垂直对齐。
+  const menuRect=menuElement.getBoundingClientRect()
+  const firstItem=menuElement.querySelector<HTMLElement>('.category-entry')
+  const firstItemOffset=firstItem?firstItem.getBoundingClientRect().top-menuRect.top:0
+  const rootRect=root.getBoundingClientRect()
+  const preferredTop=trigger.top-rootRect.top-firstItemOffset
+  const menuHeight=menuRect.height
+  collapsedMenuTop.value=Math.max(8,Math.min(preferredTop,root.clientHeight-menuHeight-8))
+ })
+}
+function onModuleClick(id:string,event:MouseEvent){
+ // Given 桌面端指针悬停已打开二级菜单，When 随后的 click 事件到达，Then 不重复切换菜单状态。
+ if(navCollapsed.value&&!isTouch.value&&event.detail>0)return
+ selectModule(id)
+}
 function toggleNavigation(){navCollapsed.value=!navCollapsed.value;collapsedMenuOpen.value=false;flyoutOpen.value=false;openedByHover=false;clearCloseTimer()}
 function openCategory(id:string){clearCloseTimer();openCategoryId.value=id;flyoutOpen.value=true;nextTick(()=>{const button=categoryButtons.get(id),root=navRoot.value;if(button&&root){const row=button.getBoundingClientRect(),panel=root.getBoundingClientRect();flyoutTop.value=Math.max(12,Math.min(row.top-panel.top,root.clientHeight-180))}})}
 function onCategoryPointerEnter(id:string){if(!isTouch.value){openedByHover=true;openCategory(id)}}
-function toggleCategory(id:string){clearCloseTimer();openedByHover=false;if(openCategoryId.value===id&&flyoutOpen.value)flyoutOpen.value=false;else openCategory(id)}
-function onCategoryClick(id:string){if(openedByHover&&openCategoryId.value===id&&flyoutOpen.value){openedByHover=false;return}toggleCategory(id)}
+function onCategoryClick(id:string){
+ if(openedByHover&&openCategoryId.value===id&&flyoutOpen.value){openedByHover=false;return}
+ // 点击只负责确保下级菜单打开，不与悬停争夺展开状态，也不反向关闭菜单。
+ if(openCategoryId.value===id&&flyoutOpen.value)return
+ openCategory(id)
+}
 function onCategoryKeydown(event:KeyboardEvent,id:string,index:number){
  const categories=activeModule.value.categories
  if(event.key==='ArrowDown'||event.key==='ArrowUp'){
@@ -79,7 +117,7 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
 <template>
   <div class="ztx-shell">
     <header class="workspace-header">
-      <div class="brand-lockup" aria-label="ZTX 企业工作区">
+      <div class="brand-lockup" :class="{ 'is-nav-collapsed': navCollapsed }" aria-label="ZTX 企业工作区">
         <div class="brand-mark">
           <ZCommand :size="18" :stroke-width="2.2" />
         </div>
@@ -157,16 +195,19 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
         :class="{ 'is-collapsed': navCollapsed, 'has-collapsed-menu': collapsedMenuOpen }"
         aria-label="一级菜单"
         @pointerenter="clearCloseTimer"
+        @pointerleave="onMenuPointerLeave"
       >
         <nav class="sidebar-navigation" aria-label="一级菜单">
-          <div v-for="module in menuModules" :key="module.id" class="module-group">
+          <div v-for="module in menuModules" :key="module.id" class="module-group" @pointerleave="navCollapsed && onMenuPointerLeave($event)">
             <button
               class="module-entry"
               :aria-label="module.label"
               :title="navCollapsed ? module.label : undefined"
               :class="{ 'is-active': activeModuleId === module.id }"
-              :aria-expanded="activeModuleId === module.id && !navCollapsed"
-              @click="selectModule(module.id)"
+              :ref="element => setModuleButton(module.id, element as HTMLButtonElement | null)"
+              :aria-expanded="navCollapsed ? activeModuleId === module.id && collapsedMenuOpen : activeModuleId === module.id"
+              @pointerenter="onModulePointerEnter(module.id)"
+              @click="onModuleClick(module.id, $event)"
             >
               <component :is="module.icon" :size="19" :stroke-width="1.8" />
               <span>{{ module.label }}</span>
@@ -198,29 +239,34 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
                 <ZChevronRight :size="15" />
               </button>
             </div>
-            <div
-              v-if="activeModuleId === module.id && navCollapsed && collapsedMenuOpen"
-              class="collapsed-category-popover"
-              :aria-label="module.label + '二级菜单'"
-            >
-              <button
-                v-for="(category, index) in module.categories"
-                :key="category.id"
-                :ref="element => setCategoryButton(category.id, element as HTMLButtonElement | null)"
-                class="category-entry"
-                :class="{ 'is-open': openCategoryId === category.id && flyoutOpen }"
-                :aria-expanded="openCategoryId === category.id && flyoutOpen"
-                aria-haspopup="menu"
-                @pointerenter="onCategoryPointerEnter(category.id)"
-                @click="onCategoryClick(category.id)"
-                @keydown="onCategoryKeydown($event, category.id, index)"
-              >
-                <span>{{ category.label }}</span>
-                <ZChevronRight :size="15" />
-              </button>
-            </div>
           </div>
         </nav>
+        <div
+          v-if="navCollapsed && collapsedMenuOpen"
+          ref="collapsedMenuRef"
+          class="collapsed-category-popover"
+          :style="{ top: collapsedMenuTop + 'px' }"
+          :aria-label="activeModule.label + '二级菜单'"
+          @pointerenter="clearCloseTimer"
+          @pointerleave="onMenuPointerLeave"
+        >
+          <div class="collapsed-menu-heading"><strong>{{ activeModule.label }}</strong></div>
+          <button
+            v-for="(category, index) in activeModule.categories"
+            :key="category.id"
+            :ref="element => setCategoryButton(category.id, element as HTMLButtonElement | null)"
+            class="category-entry"
+            :class="{ 'is-open': openCategoryId === category.id && flyoutOpen }"
+            :aria-expanded="openCategoryId === category.id && flyoutOpen"
+            aria-haspopup="menu"
+            @pointerenter="onCategoryPointerEnter(category.id)"
+            @click="onCategoryClick(category.id)"
+            @keydown="onCategoryKeydown($event, category.id, index)"
+          >
+            <span>{{ category.label }}</span>
+            <ZChevronRight :size="15" />
+          </button>
+        </div>
         <div class="rail-footer">
           <span class="environment-dot" />
           <span class="environment-label">演示环境</span>
@@ -242,7 +288,7 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
             role="menu"
             :aria-label="activeCategory.label + '功能菜单'"
             @pointerenter="clearCloseTimer"
-            @pointerleave="scheduleClose"
+            @pointerleave="onMenuPointerLeave"
             @keydown="onFlyoutKeydown"
           >
             <button

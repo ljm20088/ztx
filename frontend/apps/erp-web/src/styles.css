@@ -73,9 +73,11 @@
 .ztx-sidebar.is-collapsed.has-collapsed-menu .inline-category-list{display:flex;position:absolute;left:64px;top:70px;width:206px;padding:8px;background:var(--ztx-surface);border:1px solid var(--ztx-border);border-radius:0 7px 7px 0;box-shadow:var(--ztx-shadow-popover)}
 @media(max-width:720px){.ztx-sidebar{width:236px;flex-basis:236px}.ztx-sidebar.is-collapsed{width:56px;flex-basis:56px}.ztx-sidebar.is-collapsed.has-collapsed-menu .inline-category-list{left:56px}.ztx-sidebar .feature-flyout{width:min(252px,calc(100vw - 300px))}}
 
-.ztx-sidebar.is-collapsed .collapsed-category-popover{position:absolute;left:64px;top:10px;width:206px;display:flex;flex-direction:column;gap:2px;padding:8px;background:var(--ztx-surface);border:1px solid var(--ztx-border);border-radius:0 7px 7px 0;box-shadow:var(--ztx-shadow-popover);z-index:25}
+.ztx-sidebar.is-collapsed .collapsed-category-popover{position:absolute;left:calc(100% - 1px);width:206px;display:flex;flex-direction:column;gap:2px;padding:8px;background:var(--ztx-surface);border:1px solid var(--ztx-border);border-radius:0 7px 7px 0;box-shadow:var(--ztx-shadow-popover);z-index:25}
+.ztx-sidebar.is-collapsed .collapsed-menu-heading{display:flex;align-items:center;min-height:36px;padding:0 9px 7px;margin-bottom:3px;border-bottom:1px solid var(--ztx-border);color:var(--ztx-text)}
+.ztx-sidebar.is-collapsed .collapsed-menu-heading strong{font-size:14px;font-weight:700}
 .ztx-sidebar.is-collapsed .collapsed-category-popover .category-entry{display:flex;min-height:36px;flex-direction:row;justify-content:space-between;padding:0 9px;font-size:12px}
-@media(max-width:720px){.ztx-sidebar.is-collapsed .collapsed-category-popover{left:56px;width:188px}}
+@media(max-width:720px){.ztx-sidebar.is-collapsed .collapsed-category-popover{width:188px}}
 
 /* 品牌标识与工作区标签同处顶栏，导航从顶栏下方开始 */
 .workspace-header .brand-lockup{width:240px;flex:0 0 240px}
@@ -138,6 +140,9 @@ body{font-size:var(--ztx-font-size-body)}
 /* 折叠导航下，三级弹窗从二级弹窗右侧展开，避免两个弹窗互相覆盖 */
 .ztx-sidebar.is-collapsed .feature-flyout{left:270px;z-index:30}
 .ztx-sidebar.is-collapsed .collapsed-category-popover{z-index:25}
+.workspace-header .brand-lockup.is-nav-collapsed{width:64px;min-width:64px;flex-basis:64px;justify-content:center;padding:0}
+.workspace-header .brand-lockup.is-nav-collapsed .brand-wordmark{display:none}
 @media(max-width:720px){
+  .workspace-header .brand-lockup.is-nav-collapsed{width:56px;min-width:56px;flex-basis:56px}
   .ztx-sidebar.is-collapsed .feature-flyout{left:244px}
 }
