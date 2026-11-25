@@ -89,6 +89,75 @@ class TenantLifecycleService(
             }
         }
 
+
+    /** 租户管理员凭租户开通时签发的一次性凭据设置首个账号。 */
+    fun initializeTenantAdmin(code: String, token: String, username: String, password: String): Future<Void> {
+        val normalizedUsername = username.trim()
+        require(normalizedUsername.matches(Regex("[A-Za-z0-9._-]{3,80}"))) { "管理员账号格式不正确" }
+        require(password.length >= 8 && password.any(Char::isLetter) && password.any(Char::isDigit)) {
+            "密码至少 8 位，且必须同时包含字母和数字"
+        }
+        return activeDatabaseName(code).compose { dbName ->
+            vertx.executeBlocking<Void>({ promise ->
+                try {
+                    val tenantConfig = DatabaseConfig(
+                        host = databaseConfig.host, port = databaseConfig.port, database = dbName,
+                        user = databaseConfig.user, password = databaseConfig.password,
+                        poolSize = databaseConfig.poolSize, migrationLocations = "filesystem:database/tenant-migrations"
+                    )
+                    DriverManager.getConnection(tenantConfig.jdbcUrl, tenantConfig.user, tenantConfig.password).use { connection ->
+                        connection.autoCommit = false
+                        try {
+                            val tokenHash = sha256(token)
+                            val tokenId = connection.prepareStatement(
+                                """SELECT id FROM iam.tenant_admin_setup_token
+                                   WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > clock_timestamp()
+                                   FOR UPDATE"""
+                            ).use { statement ->
+                                statement.setString(1, tokenHash)
+                                statement.executeQuery().use { rows -> if (rows.next()) rows.getObject(1, UUID::class.java) else null }
+                            } ?: throw IllegalArgumentException("租户管理员初始化凭据无效或已过期")
+                            val hasAdmin = connection.createStatement().executeQuery(
+                                "SELECT EXISTS (SELECT 1 FROM iam.tenant_admin)"
+                            ).use { rows -> rows.next() && rows.getBoolean(1) }
+                            require(!hasAdmin) { "租户管理员已初始化" }
+                            val salt = ByteArray(16).also(SecureRandom()::nextBytes)
+                            val spec = javax.crypto.spec.PBEKeySpec(password.toCharArray(), salt, 210_000, 256)
+                            val hash = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+                                .generateSecret(spec).encoded
+                            spec.clearPassword()
+                            val encoded = listOf(
+                                "pbkdf2", "210000", Base64.getEncoder().encodeToString(salt),
+                                Base64.getEncoder().encodeToString(hash)
+                            ).joinToString("$")
+                            connection.prepareStatement(
+                                "INSERT INTO iam.tenant_admin(id, username, password_hash) VALUES (?, ?, ?)"
+                            ).use { statement ->
+                                statement.setObject(1, UUID.randomUUID())
+                                statement.setString(2, normalizedUsername)
+                                statement.setString(3, encoded)
+                                statement.executeUpdate()
+                            }
+                            connection.prepareStatement(
+                                "UPDATE iam.tenant_admin_setup_token SET consumed_at = clock_timestamp() WHERE id = ?"
+                            ).use { statement ->
+                                statement.setObject(1, tokenId)
+                                check(statement.executeUpdate() == 1) { "租户管理员初始化凭据已被使用" }
+                            }
+                            connection.commit()
+                        } catch (error: Throwable) {
+                            connection.rollback()
+                            throw error
+                        }
+                    }
+                    promise.complete()
+                } catch (error: Throwable) {
+                    promise.fail(error)
+                }
+            }, false)
+        }
+    }
+
     private fun provision(tenant: TenantRecord, actor: PlatformAdmin): Future<TenantProvisioningResult> =
         claim(tenant.id).compose { claimed ->
             if (!claimed) return@compose find(tenant.id).map { TenantProvisioningResult(it) }

@@ -28,8 +28,8 @@ class TenantLifecycleIntegrationTest {
         val postgres = PostgreSQLContainer<Nothing>("postgres:18.6")
     }
 
-    @Test
     // 场景：平台管理员开通两个租户，系统为其创建隔离的业务数据库并支持生命周期管理
+    @Test
     fun shouldProvisionIsolatedDatabasesAndManageTenantLifecycle() {
         // Given：控制面数据库已完成迁移，平台管理员已登录
         val projectDir = Path.of(System.getProperty("ztx.projectDir"))
@@ -63,6 +63,27 @@ class TenantLifecycleIntegrationTest {
             assertNotNull(tenantB.setupToken)
             assertEquals(tenantA.tenant.databaseName, service.activeDatabaseName("tenant_a").await())
             assertEquals(tenantB.tenant.databaseName, service.activeDatabaseName("tenant_b").await())
+
+            // When：租户 A 管理员使用一次性凭据设置首个账号
+            service.initializeTenantAdmin("tenant_a", tenantA.setupToken!!, "tenant.admin", "TenantAdmin123").await()
+
+            // Then：初始化凭据被消费，首个管理员账号写入租户 A 数据库
+            DriverManager.getConnection(
+                "jdbc:postgresql://${config.host}:${config.port}/${tenantA.tenant.databaseName}",
+                config.user, config.password
+            ).use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.executeQuery("SELECT count(*) FROM iam.tenant_admin").use { rows ->
+                        assertTrue(rows.next())
+                        assertEquals(1, rows.getInt(1))
+                    }
+                }
+            }
+
+            // Then：已消费的租户管理员初始化凭据不能重放
+            assertThrows(Exception::class.java) {
+                service.initializeTenantAdmin("tenant_a", tenantA.setupToken, "second.admin", "TenantAdmin123").await()
+            }
 
             // Then：租户数据库分别保存各自的租户标识和管理员初始化凭据
             listOf(tenantA, tenantB).forEach { result ->

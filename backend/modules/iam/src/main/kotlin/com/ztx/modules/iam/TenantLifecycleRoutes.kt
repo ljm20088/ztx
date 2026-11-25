@@ -13,6 +13,16 @@ class TenantLifecycleRoutes(
 ) {
     fun register(router: Router) {
         router.route("/api/v1/platform/tenants/*").handler(BodyHandler.create().setBodyLimit(16 * 1024))
+        router.route("/api/v1/tenant/*").handler(BodyHandler.create().setBodyLimit(16 * 1024))
+        router.post("/api/v1/tenant/setup").handler { context ->
+            val body = context.body().asJsonObject() ?: JsonObject()
+            tenantService.initializeTenantAdmin(
+                body.getString("tenantCode", ""), body.getString("token", ""),
+                body.getString("username", ""), body.getString("password", "")
+            ).onSuccess {
+                context.response().setStatusCode(201).end()
+            }.onFailure { fail(context, 400) }
+        }
         router.get("/api/v1/platform/tenants").handler { context ->
             withAdmin(context) {
                 tenantService.list().onSuccess { tenants ->
