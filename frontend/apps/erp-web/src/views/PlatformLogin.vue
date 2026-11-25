@@ -71,7 +71,7 @@ async function submit() {
       <div class="platform-auth-heading">
         <span class="eyebrow">SECURE ACCESS</span>
         <h1>{{ mode === 'login' ? '平台管理员登录' : '欢迎使用 ZTX，创建平台管理员' }}</h1>
-        <p>{{ mode === 'login' ? '使用平台控制面账号登录。此账号与租户业务账号相互独立。' : '首次初始化只需设置用户名和密码。创建成功后将自动进入平台控制台。' }}</p>
+        <p>{{ mode === 'login' ? '使用平台控制面账号登录。此账号与企业用户账号相互独立。' : '首次初始化只需设置用户名和密码。创建成功后将自动进入平台控制台。' }}</p>
       </div>
       <form class="platform-auth-form" @submit.prevent="submit">
         <label v-if="mode === 'initialize'">一次性初始化口令
