@@ -26,8 +26,8 @@ function setCategoryButton(id:string,element:HTMLButtonElement|null){if(element)
 function setModuleButton(id:string,element:HTMLButtonElement|null){if(element)moduleButtons.set(id,element);else moduleButtons.delete(id)}
 function clearCloseTimer(){if(closeTimer)clearTimeout(closeTimer);closeTimer=undefined}
 function scheduleClose(){clearCloseTimer();closeTimer=setTimeout(()=>{flyoutOpen.value=false;collapsedMenuOpen.value=false;openedByHover=false},220)}
-function onSidebarPointerLeave(event:PointerEvent){
- // Given 触屏用户刚完成点击，When 浏览器派发触屏指针离开事件，Then 不应把点击误判为鼠标离开菜单区域。
+function onMenuPointerLeave(event:PointerEvent){
+ // Given 用户在菜单触发区或弹出菜单内移动指针，When 鼠标离开当前区域，Then 延迟关闭以便进入相邻菜单；触屏抬起不视为离开。
  if(event.pointerType!=='touch')scheduleClose()
 }
 function selectModule(id:string){
@@ -190,10 +190,10 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
         :class="{ 'is-collapsed': navCollapsed, 'has-collapsed-menu': collapsedMenuOpen }"
         aria-label="一级菜单"
         @pointerenter="clearCloseTimer"
-        @pointerleave="onSidebarPointerLeave"
+        @pointerleave="onMenuPointerLeave"
       >
         <nav class="sidebar-navigation" aria-label="一级菜单">
-          <div v-for="module in menuModules" :key="module.id" class="module-group" @pointerleave="navCollapsed && scheduleClose()">
+          <div v-for="module in menuModules" :key="module.id" class="module-group" @pointerleave="navCollapsed && onMenuPointerLeave($event)">
             <button
               class="module-entry"
               :aria-label="module.label"
@@ -243,7 +243,7 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
           :style="{ top: collapsedMenuTop + 'px' }"
           :aria-label="activeModule.label + '二级菜单'"
           @pointerenter="clearCloseTimer"
-          @pointerleave="scheduleClose"
+          @pointerleave="onMenuPointerLeave"
         >
           <div class="collapsed-menu-heading"><strong>{{ activeModule.label }}</strong></div>
           <button
