@@ -205,9 +205,9 @@ test('折叠导航下悬停菜单跟随一级图标，鼠标离开后关闭', as
   await category.click()
   await expect(featureMenu).toBeVisible()
 
-  // When 鼠标离开整个导航及其弹出菜单区域
-  await page.locator('.workspace-main').hover()
-  // Then 二级与三级菜单一起关闭
+  // When 鼠标离开模块图标和二级菜单区域，移入侧栏底部空白区
+  await page.locator('.rail-footer').hover()
+  // Then 二级与三级菜单一起关闭，即使指针仍在侧栏范围内
   await expect(popover).toBeHidden()
   await expect(featureMenu).toBeHidden()
 })
