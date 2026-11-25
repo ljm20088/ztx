@@ -27,6 +27,10 @@ data class TenantPrincipal(
 
 data class TenantLogin(val sessionToken: String, val principal: TenantPrincipal)
 
+private data class TenantLoginOutcome(val login: TenantLogin?)
+private data class TenantPrincipalLookup(val principal: TenantPrincipal?)
+private data class TenantPasswordChangeOutcome(val changed: Boolean)
+
 /** 租户身份只在租户自己的数据库内验证和保存；控制面只负责可信租户路由。 */
 class TenantAuthService(private val databases: TenantDatabaseRegistry) {
     fun login(
@@ -46,7 +50,7 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                 ).execute(Tuple.of(attemptKey)).compose { attempts ->
                     val lockedUntil = attempts.firstOrNull()?.getOffsetDateTime("locked_until")
                     if (lockedUntil != null && lockedUntil.toInstant().isAfter(Instant.now())) {
-                        audit(connection, null, "LOGIN", "DENIED", ip).map<TenantLogin?>(null)
+                        audit(connection, null, "LOGIN", "DENIED", ip).map { TenantLoginOutcome(null) }
                     } else {
                         connection.preparedQuery(
                             """SELECT id::text AS id, username, password_hash
@@ -77,20 +81,20 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                                         .execute(Tuple.of(attemptKey))
                                 }.compose {
                                     audit(connection, userId, "LOGIN", "SUCCESS", ip)
-                                }.map<TenantLogin?> {
-                                    TenantLogin(token, TenantPrincipal(
+                                }.map {
+                                    TenantLoginOutcome(TenantLogin(token, TenantPrincipal(
                                         tenantDatabase.tenant.id, tenantDatabase.tenant.code,
                                         tenantDatabase.tenant.databaseName, userId, adminRow.getString("username"),
                                         "TENANT_ADMIN", tenantDatabase.database
-                                    ))
+                                    )))
                                 }
                             }
                         }
                     }
                 }
             }.compose { result ->
-                if (result == null) Future.failedFuture("租户编码、账号或密码不正确")
-                else Future.succeededFuture(result)
+                if (result.login == null) Future.failedFuture("租户编码、账号或密码不正确")
+                else Future.succeededFuture(result.login)
             }
         }.recover { Future.failedFuture("租户编码、账号或密码不正确") }
     }
@@ -105,16 +109,16 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                        WHERE session.token_hash = $1 AND session.revoked_at IS NULL
                          AND session.expires_at > clock_timestamp() AND admin.disabled_at IS NULL"""
                 ).execute(Tuple.of(sha256(rawToken))).map { rows ->
-                    rows.firstOrNull()?.let { row ->
+                    TenantPrincipalLookup(rows.firstOrNull()?.let { row ->
                         TenantPrincipal(
                             tenantDatabase.tenant.id, tenantDatabase.tenant.code,
                             tenantDatabase.tenant.databaseName, UUID.fromString(row.getString("id")),
                             row.getString("username"), "TENANT_ADMIN", tenantDatabase.database
                         )
-                    }
+                    })
                 }
             }
-        }.recover { Future.succeededFuture(null) }
+        }.map { it.principal }.recover { Future.succeededFuture(null) }
 
     fun logout(tenantCode: String, rawToken: String): Future<Void> =
         databases.resolve(tenantCode).compose { tenantDatabase ->
@@ -137,7 +141,7 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                 .execute(Tuple.of(principal.userId)).compose { rows ->
                     if (rows.size() != 1 || !verifyPassword(oldPassword, rows.first().getString("password_hash"))) {
                         audit(connection, principal.userId, "PASSWORD_CHANGE", "FAILURE", ip)
-                            .compose { Future.failedFuture("当前密码不正确") }
+                            .map { TenantPasswordChangeOutcome(false) }
                     } else {
                         connection.preparedQuery(
                             "UPDATE iam.tenant_admin SET password_hash = $2, updated_at = clock_timestamp() WHERE id = $1"
@@ -148,9 +152,12 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                             ).execute(Tuple.of(principal.userId, sha256(currentToken)))
                         }.compose {
                             audit(connection, principal.userId, "PASSWORD_CHANGED", "SUCCESS", ip)
-                        }
+                        }.map { TenantPasswordChangeOutcome(true) }
                     }
                 }
+        }.compose { result ->
+            if (result.changed) Future.succeededFuture()
+            else Future.failedFuture("当前密码不正确")
         }
     }
 
