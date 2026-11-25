@@ -46,7 +46,8 @@ class TenantLifecycleIntegrationTest {
         val vertx = Vertx.vertx()
         val controlDatabase = PgDatabase(vertx, config)
         val service = TenantLifecycleService(
-            vertx, controlDatabase, config
+            vertx, controlDatabase, config,
+            tenantMigrationLocations = "filesystem:${projectDir.resolve("database/tenant-migrations")}"
         )
         val actor = PlatformAdmin(UUID.randomUUID(), "platform.admin", false)
 

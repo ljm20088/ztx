@@ -24,7 +24,8 @@ data class TenantProvisioningResult(val tenant: TenantRecord, val setupToken: St
 class TenantLifecycleService(
     private val vertx: Vertx,
     private val controlDatabase: PgDatabase,
-    private val databaseConfig: DatabaseConfig
+    private val databaseConfig: DatabaseConfig,
+    private val tenantMigrationLocations: String = "filesystem:database/tenant-migrations"
 ) {
     fun list(): Future<List<TenantRecord>> =
         controlDatabase.withTransaction { connection ->
@@ -104,7 +105,7 @@ class TenantLifecycleService(
                 val tenantConfig = DatabaseConfig(
                     host = databaseConfig.host, port = databaseConfig.port, database = dbName,
                     user = databaseConfig.user, password = databaseConfig.password,
-                    poolSize = databaseConfig.poolSize, migrationLocations = "filesystem:database/tenant-migrations"
+                    poolSize = databaseConfig.poolSize, migrationLocations = tenantMigrationLocations
                 )
                 DriverManager.getConnection(tenantConfig.jdbcUrl, tenantConfig.user, tenantConfig.password).use { connection ->
                     connection.autoCommit = false
@@ -181,7 +182,7 @@ class TenantLifecycleService(
         val tenantConfig = DatabaseConfig(
             host = databaseConfig.host, port = databaseConfig.port, database = tenant.databaseName,
             user = databaseConfig.user, password = databaseConfig.password,
-            poolSize = databaseConfig.poolSize, migrationLocations = "filesystem:database/tenant-migrations"
+            poolSize = databaseConfig.poolSize, migrationLocations = tenantMigrationLocations
         )
         FlywayMigrator(tenantConfig).migrate()
         val setupToken = randomToken()
