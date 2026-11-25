@@ -19,12 +19,15 @@ describe('ZTX UI 基础组件', () => {
   // 场景：输入控件应双向同步值，并统一呈现无效状态。
   it('输入控件同步 v-model 并支持无效状态', async () => {
     // Given 使用 ZInput 并设置初始值
-    const wrapper = mount(ZInput, { props: { modelValue: 'ZTX', invalid: true } })
+    const wrapper = mount(ZInput, { props: { modelValue: 'ZTX', invalid: true }, attrs: { id: 'account-password', required: true, autocomplete: 'current-password' } })
     // When 用户修改输入内容
     await wrapper.setValue('ZTX ERP')
     // Then 组件发出新值并呈现无效状态
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual(['ZTX ERP'])
     expect(wrapper.attributes('aria-invalid')).toBe('true')
+    expect(wrapper.attributes('id')).toBe('account-password')
+    expect(wrapper.attributes('required')).toBeDefined()
+    expect(wrapper.attributes('autocomplete')).toBe('current-password')
   })
 
   // 场景：表单字段应统一提供标签和辅助说明。

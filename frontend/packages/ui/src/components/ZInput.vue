@@ -12,10 +12,12 @@ withDefaults(defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
+defineOptions({ inheritAttrs: false })
 </script>
 
 <template>
   <input
+    v-bind="$attrs"
     class="ztx-input"
     :class="{ 'is-invalid': invalid }"
     :type="type"
