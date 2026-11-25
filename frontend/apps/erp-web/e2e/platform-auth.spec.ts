@@ -48,7 +48,7 @@ test('首次启动自动显示初始化表单并创建管理员后直接登录',
   }))
 
   // When 首次访问系统入口
-  await page.goto('/')
+  await page.goto('/platform/login')
   await expect(page.getByRole('heading', { name: '欢迎使用 ZTX，创建平台管理员' })).toBeVisible()
   await expect(page.getByLabel('一次性初始化口令')).toHaveValue('one-time-setup-credential')
   await page.getByLabel('用户名').fill('platform.admin')

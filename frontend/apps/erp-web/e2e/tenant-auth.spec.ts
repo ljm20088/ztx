@@ -39,7 +39,7 @@ test('租户用户登录和会话失效后返回登录页', async ({ page }) => 
   await expect(page).toHaveURL(/workspace/)
   await page.getByRole('button', { name: '用户账户菜单' }).click()
   await expect(page.getByText('tenant.admin')).toBeVisible()
-  await expect(page.getByText('租户用户')).toBeVisible()
+  await expect(page.getByText('租户用户', { exact: true })).toBeVisible()
 
   // When 用户退出登录并重新访问工作区
   await page.getByRole('menuitem', { name: '退出登录' }).click()
