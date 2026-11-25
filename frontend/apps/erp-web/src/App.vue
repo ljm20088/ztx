@@ -42,10 +42,15 @@ function onModulePointerEnter(id:string){
  openCategoryId.value=menuModules.find(item=>item.id===id)?.categories[0]?.id??null
  flyoutOpen.value=false;openedByHover=false;collapsedMenuOpen.value=true
  void nextTick(()=>{
-  const trigger=moduleButtons.get(id)?.getBoundingClientRect(),root=navRoot.value,menu=collapsedMenuRef.value?.getBoundingClientRect()
-  if(!trigger||!root)return
-  const preferredTop=trigger.top-root.getBoundingClientRect().top
-  const menuHeight=menu?.height??180
+  const trigger=moduleButtons.get(id)?.getBoundingClientRect(),root=navRoot.value,menuElement=collapsedMenuRef.value
+  if(!trigger||!root||!menuElement)return
+  // Given 弹窗顶部显示模块名称，When 用户从模块图标向右移动，Then 第一个二级菜单项应与图标垂直对齐。
+  const menuRect=menuElement.getBoundingClientRect()
+  const firstItem=menuElement.querySelector<HTMLElement>('.category-entry')
+  const firstItemOffset=firstItem?firstItem.getBoundingClientRect().top-menuRect.top:0
+  const rootRect=root.getBoundingClientRect()
+  const preferredTop=trigger.top-rootRect.top-firstItemOffset
+  const menuHeight=menuRect.height
   collapsedMenuTop.value=Math.max(8,Math.min(preferredTop,root.clientHeight-menuHeight-8))
  })
 }
