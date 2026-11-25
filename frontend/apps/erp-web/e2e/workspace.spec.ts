@@ -240,10 +240,10 @@ test('平台管理员可从右上角账户菜单进入控制台和账户安全',
   // Then：菜单显示当前身份、平台控制台和账户安全入口
   await expect(page.getByRole('menu', { name: '用户账户菜单' }).getByText('platform.admin')).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '平台控制台' })).toBeVisible()
-  await expect(page.getByRole('menuitem', { name: '账户与安全（修改密码）' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: '修改密码' })).toBeVisible()
 
   // When：进入账户安全
-  await page.getByRole('menuitem', { name: '账户与安全（修改密码）' }).click()
+  await page.getByRole('menuitem', { name: '修改密码' }).click()
 
   // Then：跳转到密码设置所在的控制台区域
   await expect(page).toHaveURL(/\/platform\/admin#password-settings$/)

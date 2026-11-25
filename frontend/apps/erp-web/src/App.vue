@@ -12,6 +12,7 @@ const navCollapsed=ref(localStorage.getItem('ztx-nav-collapsed')==='true'),colla
 const navRoot=ref<HTMLElement|null>(null),categoryButtons=new Map<string,HTMLButtonElement>(),moduleButtons=new Map<string,HTMLButtonElement>(),flyoutTop=ref(120)
 const collapsedMenuRef=ref<HTMLElement|null>(null),collapsedMenuTop=ref(10)
 let closeTimer:ReturnType<typeof setTimeout>|undefined
+let accountCloseTimer:ReturnType<typeof setTimeout>|undefined
 let openedByHover=false
 const activeModule=computed(()=>menuModules.find(item=>item.id===activeModuleId.value)??menuModules[0]!)
 const activeCategory=computed(()=>activeModule.value.categories.find(item=>item.id===openCategoryId.value))
@@ -30,6 +31,13 @@ function scheduleClose(){clearCloseTimer();closeTimer=setTimeout(()=>{flyoutOpen
 function onMenuPointerLeave(event:PointerEvent){
  // Given 用户在菜单触发区或弹出菜单内移动指针，When 鼠标离开当前区域，Then 延迟关闭以便进入相邻菜单；触屏抬起不视为离开。
  if(event.pointerType!=='touch')scheduleClose()
+}
+function clearAccountCloseTimer(){if(accountCloseTimer)clearTimeout(accountCloseTimer);accountCloseTimer=undefined}
+function scheduleAccountClose(){clearAccountCloseTimer();accountCloseTimer=setTimeout(()=>{accountMenuOpen.value=false},220)}
+function toggleAccountMenu(){clearAccountCloseTimer();accountMenuOpen.value=!accountMenuOpen.value;accountMenuError.value=''}
+function onAccountMenuPointerLeave(event:PointerEvent){
+ // Given 用户点击头像打开账户菜单，When 鼠标移出头像与菜单区域，Then 延迟关闭菜单；触屏上不因抬起关闭。
+ if(event.pointerType!=='touch')scheduleAccountClose()
 }
 function selectModule(id:string){
  if(navCollapsed.value&&activeModuleId.value===id){collapsedMenuOpen.value=!collapsedMenuOpen.value;return}
@@ -115,7 +123,7 @@ function openAccountPage(path:string){accountMenuOpen.value=false;void router.pu
 function toggleFullscreen(){if(!document.fullscreenElement)void document.documentElement.requestFullscreen?.();else void document.exitFullscreen?.()}
 function onGlobalKeydown(event:KeyboardEvent){if(event.key==='Escape'&&flyoutOpen.value){flyoutOpen.value=false;const id=openCategoryId.value;if(id)nextTick(()=>categoryButtons.get(id)?.focus())}}
 onMounted(()=>{isTouch.value=window.matchMedia('(pointer: coarse)').matches;window.addEventListener('keydown',onGlobalKeydown);void refreshAccount()})
-onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGlobalKeydown)})
+onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEventListener('keydown',onGlobalKeydown)})
 </script>
 <template>
   <div v-if="!isAuthRoute" class="ztx-shell">
@@ -158,14 +166,14 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
         <ZIconButton label="通知">
           <ZBell />
         </ZIconButton>
-        <div class="account-menu-root">
+        <div class="account-menu-root" @pointerenter="clearAccountCloseTimer" @pointerleave="onAccountMenuPointerLeave">
           <button
             class="account-menu-trigger"
             type="button"
             aria-label="用户账户菜单"
             aria-haspopup="menu"
             :aria-expanded="accountMenuOpen"
-            @click="accountMenuOpen=!accountMenuOpen;accountMenuError=''"
+            @click="toggleAccountMenu"
           >
             <ZUserRound />
           </button>
@@ -178,10 +186,10 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
               <ZShieldCheck :size="15" /> 平台控制台
             </button>
             <button v-if="account?.kind === 'platform'" type="button" role="menuitem" @click="openAccountPage('/platform/admin#password-settings')">
-              <ZUserRound :size="15" /> 账户与安全（修改密码）
+              <ZUserRound :size="15" /> 修改密码
             </button>
             <button v-if="account?.kind === 'tenant'" type="button" role="menuitem" @click="openAccountPage('/tenant/account')">
-              <ZUserRound :size="15" /> 账户与安全（修改密码）
+              <ZUserRound :size="15" /> 修改密码
             </button>
             <button v-if="!account" type="button" role="menuitem" @click="openAccountPage(route.path.startsWith('/platform') ? '/platform/login' : '/tenant/login')">
               <ZUserRound :size="15" /> 登录

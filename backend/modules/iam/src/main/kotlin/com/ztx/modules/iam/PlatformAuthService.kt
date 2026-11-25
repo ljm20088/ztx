@@ -212,8 +212,11 @@ class PlatformAuthService(
         return database.withTransaction { connection ->
             connection.preparedQuery("SELECT password_hash FROM iam.platform_admin WHERE id = $1")
                 .execute(Tuple.of(admin.id)).compose { rows ->
-                    if (rows.size() != 1 || !verifyPassword(oldPassword, rows.first().getString("password_hash"))) {
+                    val currentHash = rows.firstOrNull()?.getString("password_hash")
+                    if (currentHash == null || !verifyPassword(oldPassword, currentHash)) {
                         Future.failedFuture("当前密码不正确")
+                    } else if (verifyPassword(newPassword, currentHash)) {
+                        Future.failedFuture("新密码不能与当前密码相同")
                     } else {
                         connection.preparedQuery(
                             "UPDATE iam.platform_admin SET password_hash = $2, updated_at = clock_timestamp() WHERE id = $1"

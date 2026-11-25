@@ -280,13 +280,13 @@ class TenantLifecycleService(
                 connection.preparedQuery(
                     """UPDATE platform.tenant SET status = $1, last_error = $2,
                        provisioning_lease_until = NULL,
-                       provisioned_at = CASE WHEN $1 = 'ACTIVE' THEN clock_timestamp() ELSE provisioned_at END,
+                       provisioned_at = CASE WHEN $1::varchar = 'ACTIVE' THEN clock_timestamp() ELSE provisioned_at END,
                        updated_at = clock_timestamp() WHERE id = $3"""
                 ).execute(Tuple.of(status, error, tenantId))
             }.compose {
                 connection.preparedQuery(
                     """INSERT INTO audit.tenant_event(id, tenant_id, actor_admin_id, action, details)
-                       VALUES ($1, $2, $3, $4, jsonb_build_object('error', $5))"""
+                       VALUES ($1, $2, $3, $4, jsonb_build_object('error', $5::text))"""
                 ).execute(Tuple.of(UUID.randomUUID(), tenantId, actor.id, action, error))
             }.compose {
                 connection.preparedQuery(

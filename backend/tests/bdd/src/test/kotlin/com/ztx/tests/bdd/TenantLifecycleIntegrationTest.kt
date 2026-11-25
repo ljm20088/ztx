@@ -50,6 +50,17 @@ class TenantLifecycleIntegrationTest {
             tenantMigrationLocations = "filesystem:${projectDir.resolve("database/tenant-migrations")}"
         )
         val actor = PlatformAdmin(UUID.randomUUID(), "platform.admin", false)
+        // 控制面审计记录要求 actor 是真实管理员，先写入一条平台管理员记录满足外键约束
+        DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+            connection.prepareStatement(
+                "INSERT INTO iam.platform_admin (id, username, password_hash) VALUES (?, ?, ?)"
+            ).use { statement ->
+                statement.setObject(1, actor.id)
+                statement.setString(2, actor.username)
+                statement.setString(3, "unused")
+                statement.executeUpdate()
+            }
+        }
 
         try {
             // Given：租户迁移目录配置错误，导致首次开通在数据库迁移阶段失败
@@ -146,10 +157,10 @@ class TenantLifecycleIntegrationTest {
             // When：重复提交相同租户编码
             val duplicate = service.create("tenant_a", "租户 A", actor).await()
 
-            // Then：返回既有租户，不会创建重复租户或重新覆盖数据库
+            // Then：返回既有租户，不会创建重复租户或重新覆盖数据库（retry_tenant + tenant_a + tenant_b 共 3 个）
             assertEquals(tenantA.tenant.id, duplicate.tenant.id)
             assertEquals(tenantA.tenant.databaseName, duplicate.tenant.databaseName)
-            assertEquals(2, service.list().await().size)
+            assertEquals(3, service.list().await().size)
 
             // When：平台管理员停用租户 A
             service.disable(tenantA.tenant.id, actor).await()
