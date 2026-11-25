@@ -238,11 +238,6 @@ test('折叠导航下二级与三级弹窗左右分离', async ({ page }) => {
   await expect(feature).toBeVisible()
 
   // Then 三级弹窗位于二级弹窗右侧，两个弹窗保持独立可操作
-  const bounds = await page.evaluate(() => {
-    const a = document.querySelector('.collapsed-category-popover')!.getBoundingClientRect()
-    const b = document.querySelector('.feature-flyout')!.getBoundingClientRect()
-    return { categoryRight: a.right, featureLeft: b.left }
-  })
   await expect.poll(async () => {
     const current = await page.evaluate(() => {
       const category = document.querySelector('.collapsed-category-popover')!.getBoundingClientRect()
