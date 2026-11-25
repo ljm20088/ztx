@@ -62,7 +62,7 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                             if (!valid) {
                                 recordFailure(connection, attemptKey).compose {
                                     audit(connection, row?.getString("id")?.let(UUID::fromString), "LOGIN", "FAILURE", ip)
-                                }.map<TenantLogin?>(null)
+                                }.map { TenantLoginOutcome(null) }
                             } else {
                                 val adminRow = requireNotNull(row)
                                 val userId = UUID.fromString(adminRow.getString("id"))
