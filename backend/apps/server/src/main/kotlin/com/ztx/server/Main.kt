@@ -57,7 +57,7 @@ fun main(args: Array<String>) {
     // 具体业务处理器由后续平台能力/业务扩展注册；空处理器集合不会领取未知任务。
     val worker = BackgroundTaskWorker(
         vertx = vertx, database = database, store = outboxStore,
-        workerId = "ztx-worker-" + UUID.randomUUID(), handlers = emptyMap()
+        workerId = "ztx-worker-" + UUID.randomUUID(), handlers = emptyMap(), tenantDatabases = tenantDatabases
     )
     Runtime.getRuntime().addShutdownHook(Thread {
         worker.close()
@@ -98,6 +98,7 @@ fun main(args: Array<String>) {
             .onSuccess { logger.info("ZTX API Server 已启动，监听 {}:{}", config.httpHost, config.httpPort) }
             .onFailure { error ->
                 logger.error("ZTX API Server 启动失败", error)
+                tenantDatabases.close()
                 database.close()
                 vertx.close()
                 exitProcess(1)
