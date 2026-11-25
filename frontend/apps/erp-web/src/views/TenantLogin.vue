@@ -29,25 +29,26 @@ async function submit(){
 <template>
  <main class="tenant-auth-page">
   <section class="tenant-auth-card">
-   <div class="tenant-auth-brand"><span>Z</span><div><strong>ZTX</strong><small>TENANT WORKSPACE</small></div></div>
-   <div class="tenant-auth-heading"><h1>{{mode==='login'?'租户用户登录':'设置租户管理员账号'}}</h1><p>租户账号、会话和业务数据相互隔离，请使用所属租户的登录信息。</p></div>
+   <div class="tenant-auth-brand"><span>Z</span><div><strong>ZTX</strong><small>ENTERPRISE WORKSPACE</small></div></div>
+   <div class="tenant-auth-heading"><h1>{{mode==='login'?'租户用户登录':'设置租户管理员账号'}}</h1><p>请输入所属企业的企业编码及个人账号信息。</p></div>
    <form class="tenant-auth-form" @submit.prevent="submit">
-    <label>租户编码<input v-model.trim="tenantCode" required minlength="2" maxlength="40" autocomplete="organization" placeholder="请输入租户编码"/></label>
+    <label>企业编码<input v-model.trim="tenantCode" required minlength="2" maxlength="40" autocomplete="organization" placeholder="请输入企业编码"/></label>
     <label v-if="mode==='setup'">一次性初始化凭据<input v-model.trim="setupToken" required autocomplete="off" placeholder="由平台管理员提供"/></label>
-    <label>用户名<input v-model.trim="username" required minlength="3" maxlength="80" autocomplete="username" placeholder="请输入租户账号"/></label>
+    <label>用户名<input v-model.trim="username" required minlength="3" maxlength="80" autocomplete="username" placeholder="请输入用户名"/></label>
     <label>密码<input v-model="password" required minlength="8" type="password" :autocomplete="mode==='login'?'current-password':'new-password'" placeholder="至少 8 位，包含字母和数字"/></label>
     <label v-if="mode==='setup'">确认密码<input v-model="confirmPassword" required minlength="8" type="password" autocomplete="new-password"/></label>
     <p v-if="error" class="tenant-auth-error" role="alert">{{error}}</p>
     <button class="tenant-auth-submit" type="submit" :disabled="busy">{{busy?'正在处理…':mode==='login'?'安全登录':'完成账号设置'}}</button>
    </form>
    <button class="tenant-auth-switch" type="button" @click="mode=mode==='login'?'setup':'login';error=''">{{mode==='login'?'首次使用？设置租户管理员账号':'返回登录'}}</button>
-   <div class="tenant-auth-foot">租户身份独立验证 · 数据库路由由服务端控制</div>
+   <div class="tenant-auth-foot">企业身份独立验证 · 企业数据由服务端安全隔离</div>
+   <div class="tenant-auth-platform-link"><span>平台运营人员？</span><RouterLink to="/platform/login">平台管理登录</RouterLink></div>
   </section>
  </main>
 </template>
 
 <style scoped>
-.tenant-auth-page{min-height:calc(100vh - 44px);display:grid;place-items:center;padding:32px 16px;background:var(--ztx-page)}
+.tenant-auth-page{min-height:100vh;display:grid;place-items:center;padding:32px 16px;background:var(--ztx-page)}
 .tenant-auth-card{width:min(100%,440px);padding:30px 32px;border:1px solid var(--ztx-border);border-radius:9px;background:var(--ztx-surface);box-shadow:var(--ztx-shadow-popover)}
 .tenant-auth-brand{display:flex;align-items:center;gap:11px;margin-bottom:28px}.tenant-auth-brand>span{width:38px;height:38px;display:grid;place-items:center;border-radius:8px;background:var(--ztx-primary);color:#fff;font-weight:800;font-size:19px}.tenant-auth-brand>div{display:flex;flex-direction:column;gap:3px}.tenant-auth-brand strong{font-size:17px;letter-spacing:.12em}.tenant-auth-brand small{font-size:9px;letter-spacing:.13em;color:var(--ztx-muted)}
 .tenant-auth-heading{margin-bottom:22px}.tenant-auth-heading h1{margin:0 0 8px;font-size:var(--ztx-font-size-page-title);color:var(--ztx-text)}.tenant-auth-heading p{margin:0;color:var(--ztx-muted);font-size:var(--ztx-font-size-caption);line-height:1.7}
@@ -56,5 +57,7 @@ async function submit(){
 .tenant-auth-submit{height:40px;border:0;border-radius:5px;background:var(--ztx-primary);color:white;font-size:var(--ztx-font-size-body);font-weight:700;cursor:pointer}.tenant-auth-submit:disabled{opacity:.6;cursor:wait}
 .tenant-auth-switch{margin-top:14px;padding:0;border:0;background:transparent;color:var(--ztx-primary-strong);font-size:var(--ztx-font-size-caption);cursor:pointer}
 .tenant-auth-foot{margin-top:22px;padding-top:14px;border-top:1px solid var(--ztx-border);color:var(--ztx-muted);font-size:var(--ztx-font-size-caption);text-align:center}
+.tenant-auth-platform-link{display:flex;justify-content:center;gap:6px;margin-top:14px;color:var(--ztx-muted);font-size:var(--ztx-font-size-caption)}
+.tenant-auth-platform-link a{color:var(--ztx-primary-strong);text-decoration:none}.tenant-auth-platform-link a:hover{text-decoration:underline}
 @media(max-width:520px){.tenant-auth-card{padding:24px 20px}}
 </style>
