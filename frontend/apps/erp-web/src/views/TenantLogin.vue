@@ -19,7 +19,7 @@ async function submit(){
   const response=await fetch(endpoint,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(payload)})
   const data=await response.json().catch(()=>null)
   if(!response.ok)throw new Error(data?.error?.message??'登录失败，请检查租户编码和账号密码。')
-  const target=typeof route.query.redirect==='string'&&route.query.redirect.startsWith('/')&&!route.query.redirect.startsWith('/platform')?route.query.redirect:'/workspace'
+  const target=typeof route.query.redirect==='string'&&route.query.redirect.startsWith('/')&&!route.query.redirect.startsWith('//')&&!route.query.redirect.startsWith('/platform')?route.query.redirect:'/workspace'
   await router.replace(target)
  }catch(cause){error.value=cause instanceof Error?cause.message:'认证服务暂不可用'}
  finally{busy.value=false}
