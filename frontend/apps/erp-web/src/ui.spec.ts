@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { h } from 'vue'
 import { ZAlert, ZButton, ZFormField, ZInput, ZTable } from '@ztx/ui'
 
 describe('ZTX UI 基础组件', () => {
@@ -29,7 +30,7 @@ describe('ZTX UI 基础组件', () => {
   // 场景：表单字段应统一提供标签和辅助说明。
   it('表单字段关联标签并展示提示', () => {
     // Given 使用带字段 ID 的表单字段
-    const wrapper = mount(ZFormField, { props: { label: '企业编码', fieldId: 'tenant-code', required: true, hint: '请输入企业编码' }, slots: { default: '<input id="tenant-code" />' } })
+    const wrapper = mount(ZFormField, { props: { label: '企业编码', fieldId: 'tenant-code', required: true, hint: '请输入企业编码' }, slots: { default: () => h('input', { id: 'tenant-code' }) } })
     // When 组件完成渲染
     // Then 标签关联控件且提示文本可见
     expect(wrapper.find('label').attributes('for')).toBe('tenant-code')
@@ -50,7 +51,7 @@ describe('ZTX UI 基础组件', () => {
   // 场景：表格组件应提供统一的滚动容器和表格样式。
   it('表格组件统一包裹数据表格', () => {
     // Given 使用 ZTable 包裹表格内容
-    const wrapper = mount(ZTable, { slots: { default: '<tbody><tr><td>企业</td></tr></tbody>' } })
+    const wrapper = mount(ZTable, { slots: { default: () => h('tbody', [h('tr', [h('td', '企业')])]) } })
     // When 组件完成渲染
     // Then 输出统一表格结构
     expect(wrapper.find('.ztx-table-wrap').exists()).toBe(true)
