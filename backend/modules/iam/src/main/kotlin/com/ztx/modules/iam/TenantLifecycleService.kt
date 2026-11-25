@@ -122,12 +122,12 @@ class TenantLifecycleService(
                             ).use { rows -> rows.next() && rows.getBoolean(1) }
                             require(!hasAdmin) { "租户管理员已初始化" }
                             val salt = ByteArray(16).also(SecureRandom()::nextBytes)
-                            val spec = javax.crypto.spec.PBEKeySpec(password.toCharArray(), salt, 210_000, 256)
+                            val spec = javax.crypto.spec.PBEKeySpec(password.toCharArray(), salt, 310_000, 256)
                             val hash = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
                                 .generateSecret(spec).encoded
                             spec.clearPassword()
                             val encoded = listOf(
-                                "pbkdf2", "210000", Base64.getEncoder().encodeToString(salt),
+                                "pbkdf2", "310000", Base64.getEncoder().encodeToString(salt),
                                 Base64.getEncoder().encodeToString(hash)
                             ).joinToString("$")
                             connection.prepareStatement(

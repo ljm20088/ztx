@@ -65,7 +65,8 @@ class TenantLifecycleIntegrationTest {
             assertEquals(tenantB.tenant.databaseName, service.activeDatabaseName("tenant_b").await())
 
             // When：租户 A 管理员使用一次性凭据设置首个账号
-            service.initializeTenantAdmin("tenant_a", tenantA.setupToken!!, "tenant.admin", "TenantAdmin123").await()
+            val tenantSetupToken = requireNotNull(tenantA.setupToken)
+            service.initializeTenantAdmin("tenant_a", tenantSetupToken, "tenant.admin", "TenantAdmin123").await()
 
             // Then：初始化凭据被消费，首个管理员账号写入租户 A 数据库
             DriverManager.getConnection(
@@ -82,7 +83,7 @@ class TenantLifecycleIntegrationTest {
 
             // Then：已消费的租户管理员初始化凭据不能重放
             assertThrows(Exception::class.java) {
-                service.initializeTenantAdmin("tenant_a", tenantA.setupToken, "second.admin", "TenantAdmin123").await()
+                service.initializeTenantAdmin("tenant_a", tenantSetupToken, "second.admin", "TenantAdmin123").await()
             }
 
             // Then：租户数据库分别保存各自的租户标识和管理员初始化凭据

@@ -11,6 +11,10 @@ const setupToken=ref('')
 const message=ref('')
 const error=ref('')
 const busy=ref(false)
+async function copySetupToken(){
+ try{await navigator.clipboard.writeText(setupToken.value);message.value='初始化凭据已复制'}
+ catch{error.value='无法访问剪贴板，请手动复制凭据'}
+}
 
 async function request(path:string,method='GET',payload?:unknown){
  const response=await fetch(path,{method,credentials:'include',headers:payload?{'content-type':'application/json'}:undefined,body:payload?JSON.stringify(payload):undefined})
@@ -22,7 +26,7 @@ async function load(){const data=await request('/api/v1/platform/tenants');tenan
 async function createTenant(){
  busy.value=true;error.value='';message.value='';setupToken.value=''
  try{const result=await request('/api/v1/platform/tenants','POST',{code:code.value,name:name.value});setupToken.value=result.setupToken??'';message.value=result.tenant.status==='ACTIVE'?'租户开通成功':'租户已存在，当前状态：'+result.tenant.status;code.value='';name.value='';await load()}
- catch(cause){error.value=cause instanceof Error?cause.message:'租户开通失败'}
+ catch(cause){error.value=cause instanceof Error?cause.message:'租户开通失败';await load().catch(()=>undefined)}
  finally{busy.value=false}
 }
 async function act(tenant:Tenant,action:'enable'|'disable'|'retry'){
@@ -47,7 +51,7 @@ onMounted(()=>{void load().catch(cause=>{error.value=cause instanceof Error?caus
     <button class="primary" type="submit" :disabled="busy">创建并开通</button>
    </form>
    <p class="hint">开通会创建独立数据库并执行初始化迁移。开通成功后会显示一次性租户管理员初始化凭据，请及时交付给租户管理员。</p>
-   <div v-if="setupToken" class="token-box"><strong>租户管理员一次性初始化凭据（24 小时有效）</strong><code>{{setupToken}}</code><button class="secondary" @click="navigator.clipboard?.writeText(setupToken)">复制凭据</button></div>
+   <div v-if="setupToken" class="token-box"><strong>租户管理员一次性初始化凭据（24 小时有效）</strong><code>{{setupToken}}</code><button class="secondary" @click="copySetupToken">复制凭据</button></div>
   </section>
   <section class="panel">
    <div class="list-heading"><h2>租户列表</h2><button class="secondary" :disabled="busy" @click="load">刷新</button></div>

@@ -21,7 +21,9 @@ class TenantLifecycleRoutes(
                 body.getString("username", ""), body.getString("password", "")
             ).onSuccess {
                 context.response().setStatusCode(201).end()
-            }.onFailure { fail(context, 400) }
+            }.onFailure { error ->
+                fail(context, if (error.message?.contains("数据库") == true) 503 else 400, error.message)
+            }
         }
         router.get("/api/v1/platform/tenants").handler { context ->
             withAdmin(context) {
@@ -41,7 +43,9 @@ class TenantLifecycleRoutes(
                         context.response().setStatusCode(201).putHeader("content-type", "application/json")
                             .end(JsonObject().put("tenant", toJson(result.tenant))
                                 .put("setupToken", result.setupToken).encode())
-                    }.onFailure { fail(context, 400) }
+                    }.onFailure { error ->
+                        fail(context, if (error.message?.startsWith("租户开通失败") == true) 503 else 400, error.message)
+                    }
             }
         }
         router.post("/api/v1/platform/tenants/:id/enable").handler { context ->
@@ -92,9 +96,9 @@ class TenantLifecycleRoutes(
         .put("status", tenant.status).put("databaseName", tenant.databaseName)
         .put("lastError", tenant.lastError)
 
-    private fun fail(context: RoutingContext, status: Int) {
+    private fun fail(context: RoutingContext, status: Int, detail: String? = null) {
         if (context.response().ended()) return
-        val message = when (status) {
+        val message = detail?.takeIf { status < 500 } ?: when (status) {
             401 -> "未登录或会话已失效"
             400 -> "租户请求参数不正确"
             409 -> "租户状态不允许此操作"
