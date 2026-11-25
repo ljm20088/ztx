@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
+const route = useRoute()
 const router = useRouter()
 const mode = ref<'login' | 'initialize'>('login')
 const username = ref('')
@@ -53,7 +54,8 @@ async function submit() {
     })
     const data = response.status === 204 ? null : await response.json()
     if (!response.ok) throw new Error(data?.error?.message ?? '请求失败，请稍后重试')
-    await router.replace('/platform/admin')
+    const target = typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/platform/') ? route.query.redirect : '/platform/admin'
+    await router.replace(target)
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '认证服务暂不可用'
   } finally {
@@ -69,7 +71,7 @@ async function submit() {
       <div class="platform-auth-heading">
         <span class="eyebrow">SECURE ACCESS</span>
         <h1>{{ mode === 'login' ? '平台管理员登录' : '欢迎使用 ZTX，创建平台管理员' }}</h1>
-        <p>{{ mode === 'login' ? '使用平台控制面账号登录。此账号与租户业务账号相互独立。' : '首次初始化只需设置用户名和密码。创建成功后将自动进入平台控制台。' }}</p>
+        <p>{{ mode === 'login' ? '使用平台控制面账号登录。此账号与企业用户账号相互独立。' : '首次初始化只需设置用户名和密码。创建成功后将自动进入平台控制台。' }}</p>
       </div>
       <form class="platform-auth-form" @submit.prevent="submit">
         <label v-if="mode === 'initialize'">一次性初始化口令
@@ -96,12 +98,13 @@ async function submit() {
         正式部署可通过服务器本机安装管理入口（或 SSH 本地端口转发）获取口令；服务器终端也可作为备用方式。
       </p>
       <div class="platform-auth-foot">平台身份独立存储 · 会话加密保护 · 安全操作留痕</div>
+      <div class="platform-auth-enterprise-link"><span>企业用户？</span><RouterLink to="/tenant/login">返回企业登录</RouterLink></div>
     </section>
   </main>
 </template>
 
 <style scoped>
-.platform-auth-page{min-height:calc(100vh - 44px);display:grid;place-items:center;padding:32px 16px;background:var(--ztx-page)}
+.platform-auth-page{min-height:100vh;display:grid;place-items:center;padding:32px 16px;background:var(--ztx-page)}
 .platform-auth-card{width:min(100%,440px);padding:30px 32px;border:1px solid var(--ztx-border);border-radius:9px;background:var(--ztx-surface);box-shadow:var(--ztx-shadow-popover)}
 .platform-auth-brand{display:flex;align-items:center;gap:11px;margin-bottom:32px}.platform-auth-brand>span{width:38px;height:38px;display:grid;place-items:center;border-radius:8px;background:var(--ztx-primary);color:#fff;font-weight:800;font-size:19px}.platform-auth-brand>div{display:flex;flex-direction:column;gap:3px}.platform-auth-brand strong{font-size:17px;letter-spacing:.12em}.platform-auth-brand small{font-size:8px;letter-spacing:.13em;color:var(--ztx-muted)}
 .platform-auth-heading{margin-bottom:24px}.eyebrow{font-size:var(--ztx-font-size-caption);font-weight:700;letter-spacing:.14em;color:var(--ztx-muted)}h1{margin:7px 0 8px;font-size:var(--ztx-font-size-page-title);color:var(--ztx-text)}.platform-auth-heading p{margin:0;color:var(--ztx-muted);font-size:12px;line-height:1.7}
@@ -110,4 +113,6 @@ async function submit() {
 .platform-auth-submit{height:40px;border:0;border-radius:5px;background:var(--ztx-primary);color:#fff;font-size:var(--ztx-font-size-body);font-weight:700;cursor:pointer}.platform-auth-submit:disabled{opacity:.6;cursor:wait}.platform-auth-hint{margin:14px 0 0;color:var(--ztx-muted);font-size:var(--ztx-font-size-caption);line-height:1.7}
 .platform-auth-foot{margin-top:25px;padding-top:15px;border-top:1px solid var(--ztx-border);color:var(--ztx-muted);font-size:var(--ztx-font-size-caption);text-align:center}
 @media(max-width:520px){.platform-auth-card{padding:24px 20px}}
+.platform-auth-enterprise-link{display:flex;justify-content:center;gap:6px;margin-top:14px;color:var(--ztx-muted);font-size:var(--ztx-font-size-caption)}
+.platform-auth-enterprise-link a{color:var(--ztx-primary-strong);text-decoration:none}.platform-auth-enterprise-link a:hover{text-decoration:underline}
 </style>

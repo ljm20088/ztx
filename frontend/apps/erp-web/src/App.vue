@@ -5,6 +5,7 @@ import { ZBell, ZChevronRight, ZCommand, ZMaximize2, ZUserRound, ZShieldCheck, Z
 import { menuModules, findFeature } from './navigation/menu'
 import { useWorkspaceStore } from './stores/workspace'
 const route=useRoute(),router=useRouter(),workspace=useWorkspaceStore()
+const isAuthRoute=computed(()=>route.path==='/'||route.path==='/tenant/login'||route.path==='/platform/login')
 const activeModuleId=ref('workspace'),openCategoryId=ref<string|null>('personal'),flyoutOpen=ref(false),isTouch=ref(false)
 const account=ref<{id:string;username:string;mfaEnabled?:boolean;kind:'platform'|'tenant'}|null>(null),accountMenuOpen=ref(false),accountMenuError=ref('')
 const navCollapsed=ref(localStorage.getItem('ztx-nav-collapsed')==='true'),collapsedMenuOpen=ref(false)
@@ -16,7 +17,7 @@ const activeModule=computed(()=>menuModules.find(item=>item.id===activeModuleId.
 const activeCategory=computed(()=>activeModule.value.categories.find(item=>item.id===openCategoryId.value))
 watch(navCollapsed,value=>localStorage.setItem('ztx-nav-collapsed',String(value)))
 watch(()=>route.fullPath,path=>{
- if(path==='/')return
+ if(path==='/'||path==='/tenant/login'||path==='/platform/login')return
  const feature=findFeature(path)
  workspace.openTab({path,title:feature?.label??String(route.meta.title??'功能页面'),closable:path!='/workspace'})
  accountMenuOpen.value=false
@@ -117,7 +118,7 @@ onMounted(()=>{isTouch.value=window.matchMedia('(pointer: coarse)').matches;wind
 onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGlobalKeydown)})
 </script>
 <template>
-  <div class="ztx-shell">
+  <div v-if="!isAuthRoute" class="ztx-shell">
     <header class="workspace-header">
       <div class="brand-lockup" :class="{ 'is-nav-collapsed': navCollapsed }" aria-label="ZTX 企业工作区">
         <div class="brand-mark">
@@ -171,7 +172,7 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
           <div v-if="accountMenuOpen" class="account-menu-panel" role="menu" aria-label="用户账户菜单">
             <div class="account-menu-identity">
               <strong>{{ account?.username ?? '尚未登录' }}</strong>
-              <small>{{ account ? (account.kind === 'platform' ? '平台管理员' : '租户用户') : '账户' }}</small>
+              <small>{{ account ? (account.kind === 'platform' ? '平台管理员' : '企业用户') : '账户' }}</small>
             </div>
             <button v-if="account?.kind === 'platform'" type="button" role="menuitem" @click="openAccountPage('/platform/admin')">
               <ZShieldCheck :size="15" /> 平台控制台
@@ -320,6 +321,7 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
       </main>
     </div>
   </div>
+  <RouterView v-else />
 </template>
 <style scoped>
 .account-menu-root{position:relative;display:flex;align-items:center}

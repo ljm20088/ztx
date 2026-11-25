@@ -11,10 +11,10 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', redirect: '/tenant/login' },
-    { path: '/tenant/login', name: 'tenant-login', component: TenantLogin, meta: { title: '租户用户登录', closable: false } },
+    { path: '/tenant/login', name: 'tenant-login', component: TenantLogin, meta: { title: '企业登录', closable: false, public: true } },
     { path: '/tenant/account', name: 'tenant-account', component: TenantAccount, meta: { title: '账户与安全', closable: true } },
     { path: '/workspace', name: 'workspace', component: WorkspaceHome, meta: { title: '工作台', closable: false } },
-    { path: '/platform/login', name: 'platform-login', component: PlatformLogin, meta: { title: '平台管理员登录', closable: true } },
+    { path: '/platform/login', name: 'platform-login', component: PlatformLogin, meta: { title: '平台管理登录', closable: false, public: true } },
     { path: '/platform/admin', name: 'platform-admin', component: PlatformAdmin, meta: { title: '平台控制台', closable: true } },
     { path: '/platform/tenants', name: 'platform-tenants', component: TenantManagement, meta: { title: '租户管理', closable: true } },
     { path: '/:section/:feature', name: 'feature', component: PlaceholderView },
@@ -23,12 +23,18 @@ export const router = createRouter({
 })
 
 router.beforeEach(async to => {
-  if (to.path.startsWith('/platform/') || to.path === '/tenant/login' || to.path === '/') return true
+  if (to.path === '/tenant/login' || to.path === '/platform/login') return true
+
+  const platformRoute = to.path.startsWith('/platform/')
+  const endpoint = platformRoute ? '/api/v1/platform/auth/me' : '/api/v1/tenant/auth/me'
   try {
-    const response = await fetch('/api/v1/tenant/auth/me', { credentials: 'include', cache: 'no-store' })
+    const response = await fetch(endpoint, { credentials: 'include', cache: 'no-store' })
     if (response.ok) return true
   } catch {
-    // 网络错误也不能放行未认证用户进入租户工作区。
+    // 网络错误也不能放行未认证用户进入受保护工作区。
   }
-  return { path: '/tenant/login', query: { redirect: to.fullPath } }
+  return {
+    path: platformRoute ? '/platform/login' : '/tenant/login',
+    query: { redirect: to.fullPath },
+  }
 })
