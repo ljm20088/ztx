@@ -52,6 +52,43 @@ class TenantLifecycleIntegrationTest {
         val actor = PlatformAdmin(UUID.randomUUID(), "platform.admin", false)
 
         try {
+            // Given：租户迁移目录配置错误，导致首次开通在数据库迁移阶段失败
+            val brokenService = TenantLifecycleService(
+                vertx, controlDatabase, config,
+                tenantMigrationLocations = "filesystem:${projectDir.resolve("missing-tenant-migrations")}"
+            )
+            assertThrows(Exception::class.java) {
+                brokenService.create("retry_tenant", "待重试租户", actor).await()
+            }
+
+            // Then：失败租户被标记为 FAILED，且不会作为可用租户提供数据库路由
+            val failedTenant = service.list().await().single { it.code == "retry_tenant" }
+            assertEquals("FAILED", failedTenant.status)
+            assertThrows(Exception::class.java) { service.activeDatabaseName("retry_tenant").await() }
+
+            // When：管理员修正迁移环境后重试开通
+            val recovered = service.retry(failedTenant.id, actor).await()
+
+            // Then：重试完成后租户变为 ACTIVE，原有数据库标识保持不变
+            assertEquals("ACTIVE", recovered.tenant.status)
+            assertEquals(failedTenant.databaseName, recovered.tenant.databaseName)
+            assertNotNull(recovered.setupToken)
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.prepareStatement(
+                    "SELECT status, attempt FROM platform.tenant_provisioning_task WHERE tenant_id = ? ORDER BY attempt"
+                ).use { statement ->
+                    statement.setObject(1, failedTenant.id)
+                    statement.executeQuery().use { rows ->
+                        assertTrue(rows.next())
+                        assertEquals("FAILED", rows.getString("status"))
+                        assertEquals(1, rows.getInt("attempt"))
+                        assertTrue(rows.next())
+                        assertEquals("SUCCEEDED", rows.getString("status"))
+                        assertEquals(2, rows.getInt("attempt"))
+                    }
+                }
+            }
+
             // When：平台管理员连续开通两个不同租户
             val tenantA = service.create("tenant_a", "租户 A", actor).await()
             val tenantB = service.create("tenant_b", "租户 B", actor).await()
