@@ -12,7 +12,6 @@ import java.security.SecureRandom
 import java.sql.DriverManager
 import java.sql.SQLException
 import java.util.Base64
-import java.util.concurrent.Callable
 import java.util.UUID
 
 data class TenantRecord(
@@ -101,7 +100,7 @@ class TenantLifecycleService(
             return Future.failedFuture("密码至少 8 位，且必须同时包含字母和数字")
         }
         return activeDatabaseName(code).compose { dbName ->
-            val blocking: Future<Unit> = vertx.executeBlocking(Callable<Unit> {
+            val blockingSupplier: () -> Unit = {
                 val tenantConfig = DatabaseConfig(
                     host = databaseConfig.host, port = databaseConfig.port, database = dbName,
                     user = databaseConfig.user, password = databaseConfig.password,
@@ -153,7 +152,8 @@ class TenantLifecycleService(
                     }
                 }
                 Unit
-            }, false)
+            }
+            val blocking: Future<Unit> = vertx.executeBlocking(blockingSupplier, false)
             blocking.mapEmpty()
         }
     }
@@ -163,8 +163,8 @@ class TenantLifecycleService(
             if (!claimed) return@compose find(tenant.id).map { TenantProvisioningResult(it) }
             val taskId = UUID.randomUUID()
             createTask(taskId, tenant.id).compose {
-                val provisionFuture: Future<String> =
-                    vertx.executeBlocking(Callable<String> { provisionDatabase(tenant) }, false)
+                val provisionSupplier: () -> String = { provisionDatabase(tenant) }
+                val provisionFuture: Future<String> = vertx.executeBlocking(provisionSupplier, false)
                 provisionFuture.compose { token ->
                     finishTask(taskId, tenant.id, true, null, actor, "TENANT_PROVISIONED")
                         .map { TenantProvisioningResult(it, token) }
