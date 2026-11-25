@@ -213,7 +213,9 @@ test('界面字号、三级菜单和页面标题保持精简', async ({ page }) 
 
   // When 展开一级和二级菜单
   await page.getByRole('button', { name: '管理中心', exact: true }).click()
-  await page.getByRole('button', { name: '低代码开发', exact: true }).hover()
+  const category = page.getByRole('button', { name: '低代码开发', exact: true })
+  if (await page.evaluate(() => window.matchMedia('(pointer: coarse)').matches)) await category.click()
+  else await category.hover()
 
   // Then 三级菜单不显示标题、说明文字和四级菜单箭头
   const flyout = page.locator('.feature-flyout')
@@ -241,6 +243,13 @@ test('折叠导航下二级与三级弹窗左右分离', async ({ page }) => {
     const b = document.querySelector('.feature-flyout')!.getBoundingClientRect()
     return { categoryRight: a.right, featureLeft: b.left }
   })
-  expect(bounds.featureLeft).toBeGreaterThanOrEqual(bounds.categoryRight - 1)
+  await expect.poll(async () => {
+    const current = await page.evaluate(() => {
+      const category = document.querySelector('.collapsed-category-popover')!.getBoundingClientRect()
+      const flyout = document.querySelector('.feature-flyout')!.getBoundingClientRect()
+      return flyout.left - category.right
+    })
+    return current
+  }).toBeGreaterThanOrEqual(-1)
   await expect(feature.getByRole('menuitem', { name: 'DocType 管理' })).toBeVisible()
 })
