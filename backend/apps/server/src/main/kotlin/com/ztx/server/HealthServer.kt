@@ -3,6 +3,7 @@ package com.ztx.server
 import com.ztx.adapters.postgres.DatabaseHealth
 import com.ztx.modules.iam.PlatformAuthRoutes
 import com.ztx.modules.iam.TenantLifecycleRoutes
+import com.ztx.modules.iam.TenantAuthRoutes
 import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpServer
@@ -16,12 +17,14 @@ class HealthServer(
     private val host: String,
     private val port: Int,
     private val platformAuthRoutes: PlatformAuthRoutes? = null,
-    private val tenantLifecycleRoutes: TenantLifecycleRoutes? = null
+    private val tenantLifecycleRoutes: TenantLifecycleRoutes? = null,
+    private val tenantAuthRoutes: TenantAuthRoutes? = null
 ) {
     fun start(): Future<HttpServer> {
         val router = Router.router(vertx)
         platformAuthRoutes?.register(router)
         tenantLifecycleRoutes?.register(router)
+        tenantAuthRoutes?.register(router)
 
         router.route().failureHandler { context ->
             val status = context.statusCode().takeIf { it in 400..599 } ?: 500
