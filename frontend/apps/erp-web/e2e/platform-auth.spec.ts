@@ -16,7 +16,7 @@ test('平台管理员可以登录控制台', async ({ page }) => {
   }))
 
   // When 管理员从系统入口访问并输入账号密码
-  await page.goto('/')
+  await page.goto('/platform/login')
   await expect(page).toHaveURL(/platform\/login/)
   await page.getByLabel('用户名').fill('platform.admin')
   await page.getByLabel('密码', { exact: true }).fill('ZtxAdmin123')

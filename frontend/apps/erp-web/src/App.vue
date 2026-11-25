@@ -6,7 +6,7 @@ import { menuModules, findFeature } from './navigation/menu'
 import { useWorkspaceStore } from './stores/workspace'
 const route=useRoute(),router=useRouter(),workspace=useWorkspaceStore()
 const activeModuleId=ref('workspace'),openCategoryId=ref<string|null>('personal'),flyoutOpen=ref(false),isTouch=ref(false)
-const account=ref<{id:string;username:string;mfaEnabled:boolean}|null>(null),accountMenuOpen=ref(false),accountMenuError=ref('')
+const account=ref<{id:string;username:string;mfaEnabled?:boolean;kind:'platform'|'tenant'}|null>(null),accountMenuOpen=ref(false),accountMenuError=ref('')
 const navCollapsed=ref(localStorage.getItem('ztx-nav-collapsed')==='true'),collapsedMenuOpen=ref(false)
 const navRoot=ref<HTMLElement|null>(null),categoryButtons=new Map<string,HTMLButtonElement>(),moduleButtons=new Map<string,HTMLButtonElement>(),flyoutTop=ref(120)
 const collapsedMenuRef=ref<HTMLElement|null>(null),collapsedMenuTop=ref(10)
@@ -92,20 +92,22 @@ async function navigateTo(path:string){const feature=findFeature(path);if(featur
 async function activateTab(path:string){workspace.activateTab(path);await router.push(path)}
 async function closeTab(path:string,event:Event){event.stopPropagation();const wasActive=workspace.activePath===path;workspace.closeTab(path);if(wasActive)await router.push(workspace.activePath)}
 async function refreshAccount(){
- if(route.path==='/platform/login'){account.value=null;return}
+ if(route.path==='/platform/login'||route.path==='/tenant/login'){account.value=null;return}
+ const platform=route.path.startsWith('/platform/')
  try{
-  const response=await fetch('/api/v1/platform/auth/me',{credentials:'include',cache:'no-store'})
-  account.value=response.ok?await response.json():null
+  const response=await fetch(platform?'/api/v1/platform/auth/me':'/api/v1/tenant/auth/me',{credentials:'include',cache:'no-store'})
+  account.value=response.ok?{...await response.json(),kind:platform?'platform':'tenant'}:null
  }catch{account.value=null}
 }
 async function logout(){
  accountMenuError.value=''
+ const platform=account.value?.kind==='platform'
  try{
-  const response=await fetch('/api/v1/platform/auth/logout',{method:'POST',credentials:'include'})
+  const response=await fetch(platform?'/api/v1/platform/auth/logout':'/api/v1/tenant/auth/logout',{method:'POST',credentials:'include'})
   if(!response.ok&&response.status!==401)throw new Error('退出登录失败，请稍后重试')
   account.value=null
   accountMenuOpen.value=false
-  await router.replace('/platform/login')
+  await router.replace(platform?'/platform/login':'/tenant/login')
  }catch(cause){accountMenuError.value=cause instanceof Error?cause.message:'退出登录失败'}
 }
 function openAccountPage(path:string){accountMenuOpen.value=false;void router.push(path)}
@@ -169,16 +171,19 @@ onBeforeUnmount(()=>{clearCloseTimer();window.removeEventListener('keydown',onGl
           <div v-if="accountMenuOpen" class="account-menu-panel" role="menu" aria-label="用户账户菜单">
             <div class="account-menu-identity">
               <strong>{{ account?.username ?? '尚未登录' }}</strong>
-              <small>{{ account ? '平台管理员' : '平台账户' }}</small>
+              <small>{{ account ? (account.kind === 'platform' ? '平台管理员' : '租户用户') : '账户' }}</small>
             </div>
-            <button v-if="account" type="button" role="menuitem" @click="openAccountPage('/platform/admin')">
+            <button v-if="account?.kind === 'platform'" type="button" role="menuitem" @click="openAccountPage('/platform/admin')">
               <ZShieldCheck :size="15" /> 平台控制台
             </button>
-            <button v-if="account" type="button" role="menuitem" @click="openAccountPage('/platform/admin#password-settings')">
+            <button v-if="account?.kind === 'platform'" type="button" role="menuitem" @click="openAccountPage('/platform/admin#password-settings')">
               <ZUserRound :size="15" /> 账户与安全（修改密码）
             </button>
-            <button v-if="!account" type="button" role="menuitem" @click="openAccountPage('/platform/login')">
-              <ZUserRound :size="15" /> 平台管理员登录
+            <button v-if="account?.kind === 'tenant'" type="button" role="menuitem" @click="openAccountPage('/tenant/account')">
+              <ZUserRound :size="15" /> 账户与安全（修改密码）
+            </button>
+            <button v-if="!account" type="button" role="menuitem" @click="openAccountPage(route.path.startsWith('/platform') ? '/platform/login' : '/tenant/login')">
+              <ZUserRound :size="15" /> 登录
             </button>
             <p v-if="accountMenuError" class="account-menu-error" role="alert">{{ accountMenuError }}</p>
             <button v-if="account" class="account-menu-logout" type="button" role="menuitem" @click="logout">
