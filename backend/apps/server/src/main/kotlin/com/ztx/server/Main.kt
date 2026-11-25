@@ -37,6 +37,7 @@ fun main(args: Array<String>) {
         val count = migrator.migrate()
         logger.info("数据库迁移完成，执行迁移数：{}", count)
     } else {
+        // 正式部署只校验迁移状态；数据库变更由受控部署流程执行。
         migrator.validateCurrent()
     }
 
@@ -46,6 +47,8 @@ fun main(args: Array<String>) {
     val authService = PlatformAuthService(database, config.mfaEncryptionKey)
     val tenantService = TenantLifecycleService(vertx, database, config.database)
     val tenantRoutes = TenantLifecycleRoutes(authService, tenantService)
+
+    // 具体业务处理器由后续平台能力/业务扩展注册；空处理器集合不会领取未知任务。
     val worker = BackgroundTaskWorker(
         vertx = vertx, database = database, store = outboxStore,
         workerId = "ztx-worker-" + UUID.randomUUID(), handlers = emptyMap()
@@ -68,9 +71,11 @@ fun main(args: Array<String>) {
                     val isDevelopment = args.any { it == "--ztx.profile=dev" } ||
                         System.getProperty("ztx.profile") == "dev" || System.getenv("ZTX_PROFILE") == "dev"
                     if (isDevelopment) {
+                        // 开发环境终端提示仅供本机使用；正式环境不写入普通应用日志。
                         System.out.println("ZTX 首次初始化口令（15 分钟有效）：")
                         System.out.println(credential)
                     } else {
+                        // 正式部署仅在交互式服务器终端显示；无终端时通过 loopback 安装管理入口获取。
                         System.console()?.writer()?.let { writer ->
                             writer.println("ZTX 首次初始化口令（15 分钟有效）：")
                             writer.println(credential)

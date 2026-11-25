@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 
+// 场景：平台管理员创建租户、查看隔离数据库信息并停用租户
 test('平台管理员可以创建、查看和停用租户', async ({ page }) => {
   // Given 平台管理员已登录，且控制面中尚无租户
   let tenants: Array<Record<string, unknown>> = []
