@@ -26,7 +26,10 @@ function setCategoryButton(id:string,element:HTMLButtonElement|null){if(element)
 function setModuleButton(id:string,element:HTMLButtonElement|null){if(element)moduleButtons.set(id,element);else moduleButtons.delete(id)}
 function clearCloseTimer(){if(closeTimer)clearTimeout(closeTimer);closeTimer=undefined}
 function scheduleClose(){clearCloseTimer();closeTimer=setTimeout(()=>{flyoutOpen.value=false;collapsedMenuOpen.value=false;openedByHover=false},220)}
-function onSidebarPointerLeave(event:PointerEvent){if(event.pointerType!=='touch')scheduleClose()}
+function onSidebarPointerLeave(event:PointerEvent){
+ // Given 触屏用户刚完成点击，When 浏览器派发触屏指针离开事件，Then 不应把点击误判为鼠标离开菜单区域。
+ if(event.pointerType!=='touch')scheduleClose()
+}
 function selectModule(id:string){
  if(navCollapsed.value&&activeModuleId.value===id){collapsedMenuOpen.value=!collapsedMenuOpen.value;return}
  activeModuleId.value=id
