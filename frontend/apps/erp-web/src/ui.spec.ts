@@ -69,21 +69,21 @@ describe('ZTX 数据表格', () => {
     const wrapper = mount(ZDataGrid, {
       props: {
         pageSize: 1,
-        data: [{ name: '乙公司' }, { name: '甲公司' }],
+        data: [{ name: 'Zeta' }, { name: 'Alpha' }],
         columns: [{ accessorKey: 'name', header: '企业名称', enableSorting: true }],
       },
     })
-    // When 按企业名称排序并选择当前行
+    // When 按名称排序并选择当前行
     await wrapper.find('thead button').trigger('click')
     await wrapper.find('tbody input[type="checkbox"]').setValue(true)
-    // Then 第一条为排序后的甲公司，已选数量为一条
-    expect(wrapper.find('tbody').text()).toContain('甲公司')
+    // Then 第一条为排序后的Alpha，已选数量为一条
+    expect(wrapper.find('tbody').text()).toContain('Alpha')
     expect(wrapper.text()).toContain('已选 1 条')
     // When 切换到下一页
     const nextPage = wrapper.findAll('button').find(button => button.text().includes('下一页'))
     expect(nextPage).toBeDefined()
     await nextPage!.trigger('click')
-    // Then 下一页显示乙公司
-    expect(wrapper.find('tbody').text()).toContain('乙公司')
+    // Then 下一页显示Zeta
+    expect(wrapper.find('tbody').text()).toContain('Zeta')
   })
 })
