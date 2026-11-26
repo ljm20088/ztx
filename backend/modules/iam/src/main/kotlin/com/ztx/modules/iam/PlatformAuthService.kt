@@ -26,83 +26,34 @@ class PlatformAuthService(
     private val database: PgDatabase,
     private val mfaEncryptionKey: String
 ) {
-    @Volatile private var activeSetupCredential: String? = null
-    @Volatile private var setupCredentialExpiresAt: Instant? = null
-
     fun initializationStatus(): Future<Boolean> =
         database.withTransaction { connection ->
             connection.preparedQuery("SELECT EXISTS (SELECT 1 FROM iam.platform_admin) AS initialized")
                 .execute().map { rows -> rows.first().getBoolean("initialized") }
         }
 
-    /** 仅供 loopback 安装管理入口读取；明文只保存在当前进程内存。 */
-    fun currentSetupCredential(): Future<String?> {
-        val token = activeSetupCredential
-            ?.takeIf { setupCredentialExpiresAt?.isAfter(Instant.now()) == true }
-            ?: return Future.succeededFuture<String?>(null)
-        return database.withTransaction { connection ->
-            connection.preparedQuery(
-                """SELECT 1 FROM iam.platform_admin_setup_token
-                   WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > clock_timestamp()"""
-            ).execute(Tuple.of(AuthSupport.sha256(token))).map { rows -> rows.size() == 1 }
-        }.map { isCurrent -> if (isCurrent) token else null }
-    }
-
-    fun createSetupCredential(): Future<String> {
-        val token = AuthSupport.randomToken(32)
-        return database.withTransaction { connection ->
-            connection.preparedQuery(
-                """WITH lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(724193810233))
-                   SELECT count(*) AS total FROM iam.platform_admin CROSS JOIN lock"""
-            ).execute().compose { rows ->
-                if (rows.first().getLong("total") > 0L) {
-                    Future.failedFuture("平台管理员已初始化，拒绝再次生成初始化凭据")
-                } else {
-                    connection.preparedQuery(
-                        "UPDATE iam.platform_admin_setup_token SET consumed_at = clock_timestamp() WHERE consumed_at IS NULL"
-                    ).execute().compose {
-                        connection.preparedQuery(
-                            """INSERT INTO iam.platform_admin_setup_token (id, token_hash, expires_at)
-                               VALUES ($1, $2, clock_timestamp() + INTERVAL '15 minutes')"""
-                        ).execute(Tuple.of(UUID.randomUUID(), AuthSupport.sha256(token))).map(token)
-                    }
-                }
-            }
-        }.map { issued ->
-            activeSetupCredential = issued
-            setupCredentialExpiresAt = Instant.now().plusSeconds(15 * 60)
-            issued
-        }
-    }
-
+    /**
+     * 首次初始化只允许本机/SSH 隧道请求进入路由层；数据库事务锁确保并发请求只能创建一个管理员。
+     * 初始化成功后管理员记录永久存在，服务重启不会重新开放初始化。
+     */
     fun initialize(
-        token: String, username: String, password: String, ip: String?, userAgent: String? = null
+        username: String, password: String, ip: String?, userAgent: String? = null
     ): Future<PlatformLogin> {
         require(username.matches(Regex("[A-Za-z0-9._-]{3,80}"))) { "管理员账号格式不正确" }
         validatePassword(password)
         val passwordHash = AuthSupport.hashPassword(password, PBKDF2_ITERATIONS)
         return database.withTransaction { connection ->
-            connection.preparedQuery(
-                """WITH lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(724193810233))
-                   SELECT token.id::text AS id FROM iam.platform_admin_setup_token token CROSS JOIN lock
-                   WHERE token.token_hash = $1 AND token.consumed_at IS NULL
-                     AND token.expires_at > clock_timestamp()
-                   FOR UPDATE OF token"""
-            ).execute(Tuple.of(AuthSupport.sha256(token))).compose { tokens ->
-                if (tokens.size() != 1) return@compose Future.failedFuture("初始化凭据无效或已过期")
+            connection.preparedQuery("SELECT pg_advisory_xact_lock(724193810233)").execute().compose {
                 connection.preparedQuery("SELECT count(*) AS total FROM iam.platform_admin").execute().compose { admins ->
-                    if (admins.first().getLong("total") > 0L) return@compose Future.failedFuture("平台管理员已初始化")
-                    val id = UUID.randomUUID()
-                    val rawSession = AuthSupport.randomToken(32)
-                    connection.preparedQuery(
-                        "INSERT INTO iam.platform_admin (id, username, password_hash) VALUES ($1, $2, $3)"
-                    ).execute(Tuple.of(id, username, passwordHash)).compose {
+                    if (admins.first().getLong("total") > 0L) {
+                        Future.failedFuture("平台管理员已初始化")
+                    } else {
+                        val id = UUID.randomUUID()
+                        val rawSession = AuthSupport.randomToken(32)
                         connection.preparedQuery(
-                            """UPDATE iam.platform_admin_setup_token SET consumed_at = clock_timestamp()
-                               WHERE id = $1 AND consumed_at IS NULL"""
-                        ).execute(Tuple.of(UUID.fromString(tokens.first().getString("id")))).compose { consumed ->
-                            if (consumed.rowCount() != 1) Future.failedFuture("初始化凭据已被使用")
-                            else connection.preparedQuery(
+                            "INSERT INTO iam.platform_admin (id, username, password_hash) VALUES ($1, $2, $3)"
+                        ).execute(Tuple.of(id, username, passwordHash)).compose {
+                            connection.preparedQuery(
                                 """INSERT INTO iam.platform_admin_session
                                    (id, admin_id, token_hash, expires_at, user_agent, ip_address)
                                    VALUES ($1, $2, $3, clock_timestamp() + INTERVAL '8 hours', $4, $5::inet)"""
@@ -115,10 +66,6 @@ class PlatformAuthService(
                     }
                 }
             }
-        }.map { login ->
-            activeSetupCredential = null
-            setupCredentialExpiresAt = null
-            login
         }
     }
 

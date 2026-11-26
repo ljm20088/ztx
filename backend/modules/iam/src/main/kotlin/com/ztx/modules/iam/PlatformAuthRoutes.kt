@@ -1,6 +1,5 @@
 package com.ztx.modules.iam
 
-import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
@@ -14,7 +13,6 @@ class PlatformAuthRoutes(
     fun register(router: Router) {
         router.route("/api/v1/platform/auth/*").handler(BodyHandler.create().setBodyLimit(16 * 1024))
         router.get("/api/v1/platform/auth/status").handler(::status)
-        router.get("/api/v1/platform/auth/setup-token").handler(::setupToken)
         router.post("/api/v1/platform/auth/initialize").handler(::initialize)
         router.post("/api/v1/platform/auth/login").handler(::login)
         router.post("/api/v1/platform/auth/logout").handler(::logout)
@@ -28,11 +26,32 @@ class PlatformAuthRoutes(
         service.initializationStatus().onSuccess { initialized ->
             context.response().putHeader("cache-control", "no-store")
                 .putHeader("content-type", "application/json")
-                .end(JsonObject().put("initialized", initialized).encode())
+                .end(JsonObject().put("initialized", initialized)
+                    .put("canInitialize", !initialized && isLoopbackInitializationRequest(context)).encode())
         }.onFailure { fail(context, it, 503) }
     }
 
-    private fun setupToken(context: RoutingContext) {
+    private fun initialize(context: RoutingContext) {
+        if (!isLoopbackInitializationRequest(context)) {
+            context.response().setStatusCode(403).putHeader("cache-control", "no-store").end()
+            return
+        }
+        val body = AuthSupport.body(context)
+        service.initialize(body.getString("username", ""), body.getString("password", ""),
+            AuthSupport.ip(context), context.request().getHeader("user-agent"))
+            .onSuccess { result ->
+                context.response().setStatusCode(201).putHeader("set-cookie", AuthSupport.cookie("ztx_platform_session", result.sessionToken, "/api/v1/platform", secureCookies))
+                    .putHeader("content-type", "application/json")
+                    .end(JsonObject().put("id", result.admin.id.toString())
+                        .put("username", result.admin.username).put("mfaEnabled", result.admin.mfaEnabled).encode())
+            }.onFailure { fail(context, it, 409) }
+    }
+
+    /**
+     * 不信任 X-Forwarded-* 等代理头。SSH 本地端口转发和服务器本机访问的 Host 必须是 loopback。
+     * 反向代理应显式拒绝转发初始化请求，不能把公网流量伪装成 loopback。
+     */
+    private fun isLoopbackInitializationRequest(context: RoutingContext): Boolean {
         val remoteHost = context.request().remoteAddress()?.host()
         val hostHeader = context.request().getHeader("host")?.lowercase().orEmpty()
         val localHost = hostHeader == "::1" || hostHeader.startsWith("[::1]") ||
@@ -43,19 +62,7 @@ class PlatformAuthRoutes(
         val isLoopback = remoteHost != null && runCatching {
             InetAddress.getByName(remoteHost).isLoopbackAddress
         }.getOrDefault(false)
-        if (!isLoopback || !localHost || forwarded) {
-            context.response().setStatusCode(403).putHeader("cache-control", "no-store").end()
-            return
-        }
-        service.currentSetupCredential().onSuccess { token ->
-            if (token == null) {
-                context.response().setStatusCode(410).putHeader("cache-control", "no-store").end()
-            } else {
-                context.response().putHeader("cache-control", "no-store")
-                    .putHeader("content-type", "application/json")
-                    .end(JsonObject().put("token", token).encode())
-            }
-        }.onFailure { fail(context, it, 503) }
+        return isLoopback && localHost && !forwarded
     }
 
     private fun initialize(context: RoutingContext) {

@@ -17,7 +17,6 @@ import com.ztx.modules.metadata.MetadataModule
 import com.ztx.platform.common.AppConfig
 import com.ztx.platform.common.ModuleRegistry
 import com.ztx.platform.common.RuntimeRole
-import io.vertx.core.Future
 import io.vertx.core.Vertx
 import org.slf4j.LoggerFactory
 import java.util.UUID
@@ -68,28 +67,7 @@ fun main(args: Array<String>) {
 
     when (config.role) {
         RuntimeRole.SERVER -> database.ping()
-            .compose { authService.initializationStatus() }
-            .compose { initialized ->
-                if (initialized) Future.succeededFuture<String?>(null)
-                else authService.createSetupCredential().map<String?> { it }
-            }
-            .compose { credential ->
-                if (credential != null) {
-                    val isDevelopment = args.any { it == "--ztx.profile=dev" } ||
-                        System.getProperty("ztx.profile") == "dev" || System.getenv("ZTX_PROFILE") == "dev"
-                    if (isDevelopment) {
-                        // 开发环境终端提示仅供本机使用；正式环境不写入普通应用日志。
-                        System.out.println("ZTX 首次初始化口令（15 分钟有效）：")
-                        System.out.println(credential)
-                    } else {
-                        // 正式部署仅在交互式服务器终端显示；无终端时通过 loopback 安装管理入口获取。
-                        System.console()?.writer()?.let { writer ->
-                            writer.println("ZTX 首次初始化口令（15 分钟有效）：")
-                            writer.println(credential)
-                            writer.flush()
-                        }
-                    }
-                }
+            .compose {
                 HealthServer(
                     vertx, database, config.httpHost, config.httpPort,
                     PlatformAuthRoutes(authService, config.secureCookies), tenantRoutes, tenantAuthRoutes

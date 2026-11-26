@@ -50,33 +50,13 @@ class PlatformAuthIntegrationTest {
         val service = PlatformAuthService(database, "test-mfa-encryption-key-32-bytes-minimum")
 
         try {
-            // Given：部署人员生成了一次性初始化凭据，随后该凭据超过有效期
-            val expiredToken = service.createSetupCredential().await()
-            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
-                connection.prepareStatement(
-                    "UPDATE iam.platform_admin_setup_token SET expires_at = clock_timestamp() - INTERVAL '1 second' WHERE token_hash = ?"
-                ).use { statement ->
-                    statement.setString(1, sha256(expiredToken))
-                    statement.executeUpdate()
-                }
-            }
+            // Given：平台尚未初始化，且初始化不再依赖一次性口令
+            assertEquals(false, service.initializationStatus().await())
 
-            // When / Then：过期初始化凭据不能创建管理员
-            assertFailureContaining("初始化凭据无效或已过期") {
-                service.initialize(expiredToken, "expired.admin", "ZtxAdmin123", "127.0.0.1").await()
-            }
-
-            // When：重新生成有效凭据；新口令立即使此前未使用的口令失效
-            val staleToken = service.createSetupCredential().await()
-            val setupToken = service.createSetupCredential().await()
-            assertFailureContaining("初始化凭据无效或已过期") {
-                service.initialize(staleToken, "stale.admin", "ZtxAdmin123", "127.0.0.1").await()
-            }
-
-            // When：两个初始化请求并发使用同一有效口令
+            // When：两个初始化请求并发提交不同账号
             val concurrentAttempts = listOf(
-                service.initialize(setupToken, "platform.admin", "ZtxAdmin123", "127.0.0.1"),
-                service.initialize(setupToken, "second.admin", "ZtxAdmin123", "127.0.0.1")
+                service.initialize("platform.admin", "ZtxAdmin123", "127.0.0.1", "bdd-test"),
+                service.initialize("second.admin", "ZtxAdmin123", "127.0.0.1", "bdd-test")
             )
             val outcomes = concurrentAttempts.map { attempt -> runCatching { attempt.await() } }
 
@@ -84,6 +64,7 @@ class PlatformAuthIntegrationTest {
             assertEquals(1, outcomes.count { it.isSuccess })
             val initialized = outcomes.single { it.isSuccess }.getOrThrow()
             val admin = initialized.admin
+            assertEquals(true, service.initializationStatus().await())
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
                 connection.createStatement().use { statement ->
                     statement.executeQuery("SELECT count(*) FROM iam.platform_admin").use { rows ->
@@ -96,6 +77,12 @@ class PlatformAuthIntegrationTest {
             // Then：初始化成功后已自动建立会话，无需再次登录
             assertEquals(admin.id, service.authenticate(initialized.sessionToken).await()?.id)
 
+            // Given：平台管理员已存在
+            // Then：重复初始化被拒绝，不能创建第二个管理员或重置现有账号
+            assertFailureContaining("平台管理员已初始化") {
+                service.initialize("second.admin", "ZtxAdmin123", "127.0.0.1", "bdd-test").await()
+            }
+
             // Given：尚未配置 MFA 加密密钥
             val serviceWithoutMfaKey = PlatformAuthService(database, "")
             // Then：普通用户名密码登录仍可使用；只有启用 MFA 时才要求配置密钥
@@ -104,11 +91,6 @@ class PlatformAuthIntegrationTest {
             ).await().admin.id)
             assertThrows(IllegalArgumentException::class.java) {
                 serviceWithoutMfaKey.enrollMfa(admin)
-            }
-
-            // Then：同一初始化凭据不可重放
-            assertFailureContaining("初始化凭据无效或已过期") {
-                service.initialize(setupToken, "second.admin", "ZtxAdmin123", "127.0.0.1").await()
             }
 
             // When：管理员登录并验证服务端会话
