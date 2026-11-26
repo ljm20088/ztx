@@ -99,5 +99,5 @@ test('平台管理员可以查看平台安全审计记录', async ({ page }) => 
   // Then 可以查看平台安全事件及其操作结果
   await expect(page.getByRole('heading', { name: '安全审计' })).toBeVisible()
   await expect(page.getByText('LOGIN')).toBeVisible()
-  await expect(page.getByText('SUCCESS')).toBeVisible()
+  await expect(page.getByText('成功')).toBeVisible()
 })
