@@ -55,8 +55,9 @@ class PlatformAuthIntegrationTest {
 
         try {
             // Given：Worker 以独立进程身份启动并持续上报心跳
-            worker = BackgroundTaskWorker(vertx, database, PostgresOutboxStore(database), "bdd-worker")
-            worker.start().await()
+            val workerInstance = BackgroundTaskWorker(vertx, database, PostgresOutboxStore(database), "bdd-worker")
+            worker = workerInstance
+            workerInstance.start().await()
             val workerInstances = service.workerInstances().await()
             assertEquals(1, workerInstances.size())
             assertEquals("UP", workerInstances.getJsonObject(0).getString("status"))

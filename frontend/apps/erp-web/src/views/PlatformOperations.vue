@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ZAlert, ZButton } from '@ztx/ui'
 
 type LiveStatus = { status: string; service: string; version: string; startedAt: string }
@@ -9,6 +9,7 @@ type WorkerInstance = { workerId: string; startedAt: string; lastSeenAt: string;
 const live = ref<LiveStatus | null>(null)
 const ready = ref<ReadyStatus | null>(null)
 const workers = ref<WorkerInstance[]>([])
+const runningWorkers = computed(() => workers.value.filter(worker => worker.status === 'UP').length)
 const loading = ref(false)
 const error = ref('')
 
@@ -64,7 +65,7 @@ function stateLabel(value?: string) {
       </section>
       <section class="rounded-ztx-md border border-ztx-border bg-ztx-surface p-4">
         <div class="text-ztx-caption text-ztx-muted">Worker</div>
-        <div class="mt-2 text-ztx-section-title font-semibold">{{ workers.filter(worker => worker.status === 'UP').length }} 个运行中</div>
+        <div class="mt-2 text-ztx-section-title font-semibold">{{ runningWorkers }} 个运行中</div>
         <p v-if="!workers.length" class="mt-3 text-ztx-caption text-ztx-muted">最近 24 小时未发现 Worker 实例。</p>
         <ul v-else class="mt-3 space-y-2 text-ztx-caption">
           <li v-for="worker in workers" :key="worker.workerId" class="flex items-center justify-between gap-2">
