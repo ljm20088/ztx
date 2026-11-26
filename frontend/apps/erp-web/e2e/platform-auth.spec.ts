@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test('平台管理员可以登录独立平台工作区', async ({ page }) => {
   // Given 平台已经初始化，登录接口返回有效的平台会话
   await page.route('**/api/v1/platform/auth/status', route => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ initialized: true }),
+    status: 200, contentType: 'application/json', body: JSON.stringify({ initialized: true, canInitialize: false, mfaEnabled: false }),
   }))
   await page.route('**/api/v1/platform/auth/login', route => route.fulfill({
     status: 200,
@@ -31,7 +31,7 @@ test('平台管理员可以登录独立平台工作区', async ({ page }) => {
 test('首次启动自动显示初始化表单并创建管理员后直接登录', async ({ page }) => {
   // Given 平台尚未初始化，当前请求来自服务器本机或 SSH 本地端口转发
   await page.route('**/api/v1/platform/auth/status', route => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ initialized: false, canInitialize: true }),
+    status: 200, contentType: 'application/json', body: JSON.stringify({ initialized: false, canInitialize: true, mfaEnabled: false }),
   }))
   await page.route('**/api/v1/platform/auth/initialize', route => route.fulfill({
     status: 201,
@@ -55,4 +55,30 @@ test('首次启动自动显示初始化表单并创建管理员后直接登录',
   // Then 无需重新登录，直接进入平台控制台
   await expect(page.getByRole('heading', { name: '平台控制台' })).toBeVisible()
   await expect(page.getByText('platform.admin')).toBeVisible()
+})
+
+test('平台管理员只看到独立的平台管理导航', async ({ page }) => {
+  await page.route('**/api/v1/platform/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000001', username: 'platform.admin', mfaEnabled: false }),
+  }))
+  await page.route('**/health/live', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ status: 'UP', service: 'ztx-server', version: 'test', startedAt: '2026-11-27T00:00:00Z' }),
+  }))
+  await page.route('**/health/ready', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ status: 'READY', components: { database: 'UP' } }),
+  }))
+
+  // When 平台管理员进入平台管理工作区
+  await page.goto('/platform/operations')
+
+  // Then 页面使用独立导航，不出现企业业务菜单
+  await expect(page.getByRole('navigation', { name: '平台管理导航' })).toBeVisible()
+  await expect(page.getByText('运维管理', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('采购管理')).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '运维管理' })).toBeVisible()
+  await expect(page.getByText('API Server')).toBeVisible()
+  await expect(page.getByText('PostgreSQL')).toBeVisible()
 })

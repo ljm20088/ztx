@@ -35,7 +35,7 @@ cp .env.example .env
 ./ztx stop
 ```
 
-`./ztx stop` 只停止启动器记录的应用进程，保留 PostgreSQL 数据和容器。需要停止数据库时执行 `docker compose stop postgres`。启动器日志与 PID 文件位于仓库根目录 `.ztx/`；Server 首次初始化口令可能写入 `.ztx/logs/server.log`，目录权限限制为当前用户，请勿共享日志。
+`./ztx stop` 只停止启动器记录的应用进程，保留 PostgreSQL 数据和容器。需要停止数据库时执行 `docker compose stop postgres`。启动器日志与 PID 文件位于仓库根目录 `.ztx/`；日志目录权限限制为当前用户，请勿共享日志。
 
 ### 独立启动后端
 

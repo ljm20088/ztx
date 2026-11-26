@@ -11,6 +11,7 @@ const password = ref('')
 const confirmPassword = ref('')
 const totp = ref('')
 const canInitialize = ref(false)
+const mfaEnabled = ref(false)
 const error = ref('')
 const busy = ref(false)
 
@@ -18,9 +19,10 @@ onMounted(async () => {
   try {
     const statusResponse = await fetch('/api/v1/platform/auth/status', { cache: 'no-store' })
     if (!statusResponse.ok) throw new Error('无法读取平台初始化状态，请检查数据库连接和服务状态。')
-    const status = await statusResponse.json() as { initialized: boolean }
+    const status = await statusResponse.json() as { initialized: boolean; canInitialize?: boolean; mfaEnabled?: boolean }
     mode.value = status.initialized ? 'login' : 'initialize'
     canInitialize.value = status.canInitialize === true
+    mfaEnabled.value = status.mfaEnabled === true
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '认证服务暂不可用'
   }
@@ -81,7 +83,7 @@ async function submit() {
         <ZFormField v-if="mode === 'initialize'" label="确认密码" field-id="confirm-password" required>
           <ZInput id="confirm-password" v-model="confirmPassword" autocomplete="new-password" type="password" required minlength="8" placeholder="请再次输入密码" />
         </ZFormField>
-        <ZFormField v-if="mode === 'login'" label="动态验证码（启用 MFA 后填写）" field-id="totp">
+        <ZFormField v-if="mode === 'login' && mfaEnabled" label="动态验证码" field-id="totp">
           <ZInput id="totp" v-model="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
         </ZFormField>
         <ZAlert v-if="error" tone="error" role="alert">{{ error }}</ZAlert>

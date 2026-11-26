@@ -31,8 +31,9 @@ class PlatformAuthIntegrationTest {
         val postgres = PostgreSQLContainer<Nothing>("postgres:18.6")
     }
 
+    // 平台首次初始化仅允许创建一个管理员，成功后自动登录且不可重复初始化。
     @Test
-    fun setupExpiryReplaySessionExpiryMfaAndLoginThrottlingAreEnforced() {
+    fun firstRunInitializationSessionExpiryMfaAndLoginThrottlingAreEnforced() {
         // Given：全新的控制面数据库，尚未创建任何平台管理员
         val projectDir = Path.of(System.getProperty("ztx.projectDir"))
         val config = DatabaseConfig(

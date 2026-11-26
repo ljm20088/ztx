@@ -23,11 +23,14 @@ class PlatformAuthRoutes(
     }
 
     private fun status(context: RoutingContext) {
-        service.initializationStatus().onSuccess { initialized ->
-            context.response().putHeader("cache-control", "no-store")
-                .putHeader("content-type", "application/json")
-                .end(JsonObject().put("initialized", initialized)
-                    .put("canInitialize", !initialized && isLoopbackInitializationRequest(context)).encode())
+        service.initializationStatus().compose { initialized ->
+            service.mfaEnabled().map { mfaEnabled ->
+                context.response().putHeader("cache-control", "no-store")
+                    .putHeader("content-type", "application/json")
+                    .end(JsonObject().put("initialized", initialized)
+                        .put("canInitialize", !initialized && isLoopbackInitializationRequest(context))
+                        .put("mfaEnabled", mfaEnabled).encode())
+            }
         }.onFailure { fail(context, it, 503) }
     }
 

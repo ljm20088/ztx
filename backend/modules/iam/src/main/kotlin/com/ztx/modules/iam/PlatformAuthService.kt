@@ -32,6 +32,13 @@ class PlatformAuthService(
                 .execute().map { rows -> rows.first().getBoolean("initialized") }
         }
 
+    fun mfaEnabled(): Future<Boolean> =
+        database.withTransaction { connection ->
+            connection.preparedQuery(
+                "SELECT COALESCE((SELECT mfa_enabled FROM iam.platform_admin LIMIT 1), FALSE) AS enabled"
+            ).execute().map { rows -> rows.first().getBoolean("enabled") }
+        }
+
     /**
      * 首次初始化只允许本机/SSH 隧道请求进入路由层；数据库事务锁确保并发请求只能创建一个管理员。
      * 初始化成功后管理员记录永久存在，服务重启不会重新开放初始化。
