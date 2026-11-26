@@ -19,7 +19,7 @@ const recentItems=[
  <section class="mb-4 flex min-h-[70px] items-center gap-3 rounded-ztx-md border border-ztx-border-accent bg-gradient-to-r from-ztx-welcome-start via-ztx-welcome-middle to-ztx-welcome-end p-3.5 max-[720px]:flex-wrap max-[720px]:items-start">
   <div class="grid size-[38px] shrink-0 place-items-center rounded-ztx-md bg-ztx-primary text-ztx-on-primary"><ZCommand :size="22"/></div>
   <div data-testid="workspace-hero-copy" class="flex min-w-0 flex-1 flex-col gap-1"><strong class="text-ztx-body font-bold">让业务与平台协同工作</strong><span class="text-ztx-caption text-ztx-muted">从工作区进入平台管理、企业基础设置和低代码开发工具。</span></div>
-  <ZButton class="shrink-0 max-[720px]:ml-[51px]" size="sm" variant="secondary" @click="router.push('/developer/doctypes')">进入开发中心 <ZArrowUpRight :size="14"/></ZButton>
+  <ZButton class="shrink-0 max-[720px]:col-start-2 max-[720px]:w-fit" size="sm" variant="secondary" @click="router.push('/developer/doctypes')">进入开发中心 <ZArrowUpRight :size="14"/></ZButton>
  </section>
  <div class="mb-4 grid grid-cols-[minmax(0,1.35fr)_minmax(300px,.85fr)] gap-[15px] max-[1050px]:grid-cols-1">
   <section data-testid="quick-panel" class="rounded-ztx-md border border-ztx-border bg-ztx-surface p-4">
