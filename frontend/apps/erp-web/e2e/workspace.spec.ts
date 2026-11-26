@@ -54,6 +54,8 @@ test('工作区首屏与页面截图', async ({ page }, testInfo) => {
     document.querySelector('.workspace-header .brand-lockup')!.getBoundingClientRect().width -
     document.querySelector('.ztx-sidebar')!.getBoundingClientRect().width
   ))).toBeLessThan(1)
+  await expect.poll(async () => page.getByTestId('workspace-hero-copy').evaluate(element => element.getBoundingClientRect().width)).toBeGreaterThan(160)
+  await page.evaluate(() => window.scrollTo(0, 0))
   if (testInfo.project.name === 'chromium') await page.screenshot({ path: 'artifacts/frontend-visual-captures/workspace-mobile.png', fullPage: true })
 })
 

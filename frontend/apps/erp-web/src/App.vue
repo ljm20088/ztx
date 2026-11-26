@@ -321,7 +321,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
       </aside>
       <main class="workspace-main flex min-w-0 flex-1 flex-col px-[26px] pt-4 max-[1050px]:px-[18px] max-[720px]:px-3 max-[720px]:pt-3">
         <RouterView />
-        <footer class="workspace-footer mt-auto flex justify-between gap-3 py-[15px] pb-3 text-ztx-caption text-ztx-muted">
+        <footer class="workspace-footer mt-auto flex justify-between gap-3 py-[15px] pb-3 text-ztx-caption text-ztx-muted max-[720px]:flex-col max-[720px]:items-start">
           <span>© 2026 ZTX · 制造业低代码 ERP 平台</span>
           <span class="flex items-center gap-[7px]">平台工作区 <i class="size-[5px] rounded-full bg-ztx-success-indicator" /> 安全连接</span>
         </footer>
