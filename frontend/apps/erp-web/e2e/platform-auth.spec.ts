@@ -53,7 +53,7 @@ test('首次启动自动显示初始化表单并创建管理员后直接登录',
   await page.getByRole('button', { name: '创建平台管理员' }).click()
 
   // Then 无需重新登录，直接进入平台控制台
-  await expect(page.getByRole('heading', { name: '平台控制台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '平台概览' })).toBeVisible()
   await expect(page.getByText('platform.admin')).toBeVisible()
 })
 
