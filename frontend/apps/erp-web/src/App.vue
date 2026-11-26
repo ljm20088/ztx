@@ -128,11 +128,11 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
 <template>
   <div v-if="!isAuthRoute" class="ztx-shell min-h-screen bg-ztx-page font-sans text-ztx-text">
     <header class="workspace-header sticky top-0 z-30 flex items-center bg-ztx-surface">
-      <div class="brand-lockup" :class="{ 'is-nav-collapsed': navCollapsed }" aria-label="ZTX 企业工作区">
-        <div class="brand-mark">
+      <div class="brand-lockup flex h-11 w-[270px] shrink-0 items-center gap-2 border-r border-ztx-border px-4 max-[720px]:w-[236px] max-[720px]:basis-[236px]" :class="{ 'is-nav-collapsed': navCollapsed }" aria-label="ZTX 企业工作区">
+        <div class="brand-mark grid size-[26px] place-items-center rounded-[6px] bg-ztx-primary text-ztx-on-primary">
           <ZCommand :size="18" :stroke-width="2.2" />
         </div>
-        <div class="brand-wordmark">
+        <div class="brand-wordmark flex flex-col gap-[3px] leading-none">
           <strong>ZTX ERP</strong>
         </div>
       </div>
@@ -140,7 +140,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <button
           v-for="tab in workspace.tabs"
           :key="tab.path"
-          class="workspace-tab"
+          class="workspace-tab relative inline-flex min-h-11 min-w-[104px] max-w-[180px] items-center justify-center gap-[9px] whitespace-nowrap px-[11px] text-ztx-body text-ztx-muted hover:bg-ztx-surface-soft hover:text-ztx-text"
           :class="{ 'is-active': workspace.activePath === tab.path }"
           :aria-current="workspace.activePath === tab.path ? 'page' : undefined"
           @click="activateTab(tab.path)"
@@ -148,7 +148,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
           <span>{{ tab.title }}</span>
           <span
             v-if="tab.closable"
-            class="tab-close"
+            class="tab-close grid size-[18px] place-items-center rounded text-ztx-muted hover:bg-ztx-border hover:text-ztx-text"
             role="button"
             :aria-label="'关闭 ' + tab.title"
             tabindex="0"
@@ -166,22 +166,22 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <ZIconButton label="通知">
           <ZBell />
         </ZIconButton>
-        <div class="account-menu-root" @pointerenter="clearAccountCloseTimer" @pointerleave="onAccountMenuPointerLeave">
+        <div class="account-menu-root relative flex items-center" @pointerenter="clearAccountCloseTimer" @pointerleave="onAccountMenuPointerLeave">
           <ZIconButton
             label="用户账户菜单"
-            button-class="account-menu-trigger"
+            button-class="grid size-8 place-items-center rounded-[5px] bg-transparent text-ztx-text-secondary hover:bg-ztx-surface-warm hover:text-ztx-primary-strong"
             has-popup="menu"
             :expanded="accountMenuOpen"
             @click="toggleAccountMenu"
           >
             <ZUserRound />
           </ZIconButton>
-          <div v-if="accountMenuOpen" class="account-menu-panel" role="menu" aria-label="用户账户菜单">
-            <div class="account-menu-identity">
+          <div v-if="accountMenuOpen" class="account-menu-panel absolute right-0 top-[calc(100%+7px)] z-[80] w-56 rounded-ztx-md border border-ztx-border bg-ztx-surface p-[7px] shadow-[var(--ztx-shadow-popover)]" role="menu" aria-label="用户账户菜单">
+            <div class="account-menu-identity flex flex-col gap-[3px] border-b border-ztx-border px-2.5 pb-[11px] pt-[9px]">
               <strong>{{ account?.username ?? '尚未登录' }}</strong>
               <small>{{ account ? (account.kind === 'platform' ? '平台管理员' : '企业用户') : '账户' }}</small>
             </div>
-            <ZButton v-if="account?.kind === 'platform'" class="account-menu-item" variant="ghost" size="sm" role="menuitem" @click="openAccountPage('/platform/admin')">
+            <ZButton v-if="account?.kind === 'platform'" class="account-menu-item flex w-full items-center gap-[9px] rounded px-2.5 py-[9px] text-left text-ztx-body text-ztx-text-secondary hover:bg-ztx-surface-warm hover:text-ztx-primary-strong" variant="ghost" size="sm" role="menuitem" @click="openAccountPage('/platform/admin')">
               <ZShieldCheck :size="15" /> 平台控制台
             </ZButton>
             <ZButton v-if="account?.kind === 'platform'" class="account-menu-item" variant="ghost" size="sm" role="menuitem" @click="openAccountPage('/platform/admin#password-settings')">
@@ -193,8 +193,8 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
             <ZButton v-if="!account" class="account-menu-item" variant="ghost" size="sm" role="menuitem" @click="openAccountPage(route.path.startsWith('/platform') ? '/platform/login' : '/tenant/login')">
               <ZUserRound :size="15" /> 登录
             </ZButton>
-            <ZAlert v-if="accountMenuError" class="account-menu-error" tone="error" role="alert">{{ accountMenuError }}</ZAlert>
-            <ZButton v-if="account" class="account-menu-logout" variant="ghost" size="sm" role="menuitem" @click="logout">
+            <ZAlert v-if="accountMenuError" class="account-menu-error mx-2 my-[5px] text-ztx-caption text-ztx-danger" tone="error" role="alert">{{ accountMenuError }}</ZAlert>
+            <ZButton v-if="account" class="account-menu-logout mt-1 w-full border-t border-ztx-border pt-2 text-left text-ztx-danger" variant="ghost" size="sm" role="menuitem" @click="logout">
               <ZX :size="15" /> 退出登录
             </ZButton>
           </div>
@@ -204,16 +204,16 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
     <div class="workspace-body flex min-h-[calc(100vh-44px)]" :class="{ 'is-nav-collapsed': navCollapsed }">
       <aside
         ref="navRoot"
-        class="ztx-sidebar"
+        class="ztx-sidebar relative z-20 flex min-h-[calc(100vh-44px)] w-[270px] shrink-0 flex-col border-r border-ztx-border bg-ztx-surface transition-[width,flex-basis] duration-200 max-[720px]:w-[236px] max-[720px]:basis-[236px]"
         :class="{ 'is-collapsed': navCollapsed, 'has-collapsed-menu': collapsedMenuOpen }"
         aria-label="一级菜单"
         @pointerenter="clearCloseTimer"
         @pointerleave="onMenuPointerLeave"
       >
-        <nav class="sidebar-navigation" aria-label="一级菜单">
-          <div v-for="module in menuModules" :key="module.id" class="module-group" @pointerleave="navCollapsed && onMenuPointerLeave($event)">
+        <nav class="sidebar-navigation min-h-0 flex-1 overflow-y-auto px-[9px] pb-[14px] pt-[10px]" aria-label="一级菜单">
+          <div v-for="module in menuModules" :key="module.id" class="module-group mb-[3px] flex flex-col" @pointerleave="navCollapsed && onMenuPointerLeave($event)">
             <button
-              class="module-entry"
+              class="module-entry flex min-h-11 w-full items-center justify-start gap-3 rounded-[7px] px-3 text-ztx-nav text-ztx-text hover:bg-ztx-surface-soft"
               :aria-label="module.label"
               :title="navCollapsed ? module.label : undefined"
               :class="{ 'is-active': activeModuleId === module.id }"
@@ -233,14 +233,14 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
             </button>
             <div
               v-if="activeModuleId === module.id && !navCollapsed"
-              class="inline-category-list"
+              class="inline-category-list flex flex-col gap-px pb-1.5 pl-[38px] pt-[3px]"
               :aria-label="module.label + '二级菜单'"
             >
               <button
                 v-for="(category, index) in module.categories"
                 :key="category.id"
                 :ref="element => setCategoryButton(category.id, element as HTMLButtonElement | null)"
-                class="category-entry"
+                class="category-entry flex min-h-[37px] w-full items-center justify-between gap-2 rounded-md px-[10px] text-ztx-body text-ztx-text-secondary hover:bg-ztx-surface-soft hover:text-ztx-primary-strong"
                 :class="{ 'is-open': openCategoryId === category.id && flyoutOpen }"
                 :aria-expanded="openCategoryId === category.id && flyoutOpen"
                 aria-haspopup="menu"
@@ -257,13 +257,13 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <div
           v-if="navCollapsed && collapsedMenuOpen"
           ref="collapsedMenuRef"
-          class="collapsed-category-popover"
+          class="collapsed-category-popover absolute left-full z-[25] flex w-[206px] flex-col gap-0.5 rounded-r-ztx-md border border-ztx-border bg-ztx-surface p-2 shadow-[var(--ztx-shadow-popover)]"
           :style="{ top: collapsedMenuTop + 'px' }"
           :aria-label="activeModule.label + '二级菜单'"
           @pointerenter="clearCloseTimer"
           @pointerleave="onMenuPointerLeave"
         >
-          <div class="collapsed-menu-heading"><strong>{{ activeModule.label }}</strong></div>
+          <div class="collapsed-menu-heading flex min-h-9 items-center border-b border-ztx-border px-[9px] pb-[7px] text-ztx-text"><strong>{{ activeModule.label }}</strong></div>
           <button
             v-for="(category, index) in activeModule.categories"
             :key="category.id"
@@ -280,11 +280,11 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
             <ZChevronRight :size="15" />
           </button>
         </div>
-        <div class="rail-footer">
+        <div class="rail-footer flex items-center justify-start gap-2.5 border-t border-ztx-border px-3.5 py-3 text-ztx-caption">
           <span class="environment-dot" />
           <span class="environment-label">演示环境</span>
           <button
-            class="nav-collapse-toggle"
+            class="nav-collapse-toggle ml-auto grid size-[30px] place-items-center rounded-[5px] border border-ztx-border bg-ztx-surface text-ztx-muted hover:bg-ztx-surface-warm hover:text-ztx-primary-strong"
             type="button"
             :aria-label="navCollapsed ? '展开导航栏' : '折叠导航栏'"
             :aria-expanded="!navCollapsed"
@@ -296,7 +296,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <Transition name="flyout">
           <div
             v-if="flyoutOpen && activeCategory"
-            class="feature-flyout"
+            class="feature-flyout absolute left-[calc(100%-1px)] z-30 max-h-[calc(100vh-110px)] w-[252px] overflow-auto rounded-ztx-md border border-ztx-border-strong bg-ztx-surface p-2.5 shadow-[var(--ztx-shadow-popover)]"
             :style="{ top: flyoutTop + 'px' }"
             role="menu"
             :aria-label="activeCategory.label + '功能菜单'"
@@ -307,21 +307,21 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
             <button
               v-for="(feature, index) in activeCategory.features"
               :key="feature.id"
-              class="feature-entry"
+              class="feature-entry flex min-h-9 w-full items-center justify-start rounded px-2.5 py-2 text-left text-ztx-nav text-ztx-text hover:bg-ztx-surface-warm hover:text-ztx-primary-strong"
               role="menuitem"
               :data-feature-first="index === 0 ? 'true' : undefined"
               @click="navigateTo(feature.path)"
             >
-              <span class="feature-copy">
+              <span class="feature-copy flex flex-col gap-1">
                 <strong>{{ feature.label }}</strong>
               </span>
             </button>
           </div>
         </Transition>
       </aside>
-      <main class="workspace-main flex min-w-0 flex-1 flex-col">
+      <main class="workspace-main flex min-w-0 flex-1 flex-col px-[26px] pt-4 max-[1050px]:px-[18px] max-[720px]:px-3 max-[720px]:pt-3">
         <RouterView />
-        <footer class="workspace-footer">
+        <footer class="workspace-footer mt-auto flex justify-between gap-3 py-[15px] pb-3 text-ztx-caption text-ztx-muted">
           <span>© 2026 ZTX · 制造业低代码 ERP 平台</span>
           <span>平台工作区 <i /> 安全连接</span>
         </footer>
@@ -330,16 +330,3 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
   </div>
   <RouterView v-else />
 </template>
-<style scoped>
-.account-menu-root{position:relative;display:flex;align-items:center}
-.account-menu-trigger{width:32px;height:32px;display:grid;place-items:center;border:0;border-radius:5px;background:transparent;color:var(--ztx-text-secondary);cursor:pointer}
-.account-menu-trigger:hover,.account-menu-trigger[aria-expanded="true"]{background:var(--ztx-surface-warm);color:var(--ztx-primary-strong)}
-.account-menu-panel{position:absolute;z-index:80;top:calc(100% + 7px);right:0;width:224px;padding:7px;border:1px solid var(--ztx-border);border-radius:7px;background:var(--ztx-surface);box-shadow:var(--ztx-shadow-popover)}
-.account-menu-identity{display:flex;flex-direction:column;gap:3px;padding:9px 10px 11px;border-bottom:1px solid var(--ztx-border)}
-.account-menu-identity strong{font-size:13px;color:var(--ztx-text)}
-.account-menu-identity small{font-size:12px;color:var(--ztx-muted)}
-.account-menu-panel>button{width:100%;display:flex;align-items:center;gap:9px;padding:9px 10px;border:0;border-radius:4px;background:transparent;color:var(--ztx-text-secondary);text-align:left;font:inherit;font-size:13px;cursor:pointer}
-.account-menu-panel>button:hover{background:var(--ztx-surface-warm);color:var(--ztx-primary-strong)}
-.account-menu-panel>button.account-menu-logout{margin-top:4px;border-top:1px solid var(--ztx-border);border-radius:0;color:#a3473c}
-.account-menu-error{margin:5px 8px;color:#a3473c;font-size:12px}
-</style>
