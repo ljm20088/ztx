@@ -17,3 +17,4 @@ export {
   Maximize2 as ZMaximize2, Settings2 as ZSettings2, ShieldCheck as ZShieldCheck,
   UserRound as ZUserRound, X as ZX,
 } from 'lucide-vue-next'
+export { default as ZDataGrid } from './components/ZDataGrid.vue'
