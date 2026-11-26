@@ -26,6 +26,7 @@
   --spacing-ztx-control: var(--ztx-control-height);
   --spacing-ztx-section: var(--ztx-space-section);
 }
+@layer components {
 :root{font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--ztx-text);background:var(--ztx-page);font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 *{box-sizing:border-box}html,body,#app{width:100%;min-width:320px;min-height:100%;margin:0}body{min-height:100vh}button{font:inherit}button:focus-visible{outline:2px solid var(--ztx-primary);outline-offset:2px}
 .ztx-shell{min-height:100vh;background:var(--ztx-page)}
@@ -172,4 +173,6 @@ body{font-size:var(--ztx-font-size-body)}
 @media(max-width:720px){
   .workspace-header .brand-lockup.is-nav-collapsed{width:56px;min-width:56px;flex-basis:56px}
   .ztx-sidebar.is-collapsed .feature-flyout{left:244px}
+}
+
 }
