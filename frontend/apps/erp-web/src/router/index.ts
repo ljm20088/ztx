@@ -5,6 +5,7 @@ import PlatformLogin from '../views/PlatformLogin.vue'
 import PlatformAdmin from '../views/PlatformAdmin.vue'
 import TenantManagement from '../views/TenantManagement.vue'
 import TenantLogin from '../views/TenantLogin.vue'
+import PlatformOperations from '../views/PlatformOperations.vue'
 import TenantAccount from '../views/TenantAccount.vue'
 
 export const router = createRouter({
@@ -17,6 +18,7 @@ export const router = createRouter({
     { path: '/platform/login', name: 'platform-login', component: PlatformLogin, meta: { title: '平台管理登录', closable: false, public: true } },
     { path: '/platform/admin', name: 'platform-admin', component: PlatformAdmin, meta: { title: '平台控制台', closable: true } },
     { path: '/platform/tenants', name: 'platform-tenants', component: TenantManagement, meta: { title: '租户管理', closable: true } },
+    { path: '/platform/operations', name: 'platform-operations', component: PlatformOperations, meta: { title: '运维管理', closable: true } },
     { path: '/:section/:feature', name: 'feature', component: PlaceholderView },
     { path: '/:pathMatch(.*)*', redirect: '/workspace' },
   ],

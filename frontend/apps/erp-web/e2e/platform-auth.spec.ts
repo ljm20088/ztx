@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test('平台管理员可以登录控制台', async ({ page }) => {
+test('平台管理员可以登录独立平台工作区', async ({ page }) => {
   // Given 平台已经初始化，登录接口返回有效的平台会话
   await page.route('**/api/v1/platform/auth/status', route => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ initialized: true }),
@@ -23,7 +23,7 @@ test('平台管理员可以登录控制台', async ({ page }) => {
   await page.getByRole('button', { name: '安全登录' }).click()
 
   // Then 登录后进入平台控制台
-  await expect(page.getByRole('heading', { name: '平台控制台' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '平台概览' })).toBeVisible()
   await expect(page.getByText('platform.admin')).toBeVisible()
   await expect(page.getByText('未启用')).toBeVisible()
 })
