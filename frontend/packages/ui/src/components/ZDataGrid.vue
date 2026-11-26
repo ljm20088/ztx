@@ -15,7 +15,7 @@ import {
 
 const props = withDefaults(defineProps<{
   data: TData[]
-  columns: ColumnDef<TData, any>[]
+  columns: ColumnDef<TData, unknown>[]
   pageSize?: number
   searchable?: boolean
   searchPlaceholder?: string
