@@ -65,6 +65,7 @@ fun main(args: Array<String>) {
         vertx.close()
     })
 
+    // 首次初始化不在启动时生成口令；是否允许初始化由平台认证路由的回环来源校验决定。
     when (config.role) {
         RuntimeRole.SERVER -> database.ping()
             .compose {
