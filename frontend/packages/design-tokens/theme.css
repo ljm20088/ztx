@@ -8,4 +8,8 @@
   --ztx-control-height:32px; --ztx-table-header-height:36px; --ztx-table-row-compact-height:32px;
   --ztx-space-section:12px; --ztx-radius-sm:4px; --ztx-radius-md:7px;
   --ztx-shadow-popover:0 12px 30px rgba(53,39,25,.13);
+  --ztx-font-size-body:13px;
+  --ztx-font-size-caption:12px;
+  --ztx-font-size-section-title:15px;
+  --ztx-font-size-page-title:18px;
 }
