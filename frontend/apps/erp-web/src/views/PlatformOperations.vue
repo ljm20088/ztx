@@ -4,9 +4,11 @@ import { ZAlert, ZButton } from '@ztx/ui'
 
 type LiveStatus = { status: string; service: string; version: string; startedAt: string }
 type ReadyStatus = { status: string; components: { database: string } }
+type WorkerInstance = { workerId: string; startedAt: string; lastSeenAt: string; status: 'UP' | 'DOWN' }
 
 const live = ref<LiveStatus | null>(null)
 const ready = ref<ReadyStatus | null>(null)
+const workers = ref<WorkerInstance[]>([])
 const loading = ref(false)
 const error = ref('')
 
@@ -14,14 +16,18 @@ async function refresh() {
   loading.value = true
   error.value = ''
   try {
-    const [liveResponse, readyResponse] = await Promise.all([
+    const [liveResponse, readyResponse, workerResponse] = await Promise.all([
       fetch('/health/live', { cache: 'no-store' }),
       fetch('/health/ready', { cache: 'no-store' }),
+      fetch('/api/v1/platform/operations/status', { credentials: 'include', cache: 'no-store' }),
     ])
     if (!liveResponse.ok) throw new Error('无法读取 Server 运行状态')
+    if (!workerResponse.ok) throw new Error('无法读取 Worker 运行状态')
     live.value = await liveResponse.json() as LiveStatus
     if (readyResponse.ok) ready.value = await readyResponse.json() as ReadyStatus
     else ready.value = { status: 'NOT_READY', components: { database: 'DOWN' } }
+    const workerStatus = await workerResponse.json() as { workers: WorkerInstance[] }
+    workers.value = workerStatus.workers ?? []
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '运维状态读取失败'
   } finally {
@@ -58,8 +64,14 @@ function stateLabel(value?: string) {
       </section>
       <section class="rounded-ztx-md border border-ztx-border bg-ztx-surface p-4">
         <div class="text-ztx-caption text-ztx-muted">Worker</div>
-        <div class="mt-2 text-ztx-section-title font-semibold">状态未接入</div>
-        <p class="mt-3 text-ztx-caption text-ztx-muted">Worker 独立运行，后续接入心跳后显示实时状态。</p>
+        <div class="mt-2 text-ztx-section-title font-semibold">{{ workers.filter(worker => worker.status === 'UP').length }} 个运行中</div>
+        <p v-if="!workers.length" class="mt-3 text-ztx-caption text-ztx-muted">最近 24 小时未发现 Worker 实例。</p>
+        <ul v-else class="mt-3 space-y-2 text-ztx-caption">
+          <li v-for="worker in workers" :key="worker.workerId" class="flex items-center justify-between gap-2">
+            <span class="font-mono">{{ worker.workerId.slice(0, 8) }}</span>
+            <span :class="worker.status === 'UP' ? 'text-ztx-success' : 'text-ztx-danger'">{{ worker.status === 'UP' ? '运行中' : '已离线' }}</span>
+          </li>
+        </ul>
       </section>
     </div>
   </section>

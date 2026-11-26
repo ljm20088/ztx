@@ -70,6 +70,10 @@ test('平台管理员只看到独立的平台管理导航', async ({ page }) => 
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ status: 'READY', components: { database: 'UP' } }),
   }))
+  await page.route('**/api/v1/platform/operations/status', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ workers: [{ workerId: 'worker-e2e-1', startedAt: '2026-11-27T00:00:00Z', lastSeenAt: '2026-11-27T00:00:00Z', status: 'UP' }] }),
+  }))
 
   // When 平台管理员进入平台管理工作区
   await page.goto('/platform/operations')
@@ -81,6 +85,8 @@ test('平台管理员只看到独立的平台管理导航', async ({ page }) => 
   await expect(page.getByRole('heading', { name: '运维管理' })).toBeVisible()
   await expect(page.getByText('API Server')).toBeVisible()
   await expect(page.getByText('PostgreSQL')).toBeVisible()
+  await expect(page.getByText('1 个运行中')).toBeVisible()
+  await expect(page.getByText('运行中')).toBeVisible()
 })
 
 test('平台管理员可以查看平台安全审计记录', async ({ page }) => {

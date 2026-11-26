@@ -2,6 +2,8 @@ package com.ztx.tests.bdd
 
 import com.ztx.adapters.postgres.FlywayMigrator
 import com.ztx.adapters.postgres.PgDatabase
+import com.ztx.adapters.postgres.PostgresOutboxStore
+import com.ztx.server.BackgroundTaskWorker
 import com.ztx.modules.iam.PlatformAuthService
 import com.ztx.platform.common.DatabaseConfig
 import io.vertx.core.Future
@@ -49,8 +51,16 @@ class PlatformAuthIntegrationTest {
         val vertx = Vertx.vertx()
         val database = PgDatabase(vertx, config)
         val service = PlatformAuthService(database, "test-mfa-encryption-key-32-bytes-minimum")
+        var worker: BackgroundTaskWorker? = null
 
         try {
+            // Given：Worker 以独立进程身份启动并持续上报心跳
+            worker = BackgroundTaskWorker(vertx, database, PostgresOutboxStore(database), "bdd-worker")
+            worker.start().await()
+            val workerInstances = service.workerInstances().await()
+            assertEquals(1, workerInstances.size())
+            assertEquals("UP", workerInstances.getJsonObject(0).getString("status"))
+
             // Given：平台尚未初始化，且初始化不再依赖一次性口令
             assertEquals(false, service.initializationStatus().await())
 
@@ -149,6 +159,7 @@ class PlatformAuthIntegrationTest {
                 }
             }
         } finally {
+            worker?.close()
             database.close()
             vertx.close().toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS)
         }

@@ -8,6 +8,7 @@ import com.ztx.modules.iam.TenantTaskContext
 import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.Tuple
 import org.slf4j.LoggerFactory
 
 fun interface BackgroundTaskHandler {
@@ -29,6 +30,7 @@ class BackgroundTaskWorker(
 ) : AutoCloseable {
     private val logger = LoggerFactory.getLogger(BackgroundTaskWorker::class.java)
     private var timerId: Long? = null
+    private var heartbeatTimerId: Long? = null
     @Volatile private var polling = false
 
     init {
@@ -40,10 +42,23 @@ class BackgroundTaskWorker(
 
     fun start(): Future<Void> {
         check(timerId == null) { "Worker 已启动" }
-        timerId = vertx.setPeriodic(pollIntervalMs) { poll() }
-        poll()
-        return Future.succeededFuture()
+        return updateHeartbeat().onSuccess {
+            timerId = vertx.setPeriodic(pollIntervalMs) { poll() }
+            heartbeatTimerId = vertx.setPeriodic(15_000L) {
+                updateHeartbeat().onFailure { error -> logger.warn("Worker 心跳写入失败，workerId={}", workerId, error) }
+            }
+            poll()
+        }
     }
+
+    private fun updateHeartbeat(): Future<Void> =
+        database.withTransaction { connection ->
+            connection.preparedQuery(
+                """INSERT INTO platform.worker_instance (worker_id, started_at, last_seen_at)
+                   VALUES ($1, clock_timestamp(), clock_timestamp())
+                   ON CONFLICT (worker_id) DO UPDATE SET last_seen_at = clock_timestamp()"""
+            ).execute(Tuple.of(workerId)).mapEmpty()
+        }
 
     private fun poll() {
         if (polling) return
@@ -89,6 +104,8 @@ class BackgroundTaskWorker(
 
     override fun close() {
         timerId?.let(vertx::cancelTimer)
+        heartbeatTimerId?.let(vertx::cancelTimer)
         timerId = null
+        heartbeatTimerId = null
     }
 }

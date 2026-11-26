@@ -18,6 +18,7 @@ class PlatformAuthRoutes(
         router.post("/api/v1/platform/auth/logout").handler(::logout)
         router.get("/api/v1/platform/auth/me").handler(::me)
         router.get("/api/v1/platform/audit").handler(::audit)
+        router.get("/api/v1/platform/operations/status").handler(::operationsStatus)
         router.post("/api/v1/platform/auth/password").handler(::changePassword)
         router.post("/api/v1/platform/auth/mfa/enroll").handler(::enrollMfa)
         router.post("/api/v1/platform/auth/mfa/enable").handler(::enableMfa)
@@ -96,6 +97,13 @@ class PlatformAuthRoutes(
         service.recentAuditEvents().onSuccess { events ->
             context.response().putHeader("content-type", "application/json")
                 .end(events.encode())
+        }.onFailure { fail(context, it, 503) }
+    }
+
+    private fun operationsStatus(context: RoutingContext) = withAdmin(context) {
+        service.workerInstances().onSuccess { workers ->
+            context.response().putHeader("content-type", "application/json")
+                .end(JsonObject().put("workers", workers).encode())
         }.onFailure { fail(context, it, 503) }
     }
 

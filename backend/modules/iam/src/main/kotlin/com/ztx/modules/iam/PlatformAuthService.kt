@@ -64,6 +64,27 @@ class PlatformAuthService(
             }
         }
 
+    fun workerInstances(limit: Int = 20): Future<JsonArray> =
+        database.withTransaction { connection ->
+            connection.preparedQuery(
+                """SELECT worker_id, started_at, last_seen_at,
+                          CASE WHEN last_seen_at >= clock_timestamp() - INTERVAL '45 seconds'
+                               THEN 'UP' ELSE 'DOWN' END AS status
+                   FROM platform.worker_instance
+                   WHERE last_seen_at >= clock_timestamp() - INTERVAL '24 hours'
+                   ORDER BY last_seen_at DESC
+                   LIMIT $1"""
+            ).execute(Tuple.of(limit.coerceIn(1, 100))).map { rows ->
+                JsonArray(rows.map { row ->
+                    JsonObject()
+                        .put("workerId", row.getString("worker_id"))
+                        .put("startedAt", row.getOffsetDateTime("started_at").toString())
+                        .put("lastSeenAt", row.getOffsetDateTime("last_seen_at").toString())
+                        .put("status", row.getString("status"))
+                })
+            }
+        }
+
     /**
      * 首次初始化只允许本机/SSH 隧道请求进入路由层；数据库事务锁确保并发请求只能创建一个管理员。
      * 初始化成功后管理员记录永久存在，服务重启不会重新开放初始化。
