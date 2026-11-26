@@ -2,6 +2,7 @@
 @source "../../../packages/ui/src";
 
 @theme inline {
+  --spacing: var(--ztx-space-unit);
   --color-ztx-primary: var(--ztx-primary);
   --color-ztx-primary-hover: var(--ztx-primary-hover);
   --color-ztx-primary-strong: var(--ztx-primary-strong);
@@ -54,6 +55,18 @@
   --radius-ztx-sm: var(--ztx-radius-sm);
   --radius-ztx-md: var(--ztx-radius-md);
   --spacing-ztx-control: var(--ztx-control-height);
+  --spacing-ztx-topbar: var(--ztx-topbar-height);
+  --spacing-ztx-sidebar: var(--ztx-sidebar-width);
+  --spacing-ztx-sidebar-collapsed: var(--ztx-sidebar-collapsed-width);
+  --spacing-ztx-sidebar-mobile: var(--ztx-sidebar-width-mobile);
+  --spacing-ztx-sidebar-collapsed-mobile: var(--ztx-sidebar-collapsed-width-mobile);
+  --spacing-ztx-collapsed-menu: var(--ztx-collapsed-menu-width);
+  --spacing-ztx-table-header: var(--ztx-table-header-height);
+  --spacing-ztx-table-row-compact: var(--ztx-table-row-compact-height);
+  --spacing-ztx-table-cell-x: var(--ztx-table-cell-padding-x);
+  --spacing-ztx-table-cell-y: var(--ztx-table-cell-padding-y);
+  --spacing-ztx-grid-cell-x: var(--ztx-grid-cell-padding-x);
+  --spacing-ztx-grid-cell-y: var(--ztx-grid-cell-padding-y);
   --spacing-ztx-section: var(--ztx-space-section);
   --shadow-ztx-popover: var(--ztx-shadow-popover);
   --shadow-ztx-tooltip: var(--ztx-shadow-tooltip);

@@ -80,7 +80,7 @@ function togglePage(event: Event) {
     <div class="min-w-0 overflow-x-auto rounded-ztx-md border border-ztx-border bg-ztx-surface">
       <table class="w-full border-collapse text-left text-ztx-body">
         <thead class="bg-ztx-surface-soft text-ztx-caption font-semibold text-ztx-muted">
-          <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id" class="h-9 border-b border-ztx-border">
+          <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id" class="h-ztx-table-header border-b border-ztx-border">
             <th class="w-9 px-3">
               <input
                 type="checkbox"
@@ -90,7 +90,7 @@ function togglePage(event: Event) {
                 @change="togglePage"
               >
             </th>
-            <th v-for="header in headerGroup.headers" :key="header.id" class="whitespace-nowrap px-3 py-2">
+            <th v-for="header in headerGroup.headers" :key="header.id" class="whitespace-nowrap px-ztx-grid-cell-x py-ztx-grid-cell-y">
               <button
                 v-if="header.column.getCanSort()"
                 type="button"
@@ -105,8 +105,8 @@ function togglePage(event: Event) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in table.getRowModel().rows" :key="row.id" class="h-9 border-b border-ztx-border last:border-b-0 hover:bg-ztx-surface-warm">
-            <td class="px-3 py-1.5">
+          <tr v-for="row in table.getRowModel().rows" :key="row.id" class="h-ztx-table-row-compact border-b border-ztx-border last:border-b-0 hover:bg-ztx-surface-warm">
+            <td class="px-ztx-grid-cell-x py-ztx-grid-cell-y">
               <input
                 type="checkbox"
                 :aria-label="'选择第 ' + (row.index + 1) + ' 行'"
@@ -119,7 +119,7 @@ function togglePage(event: Event) {
             </td>
           </tr>
           <tr v-if="table.getRowModel().rows.length === 0">
-            <td :colspan="table.getVisibleLeafColumns().length + 1" class="px-3 py-10 text-center text-ztx-caption text-ztx-muted">暂无数据</td>
+            <td :colspan="table.getVisibleLeafColumns().length + 1" class="px-ztx-grid-cell-x py-10 text-center text-ztx-caption text-ztx-muted">暂无数据</td>
           </tr>
         </tbody>
       </table>

@@ -128,7 +128,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
 <template>
   <div v-if="!isAuthRoute" class="ztx-shell min-h-screen bg-ztx-page font-sans text-ztx-text">
     <header class="workspace-header sticky top-0 z-30 flex h-11 min-h-11 items-center gap-3 border-b border-ztx-border bg-ztx-surface pr-3.5">
-      <div class="brand-lockup flex h-11 w-[270px] basis-[270px] shrink-0 items-center gap-2 border-r border-ztx-border px-4 max-[720px]:w-[236px] max-[720px]:basis-[236px]" :class="{ 'is-nav-collapsed': navCollapsed, '!w-16 !basis-16 justify-center px-0 max-[720px]:!w-14 max-[720px]:!basis-14': navCollapsed }" aria-label="ZTX 企业工作区">
+      <div class="brand-lockup flex h-ztx-topbar w-ztx-sidebar basis-ztx-sidebar shrink-0 items-center gap-2 border-r border-ztx-border px-4 max-[720px]:w-ztx-sidebar-mobile max-[720px]:basis-ztx-sidebar-mobile" :class="{ 'is-nav-collapsed': navCollapsed, '!w-ztx-sidebar-collapsed !basis-ztx-sidebar-collapsed justify-center px-0 max-[720px]:!w-ztx-sidebar-collapsed-mobile max-[720px]:!basis-ztx-sidebar-collapsed-mobile': navCollapsed }" aria-label="ZTX 企业工作区">
         <div class="brand-mark grid size-[26px] place-items-center rounded-[6px] bg-ztx-primary text-ztx-on-primary">
           <ZCommand :size="18" :stroke-width="2.2" />
         </div>
@@ -136,7 +136,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
           <strong class="text-[14px] font-bold tracking-[.1em]">ZTX ERP</strong>
         </div>
       </div>
-      <nav class="workspace-tabs flex h-11 min-h-11 min-w-0 flex-1 items-stretch overflow-x-auto" aria-label="工作区标签">
+      <nav class="workspace-tabs flex h-ztx-topbar min-h-ztx-topbar min-w-0 flex-1 items-stretch overflow-x-auto" aria-label="工作区标签">
         <button
           v-for="tab in workspace.tabs"
           :key="tab.path"
@@ -201,11 +201,11 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         </div>
       </div>
     </header>
-    <div class="workspace-body flex min-h-[calc(100vh-44px)]" :class="{ 'is-nav-collapsed': navCollapsed }">
+    <div class="workspace-body flex min-h-[calc(100vh-var(--ztx-topbar-height))]" :class="{ 'is-nav-collapsed': navCollapsed }">
       <aside
         ref="navRoot"
-        class="ztx-sidebar relative z-20 flex min-h-[calc(100vh-44px)] w-[270px] shrink-0 flex-col border-r border-ztx-border bg-ztx-surface transition-[width,flex-basis] duration-200 max-[720px]:w-[236px] max-[720px]:basis-[236px]"
-        :class="{ 'is-collapsed': navCollapsed, 'has-collapsed-menu': collapsedMenuOpen, '!w-16 !basis-16': navCollapsed, 'max-[720px]:!w-14 max-[720px]:!basis-14': navCollapsed }"
+        class="ztx-sidebar relative z-20 flex min-h-[calc(100vh-var(--ztx-topbar-height))] w-ztx-sidebar shrink-0 flex-col border-r border-ztx-border bg-ztx-surface transition-[width,flex-basis] duration-200 max-[720px]:w-ztx-sidebar-mobile max-[720px]:basis-ztx-sidebar-mobile"
+        :class="{ 'is-collapsed': navCollapsed, 'has-collapsed-menu': collapsedMenuOpen, '!w-ztx-sidebar-collapsed !basis-ztx-sidebar-collapsed': navCollapsed, 'max-[720px]:!w-ztx-sidebar-collapsed-mobile max-[720px]:!basis-ztx-sidebar-collapsed-mobile': navCollapsed }"
         aria-label="一级菜单"
         @pointerenter="clearCloseTimer"
         @pointerleave="onMenuPointerLeave"
@@ -257,7 +257,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <div
           v-if="navCollapsed && collapsedMenuOpen"
           ref="collapsedMenuRef"
-          class="collapsed-category-popover absolute left-[calc(100%-8px)] z-[25] flex w-[206px] flex-col gap-0.5 rounded-r-ztx-md border border-ztx-border bg-ztx-surface p-2 shadow-[var(--ztx-shadow-popover)]"
+          class="collapsed-category-popover absolute left-[calc(100%-var(--ztx-popover-overlap))] z-[25] flex w-ztx-collapsed-menu flex-col gap-0.5 rounded-r-ztx-md border border-ztx-border bg-ztx-surface p-2 shadow-[var(--ztx-shadow-popover)]"
           :style="{ top: collapsedMenuTop + 'px' }"
           :aria-label="activeModule.label + '二级菜单'"
           @pointerenter="clearCloseTimer"
@@ -296,7 +296,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <Transition name="flyout">
           <div
             v-if="flyoutOpen && activeCategory"
-            class="feature-flyout absolute left-[calc(100%-1px)] z-30 max-h-[calc(100vh-110px)] w-[252px] overflow-auto rounded-ztx-md border border-ztx-border-strong bg-ztx-surface p-2.5 shadow-[var(--ztx-shadow-popover)] transition-[opacity,transform] duration-150" :class="{ 'left-[262px] max-[720px]:left-[254px]': navCollapsed }"
+            class="feature-flyout absolute left-[calc(100%-1px)] z-30 max-h-[calc(100vh-110px)] w-[252px] overflow-auto rounded-ztx-md border border-ztx-border-strong bg-ztx-surface p-2.5 shadow-[var(--ztx-shadow-popover)] transition-[opacity,transform] duration-150" :class="{ 'left-[calc(var(--ztx-sidebar-collapsed-width)+var(--ztx-collapsed-menu-width)-var(--ztx-popover-overlap))] max-[720px]:left-[calc(var(--ztx-sidebar-collapsed-width-mobile)+var(--ztx-collapsed-menu-width)-var(--ztx-popover-overlap))]': navCollapsed }"
             :style="{ top: flyoutTop + 'px' }"
             role="menu"
             :aria-label="activeCategory.label + '功能菜单'"
