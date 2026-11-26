@@ -29,12 +29,9 @@ test('平台管理员可以登录独立平台工作区', async ({ page }) => {
 })
 
 test('首次启动自动显示初始化表单并创建管理员后直接登录', async ({ page }) => {
-  // Given 平台尚未初始化，且本机安装管理入口可以提供本次启动口令
+  // Given 平台尚未初始化，当前请求来自服务器本机或 SSH 本地端口转发
   await page.route('**/api/v1/platform/auth/status', route => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ initialized: false }),
-  }))
-  await page.route('**/api/v1/platform/auth/setup-token', route => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ token: 'one-time-setup-credential' }),
+    status: 200, contentType: 'application/json', body: JSON.stringify({ initialized: false, canInitialize: true }),
   }))
   await page.route('**/api/v1/platform/auth/initialize', route => route.fulfill({
     status: 201,
@@ -49,8 +46,7 @@ test('首次启动自动显示初始化表单并创建管理员后直接登录',
 
   // When 首次访问系统入口
   await page.goto('/platform/login')
-  await expect(page.getByRole('heading', { name: '欢迎使用 ZTX，创建平台管理员' })).toBeVisible()
-  await expect(page.getByLabel('一次性初始化口令')).toHaveValue('one-time-setup-credential')
+  await expect(page.getByRole('heading', { name: '创建平台管理员' })).toBeVisible()
   await page.getByLabel('用户名').fill('platform.admin')
   await page.getByLabel('密码', { exact: true }).fill('ZtxAdmin123')
   await page.getByLabel('确认密码').fill('ZtxAdmin123')

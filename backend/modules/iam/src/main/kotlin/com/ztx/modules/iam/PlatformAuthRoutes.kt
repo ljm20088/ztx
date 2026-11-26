@@ -65,18 +65,6 @@ class PlatformAuthRoutes(
         return isLoopback && localHost && !forwarded
     }
 
-    private fun initialize(context: RoutingContext) {
-        val body = AuthSupport.body(context)
-        service.initialize(body.getString("token", ""), body.getString("username", ""),
-            body.getString("password", ""), AuthSupport.ip(context), context.request().getHeader("user-agent"))
-            .onSuccess { result ->
-                context.response().setStatusCode(201).putHeader("set-cookie", AuthSupport.cookie("ztx_platform_session", result.sessionToken, "/api/v1/platform", secureCookies))
-                    .putHeader("content-type", "application/json")
-                    .end(JsonObject().put("id", result.admin.id.toString())
-                        .put("username", result.admin.username).put("mfaEnabled", result.admin.mfaEnabled).encode())
-            }.onFailure { fail(context, it, 400) }
-    }
-
     private fun login(context: RoutingContext) {
         val body = AuthSupport.body(context)
         service.login(body.getString("username", ""), body.getString("password", ""),
