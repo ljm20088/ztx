@@ -126,8 +126,8 @@ onMounted(()=>{isTouch.value=window.matchMedia('(pointer: coarse)').matches;wind
 onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEventListener('keydown',onGlobalKeydown)})
 </script>
 <template>
-  <div v-if="!isAuthRoute" class="ztx-shell">
-    <header class="workspace-header">
+  <div v-if="!isAuthRoute" class="ztx-shell min-h-screen bg-ztx-page font-sans text-ztx-text">
+    <header class="workspace-header sticky top-0 z-30 flex items-center bg-ztx-surface">
       <div class="brand-lockup" :class="{ 'is-nav-collapsed': navCollapsed }" aria-label="ZTX 企业工作区">
         <div class="brand-mark">
           <ZCommand :size="18" :stroke-width="2.2" />
@@ -136,7 +136,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
           <strong>ZTX ERP</strong>
         </div>
       </div>
-      <nav class="workspace-tabs" aria-label="工作区标签">
+      <nav class="workspace-tabs flex min-w-0 flex-1 items-stretch overflow-x-auto" aria-label="工作区标签">
         <button
           v-for="tab in workspace.tabs"
           :key="tab.path"
@@ -159,7 +159,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
           </span>
         </button>
       </nav>
-      <div class="header-actions">
+      <div class="header-actions flex shrink-0 items-center gap-1">
         <ZIconButton label="全屏" @click="toggleFullscreen">
           <ZMaximize2 />
         </ZIconButton>
@@ -201,7 +201,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         </div>
       </div>
     </header>
-    <div class="workspace-body" :class="{ 'is-nav-collapsed': navCollapsed }">
+    <div class="workspace-body flex min-h-[calc(100vh-44px)]" :class="{ 'is-nav-collapsed': navCollapsed }">
       <aside
         ref="navRoot"
         class="ztx-sidebar"
@@ -319,7 +319,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
           </div>
         </Transition>
       </aside>
-      <main class="workspace-main">
+      <main class="workspace-main flex min-w-0 flex-1 flex-col">
         <RouterView />
         <footer class="workspace-footer">
           <span>© 2026 ZTX · 制造业低代码 ERP 平台</span>
