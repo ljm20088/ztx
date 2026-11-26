@@ -213,7 +213,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <nav class="sidebar-navigation min-h-0 flex-1 overflow-y-auto px-[9px] pb-[14px] pt-[10px]" :class="{ 'px-[7px]': navCollapsed }" aria-label="一级菜单">
           <div v-for="module in menuModules" :key="module.id" class="module-group mb-[3px] flex flex-col" @pointerleave="navCollapsed && onMenuPointerLeave($event)">
             <button
-              class="module-entry flex min-h-11 w-full items-center justify-start gap-3 rounded-[7px] px-3 text-ztx-nav text-ztx-text hover:bg-ztx-surface-soft"
+              class="module-entry flex min-h-11 w-full items-center justify-start gap-3 rounded-[7px] px-3 text-ztx-section-title text-ztx-text hover:bg-ztx-surface-soft"
               :aria-label="module.label"
               :title="navCollapsed ? module.label : undefined"
               :class="{ 'is-active': activeModuleId === module.id, 'bg-ztx-surface-warm font-semibold text-ztx-primary-strong': activeModuleId === module.id, '!min-h-[46px] justify-center px-0': navCollapsed }"
@@ -240,7 +240,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
                 v-for="(category, index) in module.categories"
                 :key="category.id"
                 :ref="element => setCategoryButton(category.id, element as HTMLButtonElement | null)"
-                class="category-entry flex min-h-[37px] w-full items-center justify-between gap-2 rounded-md px-[10px] text-ztx-body text-ztx-text-secondary hover:bg-ztx-surface-soft hover:text-ztx-primary-strong"
+                class="category-entry flex min-h-[37px] w-full items-center justify-between gap-2 rounded-md px-[10px] text-ztx-nav text-ztx-text-secondary hover:bg-ztx-surface-soft hover:text-ztx-primary-strong"
                  :class="{ 'is-open bg-ztx-surface-soft font-semibold text-ztx-primary-strong': openCategoryId === category.id && flyoutOpen }"
                 :aria-expanded="openCategoryId === category.id && flyoutOpen"
                 aria-haspopup="menu"
@@ -257,7 +257,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <div
           v-if="navCollapsed && collapsedMenuOpen"
           ref="collapsedMenuRef"
-          class="collapsed-category-popover absolute left-full z-[25] flex w-[206px] flex-col gap-0.5 rounded-r-ztx-md border border-ztx-border bg-ztx-surface p-2 shadow-[var(--ztx-shadow-popover)]"
+          class="collapsed-category-popover absolute left-[calc(100%-8px)] z-[25] flex w-[206px] flex-col gap-0.5 rounded-r-ztx-md border border-ztx-border bg-ztx-surface p-2 shadow-[var(--ztx-shadow-popover)]"
           :style="{ top: collapsedMenuTop + 'px' }"
           :aria-label="activeModule.label + '二级菜单'"
           @pointerenter="clearCloseTimer"
@@ -268,7 +268,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
             v-for="(category, index) in activeModule.categories"
             :key="category.id"
             :ref="element => setCategoryButton(category.id, element as HTMLButtonElement | null)"
-            class="category-entry flex min-h-9 w-full items-center justify-between gap-2 rounded-md px-[9px] text-ztx-body text-ztx-text-secondary hover:bg-ztx-surface-soft hover:text-ztx-primary-strong"
+            class="category-entry flex min-h-9 w-full items-center justify-between gap-2 rounded-md px-[9px] text-ztx-nav text-ztx-text-secondary hover:bg-ztx-surface-soft hover:text-ztx-primary-strong"
             :class="{ 'is-open bg-ztx-surface-soft font-semibold text-ztx-primary-strong': openCategoryId === category.id && flyoutOpen }"
             :aria-expanded="openCategoryId === category.id && flyoutOpen"
             aria-haspopup="menu"
@@ -296,7 +296,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <Transition name="flyout">
           <div
             v-if="flyoutOpen && activeCategory"
-            class="feature-flyout absolute left-[calc(100%-1px)] z-30 max-h-[calc(100vh-110px)] w-[252px] overflow-auto rounded-ztx-md border border-ztx-border-strong bg-ztx-surface p-2.5 shadow-[var(--ztx-shadow-popover)] transition-[opacity,transform] duration-150" :class="{ 'left-[270px] max-[720px]:left-[244px]': navCollapsed }"
+            class="feature-flyout absolute left-[calc(100%-1px)] z-30 max-h-[calc(100vh-110px)] w-[252px] overflow-auto rounded-ztx-md border border-ztx-border-strong bg-ztx-surface p-2.5 shadow-[var(--ztx-shadow-popover)] transition-[opacity,transform] duration-150" :class="{ 'left-[270px] max-[720px]:left-[262px]': navCollapsed }"
             :style="{ top: flyoutTop + 'px' }"
             role="menu"
             :aria-label="activeCategory.label + '功能菜单'"

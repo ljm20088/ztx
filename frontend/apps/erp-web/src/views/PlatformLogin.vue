@@ -72,12 +72,12 @@ async function submit() {
         <span class="grid size-[38px] place-items-center rounded-ztx-md bg-ztx-primary text-[19px] font-extrabold text-white">Z</span>
         <div class="flex flex-col gap-[3px]"><strong class="text-[17px] tracking-[.12em]">ZTX</strong><small class="text-[8px] tracking-[.13em] text-ztx-muted">PLATFORM CONTROL PLANE</small></div>
       </div>
-      <div class="mb-6">
+      <div data-testid="platform-auth-heading" class="mb-6">
         <span class="text-ztx-caption font-bold tracking-[.14em] text-ztx-muted">SECURE ACCESS</span>
         <h1 class="my-2 text-ztx-page-title text-ztx-text">{{ mode === 'login' ? '平台管理员登录' : '欢迎使用 ZTX，创建平台管理员' }}</h1>
         <p class="text-ztx-caption leading-[1.7] text-ztx-muted">{{ mode === 'login' ? '使用平台控制面账号登录。此账号与企业用户账号相互独立。' : '首次初始化只需设置用户名和密码。创建成功后将自动进入平台控制台。' }}</p>
       </div>
-      <form class="flex flex-col gap-[15px]" @submit.prevent="submit">
+      <form data-testid="platform-auth-form" class="flex flex-col gap-[15px]" @submit.prevent="submit">
         <ZFormField v-if="mode === 'initialize'" label="一次性初始化口令" field-id="setup-token" required>
           <ZInput id="setup-token" v-model="setupToken" autocomplete="off" required placeholder="输入部署人员提供的一次性口令" />
         </ZFormField>
@@ -94,14 +94,14 @@ async function submit() {
           <ZInput id="totp" v-model="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
         </ZFormField>
         <ZAlert v-if="error" tone="error" role="alert">{{ error }}</ZAlert>
-        <ZButton class="w-full" type="submit" size="lg" :disabled="busy">
+        <ZButton data-testid="platform-auth-submit" class="w-full" type="submit" size="lg" :disabled="busy">
           {{ busy ? '正在处理…' : mode === 'login' ? '安全登录' : '创建平台管理员' }}
         </ZButton>
       </form>
       <ZAlert v-if="mode === 'initialize'" class="mt-3" tone="info">
         正式部署可通过服务器本机安装管理入口（或 SSH 本地端口转发）获取口令；服务器终端也可作为备用方式。
       </ZAlert>
-      <div class="mt-6 border-t border-ztx-border pt-4 text-center text-ztx-caption text-ztx-muted">平台身份独立存储 · 会话加密保护 · 安全操作留痕</div>
+      <div data-testid="platform-auth-foot" class="mt-6 border-t border-ztx-border pt-4 text-center text-ztx-caption text-ztx-muted">平台身份独立存储 · 会话加密保护 · 安全操作留痕</div>
       <div class="mt-3 flex justify-center gap-1.5 text-ztx-caption text-ztx-muted"><span>企业用户？</span><RouterLink class="text-ztx-primary-strong no-underline hover:underline" to="/tenant/login">返回企业登录</RouterLink></div>
     </section>
   </main>
