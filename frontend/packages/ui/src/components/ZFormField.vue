@@ -10,33 +10,12 @@ withDefaults(defineProps<{
 </script>
 
 <template>
-  <div class="ztx-form-field">
-    <label class="ztx-form-field__label" :class="{ 'is-required': required }" :for="fieldId">
+  <div class="ztx-form-field flex min-w-0 flex-col gap-1.5">
+    <label class="ztx-form-field__label flex items-center gap-1 text-ztx-body font-semibold text-ztx-text-secondary" :for="fieldId">
       <span>{{ label }}</span>
+      <span v-if="required" class="text-ztx-danger before:content-['*']" aria-hidden="true"></span>
     </label>
     <slot />
-    <small v-if="hint" class="ztx-form-field__hint">{{ hint }}</small>
+    <small v-if="hint" class="ztx-form-field__hint text-ztx-caption text-ztx-muted">{{ hint }}</small>
   </div>
 </template>
-
-<style>
-.ztx-form-field {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 6px;
-}
-.ztx-form-field__label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--ztx-text-secondary);
-  font-size: var(--ztx-font-size-body, 13px);
-  font-weight: 650;
-}
-.ztx-form-field__label.is-required::after { content: "*"; color: var(--ztx-danger); }
-.ztx-form-field__hint {
-  color: var(--ztx-muted);
-  font-size: var(--ztx-font-size-caption, 12px);
-}
-</style>

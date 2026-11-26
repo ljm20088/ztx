@@ -72,29 +72,38 @@ async function changePassword() {
 </script>
 
 <template>
-  <section class="platform-admin-page">
-    <header class="platform-admin-heading">
-      <div><span class="eyebrow">PLATFORM CONTROL PLANE</span><h1>平台控制台</h1><p>平台级身份与安全设置。此处不管理租户业务用户。</p></div>
+  <section class="mx-auto w-full max-w-[1180px]">
+    <header data-testid="platform-admin-heading" class="mb-[18px] flex items-end justify-between gap-4 max-[780px]:items-start">
+      <div><span class="text-ztx-caption font-bold tracking-[.13em] text-ztx-muted">PLATFORM CONTROL PLANE</span><h1 class="my-1 text-ztx-page-title text-ztx-text">平台控制台</h1><p class="text-ztx-caption text-ztx-muted">平台级身份与安全设置。此处不管理租户业务用户。</p></div>
       <ZButton variant="secondary" @click="router.push('/platform/tenants')">租户管理</ZButton>
-      
     </header>
-    <ZAlert v-if="message" tone="info">{{ message }}</ZAlert>
-    <ZAlert v-if="error" tone="error" role="alert">{{ error }}</ZAlert>
-    <div v-if="admin" class="admin-grid">
-      <section class="admin-panel">
-        <span class="eyebrow">CURRENT IDENTITY</span><h2>管理员身份</h2>
-        <dl><div><dt>管理员账号</dt><dd>{{ admin.username }}</dd></div><div><dt>身份类型</dt><dd>平台管理员</dd></div><div><dt>多因素认证</dt><dd>{{ admin.mfaEnabled ? '已启用' : '未启用' }}</dd></div></dl>
+    <ZAlert v-if="message" class="mb-3" tone="info">{{ message }}</ZAlert>
+    <ZAlert v-if="error" class="mb-3" tone="error" role="alert">{{ error }}</ZAlert>
+    <div v-if="admin" class="grid grid-cols-2 gap-[14px] max-[780px]:grid-cols-1">
+      <section class="rounded-ztx-md border border-ztx-border bg-ztx-surface p-[17px]">
+        <span class="text-ztx-caption font-bold tracking-[.13em] text-ztx-muted">CURRENT IDENTITY</span><h2 class="my-2 text-ztx-section-title font-semibold">管理员身份</h2>
+        <dl class="m-0">
+          <div class="flex justify-between gap-3 border-b border-ztx-border py-[11px] text-ztx-body last:border-0"><dt class="text-ztx-muted">管理员账号</dt><dd class="m-0 font-semibold text-ztx-text">{{ admin.username }}</dd></div>
+          <div class="flex justify-between gap-3 border-b border-ztx-border py-[11px] text-ztx-body last:border-0"><dt class="text-ztx-muted">身份类型</dt><dd class="m-0 font-semibold text-ztx-text">平台管理员</dd></div>
+          <div class="flex justify-between gap-3 border-b border-ztx-border py-[11px] text-ztx-body last:border-0"><dt class="text-ztx-muted">多因素认证</dt><dd class="m-0 font-semibold text-ztx-text">{{ admin.mfaEnabled ? '已启用' : '未启用' }}</dd></div>
+        </dl>
       </section>
-      <section class="admin-panel">
-        <span class="eyebrow">ACCOUNT SECURITY</span><h2>安全设置</h2>
-        <div class="admin-action-row"><div><strong>多因素认证（TOTP）</strong><small>使用认证器动态验证码保护平台登录。</small></div><ZButton :disabled="admin.mfaEnabled" @click="beginMfa">{{ admin.mfaEnabled ? '已启用' : '设置 MFA' }}</ZButton></div>
-        <div v-if="enrollment" class="mfa-enrollment"><strong>手动录入密钥</strong><code>{{ enrollment.secret }}</code><small>认证器 URI：{{ enrollment.otpauthUri }}</small><ZInput v-model="code" inputmode="numeric" maxlength="6" placeholder="输入 6 位动态验证码" /><ZButton @click="enableMfa">验证并启用</ZButton></div>
-        <div id="password-settings" class="password-form"><ZFormField label="当前密码" field-id="old-password"><ZInput id="old-password" v-model="oldPassword" type="password" autocomplete="current-password" /></ZFormField><ZFormField label="新密码" field-id="new-password" hint="至少 8 位，且同时包含字母和数字"><ZInput id="new-password" v-model="newPassword" type="password" autocomplete="new-password" placeholder="至少 8 位，且同时包含字母和数字" /></ZFormField><ZFormField label="确认新密码" field-id="confirm-password"><ZInput id="confirm-password" v-model="confirmPassword" type="password" autocomplete="new-password" placeholder="再次输入新密码" /></ZFormField><ZButton variant="secondary" @click="changePassword">更新密码</ZButton></div>
+      <section class="rounded-ztx-md border border-ztx-border bg-ztx-surface p-[17px]">
+        <span class="text-ztx-caption font-bold tracking-[.13em] text-ztx-muted">ACCOUNT SECURITY</span><h2 class="my-2 text-ztx-section-title font-semibold">安全设置</h2>
+        <div class="flex items-center justify-between gap-3 border-b border-ztx-border py-2 pb-[15px]">
+          <div class="flex flex-col gap-1"><strong class="text-ztx-body">多因素认证（TOTP）</strong><small class="text-ztx-caption leading-relaxed text-ztx-muted">使用认证器动态验证码保护平台登录。</small></div>
+          <ZButton :disabled="admin.mfaEnabled" @click="beginMfa">{{ admin.mfaEnabled ? '已启用' : '设置 MFA' }}</ZButton>
+        </div>
+        <div v-if="enrollment" class="flex flex-col gap-2 border-b border-ztx-border py-3">
+          <strong class="text-ztx-body text-ztx-text-secondary">手动录入密钥</strong><code class="break-all bg-ztx-surface-warm p-2 text-ztx-caption">{{ enrollment.secret }}</code><small class="break-all text-ztx-caption leading-relaxed text-ztx-muted">认证器 URI：{{ enrollment.otpauthUri }}</small><ZInput v-model="code" inputmode="numeric" maxlength="6" placeholder="输入 6 位动态验证码" /><ZButton @click="enableMfa">验证并启用</ZButton>
+        </div>
+        <div id="password-settings" class="grid grid-cols-1 gap-[9px] pt-[14px]">
+          <ZFormField label="当前密码" field-id="old-password"><ZInput id="old-password" v-model="oldPassword" type="password" autocomplete="current-password" /></ZFormField>
+          <ZFormField label="新密码" field-id="new-password" hint="至少 8 位，且同时包含字母和数字"><ZInput id="new-password" v-model="newPassword" type="password" autocomplete="new-password" placeholder="至少 8 位，且同时包含字母和数字" /></ZFormField>
+          <ZFormField label="确认新密码" field-id="confirm-password"><ZInput id="confirm-password" v-model="confirmPassword" type="password" autocomplete="new-password" placeholder="再次输入新密码" /></ZFormField>
+          <ZButton class="justify-self-start" variant="secondary" @click="changePassword">更新密码</ZButton>
+        </div>
       </section>
     </div>
   </section>
 </template>
-
-<style scoped>
-.platform-admin-page{width:min(100%,1180px);margin:0 auto}.platform-admin-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px}.eyebrow{font-size:var(--ztx-font-size-caption);font-weight:700;letter-spacing:.13em;color:var(--ztx-muted)}h1{margin:5px 0;font-size:var(--ztx-font-size-page-title);color:var(--ztx-text)}.platform-admin-heading p{margin:0;color:var(--ztx-muted);font-size:var(--ztx-font-size-caption)}.admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.admin-panel{padding:17px;border:1px solid var(--ztx-border);border-radius:7px;background:var(--ztx-surface)}h2{margin:5px 0 15px;font-size:var(--ztx-font-size-section-title)}.admin-panel dl{margin:0}.admin-panel dl div{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--ztx-border);font-size:var(--ztx-font-size-body)}.admin-panel dl div:last-child{border-bottom:0}.admin-panel dt{color:var(--ztx-muted)}.admin-panel dd{margin:0;color:var(--ztx-text);font-weight:650}.admin-action-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0 15px;border-bottom:1px solid var(--ztx-border)}.admin-action-row>div{display:flex;flex-direction:column;gap:5px} .admin-action-row strong{font-size:var(--ztx-font-size-body)}.admin-action-row small,.mfa-enrollment small{color:var(--ztx-muted);font-size:var(--ztx-font-size-caption);line-height:1.5}.mfa-enrollment{display:flex;flex-direction:column;gap:8px;padding:13px 0;border-bottom:1px solid var(--ztx-border)}.mfa-enrollment>strong{color:var(--ztx-text-secondary);font-size:var(--ztx-font-size-body)}.mfa-enrollment code{overflow-wrap:anywhere;padding:8px;background:var(--ztx-surface-warm);font-size:var(--ztx-font-size-caption)}.password-form{display:grid;grid-template-columns:1fr;gap:9px;padding-top:14px}.password-form button{justify-self:start}.password-form small{color:var(--ztx-muted);font-size:var(--ztx-font-size-caption)}@media(max-width:780px){.admin-grid{grid-template-columns:1fr}.platform-admin-heading{align-items:flex-start}}
-</style>

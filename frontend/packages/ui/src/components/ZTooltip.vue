@@ -5,11 +5,7 @@ defineProps<{text:string}>()
 <template>
   <TooltipProvider :delay-duration="350">
     <TooltipRoot><TooltipTrigger as-child><slot /></TooltipTrigger>
-      <TooltipPortal><TooltipContent class="ztx-tooltip" :side-offset="6">{{ text }}<TooltipArrow class="ztx-tooltip-arrow" /></TooltipContent></TooltipPortal>
+      <TooltipPortal><TooltipContent class="z-[100] rounded-[4px] border border-ztx-border-strong bg-ztx-tooltip px-2 py-[5px] text-ztx-caption text-white shadow-ztx-tooltip" :side-offset="6">{{ text }}<TooltipArrow class="fill-ztx-tooltip" /></TooltipContent></TooltipPortal>
     </TooltipRoot>
   </TooltipProvider>
 </template>
-<style>
-.ztx-tooltip{z-index:100;padding:5px 8px;border:1px solid var(--ztx-border-strong);border-radius:4px;color:var(--ztx-surface);background:#39332d;font-size:var(--ztx-font-size-caption,12px);box-shadow:0 3px 10px rgba(0,0,0,.12)}
-.ztx-tooltip-arrow{fill:#39332d}
-</style>

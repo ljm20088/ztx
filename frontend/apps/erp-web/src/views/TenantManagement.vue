@@ -42,32 +42,31 @@ onMounted(()=>{void load().catch(cause=>{error.value=cause instanceof Error?caus
 </script>
 
 <template>
- <section class="tenant-page">
-  <header class="tenant-heading"><div><h1>租户管理</h1><p>由平台管理员创建和管理租户；每个租户使用独立 PostgreSQL 数据库。</p></div><ZButton variant="secondary" @click="router.push('/platform/admin')">返回平台控制台</ZButton></header>
-  <ZAlert v-if="message" tone="success">{{message}}</ZAlert><ZAlert v-if="error" tone="error" role="alert">{{error}}</ZAlert>
-  <section class="panel">
-   <h2>开通租户</h2>
-   <form class="create-form" @submit.prevent="createTenant">
+ <section class="mx-auto w-full max-w-[1180px] text-ztx-text">
+  <header class="mb-[14px] flex items-center justify-between gap-3 max-[760px]:items-start">
+   <div><h1 class="m-0 text-ztx-page-title">租户管理</h1><p class="mt-1.5 text-ztx-caption text-ztx-muted">由平台管理员创建和管理租户；每个租户使用独立 PostgreSQL 数据库。</p></div>
+   <ZButton variant="secondary" @click="router.push('/platform/admin')">返回平台控制台</ZButton>
+  </header>
+  <ZAlert v-if="message" class="mb-3" tone="success">{{message}}</ZAlert><ZAlert v-if="error" class="mb-3" tone="error" role="alert">{{error}}</ZAlert>
+  <section class="mb-[14px] rounded-ztx-md border border-ztx-border bg-ztx-surface p-4">
+   <h2 class="mb-[13px] text-ztx-section-title font-semibold">开通租户</h2>
+   <form class="grid grid-cols-[minmax(0,1fr)_1.5fr_auto] items-end gap-2.5 max-[760px]:grid-cols-1" @submit.prevent="createTenant">
     <ZFormField label="租户编码" field-id="tenant-code" required><ZInput id="tenant-code" v-model="code" required minlength="2" maxlength="40" pattern="[a-z][a-z0-9_-]+" placeholder="例如：acme"/></ZFormField>
     <ZFormField label="租户名称" field-id="tenant-name" required><ZInput id="tenant-name" v-model="name" required minlength="2" maxlength="160" placeholder="企业或客户名称"/></ZFormField>
     <ZButton type="submit" :disabled="busy">创建并开通</ZButton>
    </form>
-   <p class="hint">开通会创建独立数据库并执行初始化迁移。开通成功后会显示一次性租户管理员初始化凭据，请及时交付给租户管理员。</p>
-   <div v-if="setupToken" class="token-box"><strong>租户管理员一次性初始化凭据（24 小时有效）</strong><code>{{setupToken}}</code><ZButton variant="secondary" @click="copySetupToken">复制凭据</ZButton></div>
+   <p class="mt-1.5 text-ztx-caption leading-relaxed text-ztx-muted">开通会创建独立数据库并执行初始化迁移。开通成功后会显示一次性租户管理员初始化凭据，请及时交付给租户管理员。</p>
+   <div v-if="setupToken" class="mt-3 flex flex-wrap items-center gap-3 bg-ztx-surface-warm p-2.5 text-ztx-caption"><strong>租户管理员一次性初始化凭据（24 小时有效）</strong><code class="break-all">{{setupToken}}</code><ZButton variant="secondary" @click="copySetupToken">复制凭据</ZButton></div>
   </section>
-  <section class="panel">
-   <div class="list-heading"><h2>租户列表</h2><ZButton variant="secondary" :disabled="busy" @click="load">刷新</ZButton></div>
+  <section class="mb-[14px] rounded-ztx-md border border-ztx-border bg-ztx-surface p-4">
+   <div class="mb-2 flex items-center justify-between gap-3"><h2 class="m-0 text-ztx-section-title font-semibold">租户列表</h2><ZButton variant="secondary" :disabled="busy" @click="load">刷新</ZButton></div>
    <ZTable><thead><tr><th>租户编码</th><th>租户名称</th><th>状态</th><th>数据库</th><th>操作</th></tr></thead>
-    <tbody><tr v-for="tenant in tenants" :key="tenant.id"><td>{{tenant.code}}</td><td>{{tenant.name}}</td><td><span :class="['status','status-'+tenant.status.toLowerCase()]">{{statusLabel(tenant.status)}}</span><small v-if="tenant.lastError" class="failure">{{tenant.lastError}}</small></td><td><code>{{tenant.databaseName}}</code></td><td class="actions">
+    <tbody><tr v-for="tenant in tenants" :key="tenant.id"><td>{{tenant.code}}</td><td>{{tenant.name}}</td><td><span class="inline-block rounded px-2 py-0.5 text-ztx-caption" :class="{'bg-ztx-success-soft text-ztx-success-text':tenant.status==='ACTIVE','bg-ztx-status-soft text-ztx-status-muted':tenant.status==='INACTIVE','bg-ztx-surface-warm':!['ACTIVE','INACTIVE'].includes(tenant.status)}">{{statusLabel(tenant.status)}}</span><small v-if="tenant.lastError" class="mt-1 block max-w-[250px] text-[11px] text-ztx-danger">{{tenant.lastError}}</small></td><td><code>{{tenant.databaseName}}</code></td><td class="whitespace-nowrap">
      <ZButton v-if="tenant.status==='ACTIVE'" variant="ghost" size="sm" :disabled="busy" @click="act(tenant,'disable')">停用</ZButton>
      <ZButton v-if="tenant.status==='INACTIVE'" variant="ghost" size="sm" :disabled="busy" @click="act(tenant,'enable')">启用</ZButton>
      <ZButton v-if="tenant.status==='FAILED'||tenant.status==='PROVISIONING'" variant="ghost" size="sm" :disabled="busy" @click="act(tenant,'retry')">重试开通</ZButton>
-    </td></tr><tr v-if="tenants.length===0"><td colspan="5" class="empty">暂无租户</td></tr></tbody>
+    </td></tr><tr v-if="tenants.length===0"><td colspan="5" class="py-6 text-center text-ztx-muted">暂无租户</td></tr></tbody>
    </ZTable>
   </section>
  </section>
 </template>
-
-<style scoped>
-.tenant-page{width:min(100%,1180px);margin:0 auto;color:var(--ztx-text)}.tenant-heading,.list-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.tenant-heading h1{margin:0;font-size:var(--ztx-font-size-page-title)}.tenant-heading p,.hint{margin:6px 0 0;color:var(--ztx-muted);font-size:var(--ztx-font-size-caption)}.panel{margin-bottom:14px;padding:16px;border:1px solid var(--ztx-border);border-radius:7px;background:var(--ztx-surface)}h2{margin:0 0 13px;font-size:var(--ztx-font-size-section-title)}.create-form{display:grid;grid-template-columns:1fr 1.5fr auto;align-items:end;gap:10px}.create-form>.ztx-form-field{min-width:0}.hint{line-height:1.6}.token-box{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;padding:10px;background:var(--ztx-surface-warm);font-size:var(--ztx-font-size-caption)}.token-box code{overflow-wrap:anywhere}.list-heading{margin-bottom:8px}.list-heading h2{margin:0}.status{display:inline-block;padding:2px 7px;border-radius:4px;background:var(--ztx-surface-warm)}.status-active{color:#2d7250}.status-failed{color:#a3473c}.status-inactive{color:var(--ztx-muted)}.failure{display:block;max-width:250px;margin-top:4px;color:#a3473c;font-size:11px}.actions{white-space:nowrap}.empty{text-align:center;color:var(--ztx-muted)}.tenant-page> .ztx-alert{margin-bottom:12px}@media(max-width:760px){.create-form{grid-template-columns:1fr}.tenant-heading{align-items:flex-start}}
-</style>

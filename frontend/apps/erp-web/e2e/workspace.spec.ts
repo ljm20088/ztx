@@ -8,12 +8,12 @@ test.beforeEach(async ({ page }) => {
   }))
 })
 
-test('工作区首屏与页面截图', async ({ page }) => {
+test('工作区首屏与页面截图', async ({ page }, testInfo) => {
   // Given 用户打开 ZTX Web 工作区
   await page.goto('/workspace')
 
   // When 页面完成加载
-  await expect(page.locator('.home-page')).toBeVisible()
+  await expect(page.getByTestId('workspace-home')).toBeVisible()
 
   // Then 展示工作区标签、一级菜单和主内容区，并保存可复现截图
   await expect(page.getByRole('navigation', { name: '工作区标签' })).toBeVisible()
@@ -37,8 +37,9 @@ test('工作区首屏与页面截图', async ({ page }) => {
   expect(headerLayout.headerHeight).toBe(44)
   expect(headerLayout.brandWidth).toBe(headerLayout.sidebarWidth)
   expect(Math.abs(headerLayout.brandBottom - headerLayout.sidebarTop)).toBeLessThan(1)
+  if (testInfo.project.name === 'chromium') await page.screenshot({ path: 'artifacts/frontend-visual-captures/workspace-desktop.png', fullPage: true })
 
-  // And 窄屏下品牌区仍与导航区同宽对齐，顶部高度保持一致
+  // And 窄屏下品牌区仍与导航区同宽对齐，收起侧栏后保留可用的内容宽度
   await page.setViewportSize({ width: 390, height: 844 })
   const mobileLayout = await page.evaluate(() => ({
     headerHeight: document.querySelector('.workspace-header')!.getBoundingClientRect().height,
@@ -47,7 +48,15 @@ test('工作区首屏与页面截图', async ({ page }) => {
   }))
   expect(mobileLayout.headerHeight).toBe(44)
   expect(mobileLayout.brandWidth).toBe(mobileLayout.sidebarWidth)
-  await page.screenshot({ path: 'artifacts/frontend-visual-captures/workspace.png', fullPage: true })
+  await page.getByRole('button', { name: '折叠导航栏' }).click()
+  await expect(page.getByRole('button', { name: '展开导航栏' })).toBeVisible()
+  await expect.poll(async () => page.evaluate(() => Math.abs(
+    document.querySelector('.workspace-header .brand-lockup')!.getBoundingClientRect().width -
+    document.querySelector('.ztx-sidebar')!.getBoundingClientRect().width
+  ))).toBeLessThan(1)
+  await expect.poll(async () => page.getByTestId('workspace-hero-copy').evaluate(element => element.getBoundingClientRect().width)).toBeGreaterThan(160)
+  await page.evaluate(() => window.scrollTo(0, 0))
+  if (testInfo.project.name === 'chromium') await page.screenshot({ path: 'artifacts/frontend-visual-captures/workspace-mobile.png', fullPage: true })
 })
 
 test('一级点击、二级悬停后指针可移入三级浮层', async ({ page }, testInfo) => {
@@ -76,7 +85,7 @@ test('一级点击、二级悬停后指针可移入三级浮层', async ({ page 
   await feature.click()
 
   // Then 对应页面进入顶部工作区标签
-  await expect(page.locator('.placeholder-state')).toHaveText('该功能尚未开放')
+  await expect(page.getByTestId('placeholder-state')).toHaveText('该功能尚未开放')
   await expect(page.getByRole('navigation', { name: '工作区标签' }).getByText('DocType 管理')).toBeVisible()
 })
 
@@ -124,7 +133,7 @@ test('触屏尺寸下可点击展开三级菜单', async ({ page }) => {
   // Then 三级功能可见且可点击
   await expect(page.getByRole('menuitem', { name: /表单设计器/ })).toBeVisible()
   await page.getByRole('menuitem', { name: /表单设计器/ }).click()
-  await expect(page.locator('.placeholder-state')).toHaveText('该功能尚未开放')
+  await expect(page.getByTestId('placeholder-state')).toHaveText('该功能尚未开放')
 })
 
 
@@ -251,7 +260,7 @@ test('平台管理员可从右上角账户菜单进入控制台和账户安全',
 
   // Then 平台控制台标题使用页面标题令牌，区块标题使用区块标题令牌
   const adminTypography = await page.evaluate(() => ({
-    pageTitle: getComputedStyle(document.querySelector('.platform-admin-heading h1')!).fontSize,
+    pageTitle: getComputedStyle(document.querySelector('[data-testid="platform-admin-heading"] h1')!).fontSize,
   }))
   expect(adminTypography.pageTitle).toBe('18px')
 })
@@ -331,7 +340,7 @@ test('折叠导航下二级与三级弹窗左右分离', async ({ page }) => {
 test('工作区内容区按统一字号令牌呈现层级', async ({ page }) => {
   // Given 用户进入工作台内容区
   await page.goto('/workspace')
-  await expect(page.locator('.quick-panel')).toBeVisible()
+  await expect(page.getByTestId('quick-panel')).toBeVisible()
 
   // Then 根字号令牌与正文、辅助说明、区块标题和页面标题保持一致
   const contentTypography = await page.evaluate(() => ({
@@ -339,12 +348,12 @@ test('工作区内容区按统一字号令牌呈现层级', async ({ page }) => 
     captionToken: getComputedStyle(document.documentElement).getPropertyValue('--ztx-font-size-caption').trim(),
     sectionToken: getComputedStyle(document.documentElement).getPropertyValue('--ztx-font-size-section-title').trim(),
     pageToken: getComputedStyle(document.documentElement).getPropertyValue('--ztx-font-size-page-title').trim(),
-    quickTitle: getComputedStyle(document.querySelector('.quick-text strong')!).fontSize,
-    quickDescription: getComputedStyle(document.querySelector('.quick-text small')!).fontSize,
-    sectionTitle: getComputedStyle(document.querySelector('.panel-heading h2')!).fontSize,
-    recentTitle: getComputedStyle(document.querySelector('.recent-copy strong')!).fontSize,
-    foundationTitle: getComputedStyle(document.querySelector('.foundation-item strong')!).fontSize,
-    foundationDescription: getComputedStyle(document.querySelector('.foundation-item small')!).fontSize,
+    quickTitle: getComputedStyle(document.querySelector('[data-testid="quick-link-title"]')!).fontSize,
+    quickDescription: getComputedStyle(document.querySelector('[data-testid="quick-link-description"]')!).fontSize,
+    sectionTitle: getComputedStyle(document.querySelector('[data-testid="section-title"]')!).fontSize,
+    recentTitle: getComputedStyle(document.querySelector('[data-testid="recent-title"]')!).fontSize,
+    foundationTitle: getComputedStyle(document.querySelector('[data-testid="foundation-title"]')!).fontSize,
+    foundationDescription: getComputedStyle(document.querySelector('[data-testid="foundation-description"]')!).fontSize,
   }))
   expect(contentTypography).toEqual({
     bodyToken: '13px',
@@ -364,15 +373,15 @@ test('工作区内容区按统一字号令牌呈现层级', async ({ page }) => 
 test('平台管理员登录页直接使用统一字体令牌', async ({ page }) => {
   // Given 用户打开平台管理员登录页
   await page.goto('/platform/login')
-  await expect(page.locator('.platform-auth-form')).toBeVisible()
+  await expect(page.getByTestId('platform-auth-form')).toBeVisible()
 
   // Then 页面标题、表单标签、输入框、按钮和辅助说明使用统一字号
   const typography = await page.evaluate(() => ({
-    title: getComputedStyle(document.querySelector('.platform-auth-heading h1')!).fontSize,
-    label: getComputedStyle(document.querySelector('.platform-auth-form label')!).fontSize,
-    input: getComputedStyle(document.querySelector('.platform-auth-form input')!).fontSize,
-    submit: getComputedStyle(document.querySelector('.platform-auth-submit')!).fontSize,
-    footer: getComputedStyle(document.querySelector('.platform-auth-foot')!).fontSize,
+    title: getComputedStyle(document.querySelector('[data-testid="platform-auth-heading"] h1')!).fontSize,
+    label: getComputedStyle(document.querySelector('[data-testid="platform-auth-form"] label')!).fontSize,
+    input: getComputedStyle(document.querySelector('[data-testid="platform-auth-form"] input')!).fontSize,
+    submit: getComputedStyle(document.querySelector('[data-testid="platform-auth-submit"]')!).fontSize,
+    footer: getComputedStyle(document.querySelector('[data-testid="platform-auth-foot"]')!).fontSize,
   }))
   expect(typography).toEqual({
     title: '18px',

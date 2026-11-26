@@ -66,15 +66,18 @@ async function submit() {
 </script>
 
 <template>
-  <main class="platform-auth-page">
-    <section class="platform-auth-card">
-      <div class="platform-auth-brand"><span>Z</span><div><strong>ZTX</strong><small>PLATFORM CONTROL PLANE</small></div></div>
-      <div class="platform-auth-heading">
-        <span class="eyebrow">SECURE ACCESS</span>
-        <h1>{{ mode === 'login' ? '平台管理员登录' : '欢迎使用 ZTX，创建平台管理员' }}</h1>
-        <p>{{ mode === 'login' ? '使用平台控制面账号登录。此账号与企业用户账号相互独立。' : '首次初始化只需设置用户名和密码。创建成功后将自动进入平台控制台。' }}</p>
+  <main class="grid min-h-screen place-items-center bg-ztx-page px-4 py-8">
+    <section class="w-full max-w-[440px] rounded-[9px] border border-ztx-border bg-ztx-surface px-8 py-[30px] shadow-[var(--ztx-shadow-popover)] max-[520px]:px-5 max-[520px]:py-6">
+      <div class="mb-8 flex items-center gap-3">
+        <span class="grid size-[38px] place-items-center rounded-ztx-md bg-ztx-primary text-[19px] font-extrabold text-white">Z</span>
+        <div class="flex flex-col gap-[3px]"><strong class="text-[17px] tracking-[.12em]">ZTX</strong><small class="text-[8px] tracking-[.13em] text-ztx-muted">PLATFORM CONTROL PLANE</small></div>
       </div>
-      <form class="platform-auth-form" @submit.prevent="submit">
+      <div data-testid="platform-auth-heading" class="mb-6">
+        <span class="text-ztx-caption font-bold tracking-[.14em] text-ztx-muted">SECURE ACCESS</span>
+        <h1 class="my-2 text-ztx-page-title text-ztx-text">{{ mode === 'login' ? '平台管理员登录' : '欢迎使用 ZTX，创建平台管理员' }}</h1>
+        <p class="text-ztx-caption leading-[1.7] text-ztx-muted">{{ mode === 'login' ? '使用平台控制面账号登录。此账号与企业用户账号相互独立。' : '首次初始化只需设置用户名和密码。创建成功后将自动进入平台控制台。' }}</p>
+      </div>
+      <form data-testid="platform-auth-form" class="flex flex-col gap-[15px]" @submit.prevent="submit">
         <ZFormField v-if="mode === 'initialize'" label="一次性初始化口令" field-id="setup-token" required>
           <ZInput id="setup-token" v-model="setupToken" autocomplete="off" required placeholder="输入部署人员提供的一次性口令" />
         </ZFormField>
@@ -91,27 +94,15 @@ async function submit() {
           <ZInput id="totp" v-model="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
         </ZFormField>
         <ZAlert v-if="error" tone="error" role="alert">{{ error }}</ZAlert>
-        <ZButton class="platform-auth-submit" type="submit" size="lg" :disabled="busy">
+        <ZButton data-testid="platform-auth-submit" class="w-full" type="submit" size="lg" :disabled="busy">
           {{ busy ? '正在处理…' : mode === 'login' ? '安全登录' : '创建平台管理员' }}
         </ZButton>
       </form>
-      <ZAlert v-if="mode === 'initialize'" class="platform-auth-hint" tone="info">
+      <ZAlert v-if="mode === 'initialize'" class="mt-3" tone="info">
         正式部署可通过服务器本机安装管理入口（或 SSH 本地端口转发）获取口令；服务器终端也可作为备用方式。
       </ZAlert>
-      <div class="platform-auth-foot">平台身份独立存储 · 会话加密保护 · 安全操作留痕</div>
-      <div class="platform-auth-enterprise-link"><span>企业用户？</span><RouterLink to="/tenant/login">返回企业登录</RouterLink></div>
+      <div data-testid="platform-auth-foot" class="mt-6 border-t border-ztx-border pt-4 text-center text-ztx-caption text-ztx-muted">平台身份独立存储 · 会话加密保护 · 安全操作留痕</div>
+      <div class="mt-3 flex justify-center gap-1.5 text-ztx-caption text-ztx-muted"><span>企业用户？</span><RouterLink class="text-ztx-primary-strong no-underline hover:underline" to="/tenant/login">返回企业登录</RouterLink></div>
     </section>
   </main>
 </template>
-
-<style scoped>
-.platform-auth-page{min-height:100vh;display:grid;place-items:center;padding:32px 16px;background:var(--ztx-page)}
-.platform-auth-card{width:min(100%,440px);padding:30px 32px;border:1px solid var(--ztx-border);border-radius:9px;background:var(--ztx-surface);box-shadow:var(--ztx-shadow-popover)}
-.platform-auth-brand{display:flex;align-items:center;gap:11px;margin-bottom:32px}.platform-auth-brand>span{width:38px;height:38px;display:grid;place-items:center;border-radius:8px;background:var(--ztx-primary);color:#fff;font-weight:800;font-size:19px}.platform-auth-brand>div{display:flex;flex-direction:column;gap:3px}.platform-auth-brand strong{font-size:17px;letter-spacing:.12em}.platform-auth-brand small{font-size:8px;letter-spacing:.13em;color:var(--ztx-muted)}
-.platform-auth-heading{margin-bottom:24px}.eyebrow{font-size:var(--ztx-font-size-caption);font-weight:700;letter-spacing:.14em;color:var(--ztx-muted)}h1{margin:7px 0 8px;font-size:var(--ztx-font-size-page-title);color:var(--ztx-text)}.platform-auth-heading p{margin:0;color:var(--ztx-muted);font-size:12px;line-height:1.7}
-.platform-auth-form{display:flex;flex-direction:column;gap:15px}.platform-auth-submit{width:100%}.platform-auth-hint{margin:14px 0 0}
-.platform-auth-foot{margin-top:25px;padding-top:15px;border-top:1px solid var(--ztx-border);color:var(--ztx-muted);font-size:var(--ztx-font-size-caption);text-align:center}
-@media(max-width:520px){.platform-auth-card{padding:24px 20px}}
-.platform-auth-enterprise-link{display:flex;justify-content:center;gap:6px;margin-top:14px;color:var(--ztx-muted);font-size:var(--ztx-font-size-caption)}
-.platform-auth-enterprise-link a{color:var(--ztx-primary-strong);text-decoration:none}.platform-auth-enterprise-link a:hover{text-decoration:underline}
-</style>

@@ -11,7 +11,6 @@ importers:
         version: 12.18.0
 
 packages:
-
   '@pnpm/exe.android-arm64@12.18.0':
     resolution: {integrity: sha512-fOF6IwgvnUKEmVedGqiAsNPfN2Ry8GvaqzSQOiF3RJFbpBfPKO/6YT54s1GjToyYinRxw9preHHPe4y2N3SzhA==}
     cpu: [arm64]
@@ -95,7 +94,6 @@ packages:
     hasBin: true
 
 snapshots:
-
   '@pnpm/exe.android-arm64@12.18.0':
     optional: true
 
@@ -264,6 +262,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@tanstack/vue-table':
+        specifier: ^8.21.3
+        version: 8.21.3(vue@3.5.45(typescript@6.0.3))
       lucide-vue-next:
         specifier: '>=0.468.0'
         version: 0.468.0(vue@3.5.45(typescript@6.0.3))
@@ -275,6 +276,16 @@ importers:
         version: 3.5.45(typescript@6.0.3)
 
 packages:
+  '@tanstack/table-core@8.21.3':
+    resolution: {integrity: sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==}
+    engines: {node: '>=12'}
+
+  '@tanstack/vue-table@8.21.3':
+    resolution: {integrity: sha512-rusRyd77c5tDPloPskctMyPLFEQUeBzxdQ+2Eow4F7gDPlPOB1UnnhzfpdvqZ8ZyX2rRNGmqNnQWm87OI2OQPw==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      vue: '>=3.2'
+
 
   '@babel/helper-string-parser@7.29.15':
     resolution: {integrity: sha512-C2FuapQ2Kh1OnVHAoLi5rD3GBJ8COb9Q609T6HEpLqaBAo560PDP5OxBE5dCI/h951MBO/+bCUYU5SZ+8ZlV+w==}
@@ -1889,6 +1900,12 @@ packages:
     engines: {node: '>=10'}
 
 snapshots:
+  '@tanstack/table-core@8.21.3': {}
+
+  '@tanstack/vue-table@8.21.3(vue@3.5.45(typescript@6.0.3))':
+    dependencies:
+      '@tanstack/table-core': 8.21.3
+
 
   '@babel/helper-string-parser@7.29.15': {}
 

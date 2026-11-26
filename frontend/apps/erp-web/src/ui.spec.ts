@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { h } from 'vue'
-import { ZAlert, ZButton, ZFormField, ZInput, ZTable } from '@ztx/ui'
+import { ZAlert, ZButton, ZDataGrid, ZFormField, ZInput, ZTable } from '@ztx/ui'
 
 describe('ZTX UI 基础组件', () => {
   // 场景：按钮应由组件 API 统一控制外观和禁用状态。
@@ -59,5 +59,48 @@ describe('ZTX UI 基础组件', () => {
     // Then 输出统一表格结构
     expect(wrapper.find('.ztx-table-wrap').exists()).toBe(true)
     expect(wrapper.find('.ztx-table tbody td').text()).toBe('企业')
+  })
+})
+
+describe('ZTX 数据表格', () => {
+  // 场景：列表搜索应由 TanStack Table 过滤行模型并同步记录数。
+  it('使用全局筛选过滤数据并更新记录数', async () => {
+    // Given 列表中有 Alpha 与 Beta 两条记录
+    const wrapper = mount(ZDataGrid, {
+      props: {
+        data: [{ name: 'Alpha' }, { name: 'Beta' }],
+        columns: [{ accessorKey: 'name', header: '企业名称' }],
+      },
+    })
+    // When 用户搜索 Beta
+    await wrapper.find('input[placeholder="搜索当前列表"]').setValue('Beta')
+    // Then 仅显示匹配记录，计数同步为一条
+    expect(wrapper.find('tbody').text()).toContain('Beta')
+    expect(wrapper.find('tbody').text()).not.toContain('Alpha')
+    expect(wrapper.text()).toContain('共 1 条')
+  })
+
+  // 场景：列表表格应通过 TanStack Table 提供排序、分页和行选择。
+  it('使用表格模型处理排序、分页与选择计数', async () => {
+    // Given 列表有两条记录且每页只显示一条
+    const wrapper = mount(ZDataGrid, {
+      props: {
+        pageSize: 1,
+        data: [{ name: 'Zeta' }, { name: 'Alpha' }],
+        columns: [{ accessorKey: 'name', header: '企业名称', enableSorting: true }],
+      },
+    })
+    // When 按名称排序并选择当前行
+    await wrapper.find('thead button').trigger('click')
+    await wrapper.find('tbody input[type="checkbox"]').setValue(true)
+    // Then 第一条为排序后的Alpha，已选数量为一条
+    expect(wrapper.find('tbody').text()).toContain('Alpha')
+    expect(wrapper.text()).toContain('已选 1 条')
+    // When 切换到下一页
+    const nextPage = wrapper.findAll('button').find(button => button.text().includes('下一页'))
+    expect(nextPage).toBeDefined()
+    await nextPage!.trigger('click')
+    // Then 下一页显示Zeta
+    expect(wrapper.find('tbody').text()).toContain('Zeta')
   })
 })
