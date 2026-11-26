@@ -45,3 +45,7 @@
   --ztx-tooltip-background:#39332d;
   --ztx-shadow-tooltip:0 3px 10px rgba(0,0,0,.12);
 }
+:root { --ztx-sidebar-collapsed-width-active: var(--ztx-sidebar-collapsed-width); }
+@media (max-width: 720px) {
+  :root { --ztx-sidebar-collapsed-width-active: var(--ztx-sidebar-collapsed-width-mobile); }
+}

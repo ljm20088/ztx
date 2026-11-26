@@ -296,8 +296,8 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <Transition name="flyout">
           <div
             v-if="flyoutOpen && activeCategory"
-            class="feature-flyout absolute left-[calc(100%-1px)] z-30 max-h-[calc(100vh-110px)] w-[252px] overflow-auto rounded-ztx-md border border-ztx-border-strong bg-ztx-surface p-2.5 shadow-[var(--ztx-shadow-popover)] transition-[opacity,transform] duration-150" :class="{ 'left-[calc(var(--ztx-sidebar-collapsed-width)+var(--ztx-collapsed-menu-width)-var(--ztx-popover-overlap))] max-[720px]:left-[calc(var(--ztx-sidebar-collapsed-width-mobile)+var(--ztx-collapsed-menu-width)-var(--ztx-popover-overlap))]': navCollapsed }"
-            :style="{ top: flyoutTop + 'px' }"
+            class="feature-flyout absolute z-30 max-h-[calc(100vh-110px)] w-[252px] overflow-auto rounded-ztx-md border border-ztx-border-strong bg-ztx-surface p-2.5 shadow-[var(--ztx-shadow-popover)] transition-[opacity,transform] duration-150"
+            :style="{ top: flyoutTop + 'px', left: navCollapsed ? 'calc(var(--ztx-sidebar-collapsed-width-active) + var(--ztx-collapsed-menu-width) - var(--ztx-popover-overlap))' : 'calc(100% - 1px)' }"
             role="menu"
             :aria-label="activeCategory.label + '功能菜单'"
             @pointerenter="clearCloseTimer"
