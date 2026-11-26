@@ -150,6 +150,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
           <RouterLink to="/platform/admin" class="rounded-md px-3 py-2.5 text-ztx-body no-underline" :class="route.path==='/platform/admin'?'bg-ztx-surface-warm font-semibold text-ztx-primary-strong':'text-ztx-text-secondary hover:bg-ztx-surface-soft'">平台概览</RouterLink>
           <RouterLink to="/platform/tenants" class="rounded-md px-3 py-2.5 text-ztx-body no-underline" :class="route.path==='/platform/tenants'?'bg-ztx-surface-warm font-semibold text-ztx-primary-strong':'text-ztx-text-secondary hover:bg-ztx-surface-soft'">租户管理</RouterLink>
           <RouterLink to="/platform/operations" class="rounded-md px-3 py-2.5 text-ztx-body no-underline" :class="route.path==='/platform/operations'?'bg-ztx-surface-warm font-semibold text-ztx-primary-strong':'text-ztx-text-secondary hover:bg-ztx-surface-soft'">运维管理</RouterLink>
+          <RouterLink to="/platform/audit" class="rounded-md px-3 py-2.5 text-ztx-body no-underline" :class="route.path==='/platform/audit'?'bg-ztx-surface-warm font-semibold text-ztx-primary-strong':'text-ztx-text-secondary hover:bg-ztx-surface-soft'">安全审计</RouterLink>
         </nav>
       </aside>
       <main class="min-w-0 flex-1 px-6 py-5 max-[720px]:px-3">

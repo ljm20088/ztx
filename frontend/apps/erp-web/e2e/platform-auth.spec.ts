@@ -82,3 +82,22 @@ test('平台管理员只看到独立的平台管理导航', async ({ page }) => 
   await expect(page.getByText('API Server')).toBeVisible()
   await expect(page.getByText('PostgreSQL')).toBeVisible()
 })
+
+test('平台管理员可以查看平台安全审计记录', async ({ page }) => {
+  await page.route('**/api/v1/platform/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000001', username: 'platform.admin', mfaEnabled: false }),
+  }))
+  await page.route('**/api/v1/platform/audit', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify([{ id: 'event-1', eventType: 'LOGIN', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' }]),
+  }))
+
+  // When 平台管理员打开安全审计
+  await page.goto('/platform/audit')
+
+  // Then 可以查看平台安全事件及其操作结果
+  await expect(page.getByRole('heading', { name: '安全审计' })).toBeVisible()
+  await expect(page.getByText('LOGIN')).toBeVisible()
+  await expect(page.getByText('SUCCESS')).toBeVisible()
+})

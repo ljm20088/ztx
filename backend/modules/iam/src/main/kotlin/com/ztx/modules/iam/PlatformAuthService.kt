@@ -2,6 +2,8 @@ package com.ztx.modules.iam
 
 import com.ztx.adapters.postgres.PgDatabase
 import io.vertx.core.Future
+import io.vertx.core.json.JsonArray
+import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 import java.nio.ByteBuffer
@@ -37,6 +39,29 @@ class PlatformAuthService(
             connection.preparedQuery(
                 "SELECT COALESCE((SELECT mfa_enabled FROM iam.platform_admin LIMIT 1), FALSE) AS enabled"
             ).execute().map { rows -> rows.first().getBoolean("enabled") }
+        }
+
+    fun recentAuditEvents(limit: Int = 100): Future<JsonArray> =
+        database.withTransaction { connection ->
+            connection.preparedQuery(
+                """SELECT event.id::text AS id, event.event_type, event.outcome,
+                          host(event.source_ip) AS source_ip, event.occurred_at,
+                          admin.username AS admin_username
+                   FROM audit.platform_security_event event
+                   LEFT JOIN iam.platform_admin admin ON admin.id = event.admin_id
+                   ORDER BY event.occurred_at DESC
+                   LIMIT $1"""
+            ).execute(Tuple.of(limit.coerceIn(1, 200))).map { rows ->
+                JsonArray(rows.map { row ->
+                    JsonObject()
+                        .put("id", row.getString("id"))
+                        .put("eventType", row.getString("event_type"))
+                        .put("outcome", row.getString("outcome"))
+                        .put("sourceIp", row.getString("source_ip"))
+                        .put("adminUsername", row.getString("admin_username"))
+                        .put("occurredAt", row.getOffsetDateTime("occurred_at").toString())
+                })
+            }
         }
 
     /**

@@ -17,6 +17,7 @@ class PlatformAuthRoutes(
         router.post("/api/v1/platform/auth/login").handler(::login)
         router.post("/api/v1/platform/auth/logout").handler(::logout)
         router.get("/api/v1/platform/auth/me").handler(::me)
+        router.get("/api/v1/platform/audit").handler(::audit)
         router.post("/api/v1/platform/auth/password").handler(::changePassword)
         router.post("/api/v1/platform/auth/mfa/enroll").handler(::enrollMfa)
         router.post("/api/v1/platform/auth/mfa/enable").handler(::enableMfa)
@@ -89,6 +90,13 @@ class PlatformAuthRoutes(
         service.logout(token, AuthSupport.ip(context)).onSuccess {
             context.response().putHeader("set-cookie", AuthSupport.clearCookie("ztx_platform_session", "/api/v1/platform", secureCookies)).setStatusCode(204).end()
         }.onFailure { fail(context, it, 500) }
+    }
+
+    private fun audit(context: RoutingContext) = withAdmin(context) {
+        service.recentAuditEvents().onSuccess { events ->
+            context.response().putHeader("content-type", "application/json")
+                .end(events.encode())
+        }.onFailure { fail(context, it, 503) }
     }
 
     private fun me(context: RoutingContext) = withAdmin(context) { admin ->
