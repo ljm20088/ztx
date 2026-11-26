@@ -40,6 +40,7 @@ const table = useVueTable({
   onGlobalFilterChange: updater => { globalFilter.value = String(functionalUpdate(updater, globalFilter.value) ?? '') },
   onRowSelectionChange: updater => { rowSelection.value = functionalUpdate(updater, rowSelection.value) },
   enableRowSelection: true,
+  sortDescFirst: false,
   getCoreRowModel: getCoreRowModel(),
   getFilteredRowModel: getFilteredRowModel(),
   getSortedRowModel: getSortedRowModel(),
