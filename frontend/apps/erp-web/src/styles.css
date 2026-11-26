@@ -16,6 +16,11 @@
   --color-ztx-success: var(--ztx-success);
   --color-ztx-warning: var(--ztx-warning);
   --color-ztx-danger: var(--ztx-danger);
+  --font-sans: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --text-ztx-body: var(--ztx-font-size-body);
+  --text-ztx-caption: var(--ztx-font-size-caption);
+  --text-ztx-section-title: var(--ztx-font-size-section-title);
+  --text-ztx-page-title: var(--ztx-font-size-page-title);
   --radius-ztx-sm: var(--ztx-radius-sm);
   --radius-ztx-md: var(--ztx-radius-md);
   --spacing-ztx-control: var(--ztx-control-height);
