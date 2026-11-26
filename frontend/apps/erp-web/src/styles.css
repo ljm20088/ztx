@@ -90,8 +90,8 @@
 }
 
 @layer components {
-  .flyout-enter-active, .flyout-leave-active { transition: opacity .12s ease, transform .12s ease; }
-  .flyout-enter-from, .flyout-leave-to { opacity: 0; transform: translateX(-4px); }
+  .flyout-enter-active, .flyout-leave-active { transition: opacity .12s ease; }
+  .flyout-enter-from, .flyout-leave-to { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
