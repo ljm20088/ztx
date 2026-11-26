@@ -63,6 +63,23 @@ describe('ZTX UI 基础组件', () => {
 })
 
 describe('ZTX 数据表格', () => {
+  // 场景：列表搜索应由 TanStack Table 过滤行模型并同步记录数。
+  it('使用全局筛选过滤数据并更新记录数', async () => {
+    // Given 列表中有 Alpha 与 Beta 两条记录
+    const wrapper = mount(ZDataGrid, {
+      props: {
+        data: [{ name: 'Alpha' }, { name: 'Beta' }],
+        columns: [{ accessorKey: 'name', header: '企业名称' }],
+      },
+    })
+    // When 用户搜索 Beta
+    await wrapper.find('input[placeholder="搜索当前列表"]').setValue('Beta')
+    // Then 仅显示匹配记录，计数同步为一条
+    expect(wrapper.find('tbody').text()).toContain('Beta')
+    expect(wrapper.find('tbody').text()).not.toContain('Alpha')
+    expect(wrapper.text()).toContain('共 1 条')
+  })
+
   // 场景：列表表格应通过 TanStack Table 提供排序、分页和行选择。
   it('使用表格模型处理排序、分页与选择计数', async () => {
     // Given 列表有两条记录且每页只显示一条
