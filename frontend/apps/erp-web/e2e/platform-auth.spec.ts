@@ -24,7 +24,7 @@ test('平台管理员可以登录独立平台工作区', async ({ page }) => {
 
   // Then 登录后进入平台概览
   await expect(page.getByRole('heading', { name: '平台概览' })).toBeVisible()
-  await expect(page.getByText('platform.admin').first()).toBeVisible()
+  await expect(page.getByText('platform.admin').first().first()).toBeVisible()
   await expect(page.getByText('未启用')).toBeVisible()
 })
 
@@ -54,7 +54,7 @@ test('首次启动自动显示初始化表单并创建管理员后直接登录',
 
   // Then 无需重新登录，直接进入平台概览
   await expect(page.getByRole('heading', { name: '平台概览' })).toBeVisible()
-  await expect(page.getByText('platform.admin')).toBeVisible()
+  await expect(page.getByText('platform.admin').first()).toBeVisible()
 })
 
 test('平台管理员只看到独立的平台管理导航', async ({ page }) => {
