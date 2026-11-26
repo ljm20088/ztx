@@ -32,9 +32,9 @@ async function submit(){
   <section class="w-full max-w-[440px] rounded-[9px] border border-ztx-border bg-ztx-surface px-8 py-[30px] shadow-[var(--ztx-shadow-popover)] max-[520px]:px-5 max-[520px]:py-6">
    <div class="mb-7 flex items-center gap-3">
     <span class="grid size-[38px] place-items-center rounded-ztx-md bg-ztx-primary text-[19px] font-extrabold text-white">Z</span>
-    <div class="flex flex-col gap-[3px]"><strong class="text-[17px] tracking-[.12em]">ZTX</strong><small class="text-[9px] tracking-[.13em] text-ztx-muted">ENTERPRISE WORKSPACE</small></div>
+    <strong class="text-[17px] tracking-[.12em]">ZTX</strong>
    </div>
-   <div class="mb-[22px]"><h1 class="mb-2 text-ztx-page-title text-ztx-text">{{mode==='login'?'企业登录':'设置企业管理员账号'}}</h1><p class="text-ztx-caption leading-[1.7] text-ztx-muted">请输入所属企业的企业编码及个人账号信息。</p></div>
+   <div class="mb-6"><h1 class="text-ztx-page-title text-ztx-text">{{mode==='login'?'企业登录':'设置企业管理员账号'}}</h1></div>
    <form class="flex flex-col gap-[13px]" @submit.prevent="submit">
     <ZFormField label="企业编码" field-id="tenant-code" required><ZInput id="tenant-code" v-model="tenantCode" required minlength="2" maxlength="40" autocomplete="organization" placeholder="请输入企业编码"/></ZFormField>
     <ZFormField v-if="mode==='setup'" label="一次性初始化凭据" field-id="setup-token" required><ZInput id="setup-token" v-model="setupToken" required autocomplete="off" placeholder="由平台管理员提供"/></ZFormField>
@@ -45,7 +45,6 @@ async function submit(){
     <ZButton class="mt-0.5 w-full" type="submit" size="lg" :disabled="busy">{{busy?'正在处理…':mode==='login'?'安全登录':'完成账号设置'}}</ZButton>
    </form>
    <ZButton class="mt-3 px-0" variant="ghost" size="sm" @click="mode=mode==='login'?'setup':'login';error=''">{{mode==='login'?'首次使用？设置企业管理员账号':'返回登录'}}</ZButton>
-   <div class="mt-[22px] border-t border-ztx-border pt-3.5 text-center text-ztx-caption text-ztx-muted">企业身份独立验证 · 企业数据由服务端安全隔离</div>
    <div class="mt-3.5 flex justify-center gap-1.5 text-ztx-caption text-ztx-muted"><span>平台运营人员？</span><RouterLink class="text-ztx-primary-strong no-underline hover:underline" to="/platform/login">平台管理登录</RouterLink></div>
   </section>
  </main>

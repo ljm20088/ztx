@@ -24,7 +24,7 @@ test('平台管理员可以登录独立平台工作区', async ({ page }) => {
 
   // Then 登录后进入平台概览
   await expect(page.getByRole('heading', { name: '平台概览' })).toBeVisible()
-  await expect(page.getByText('platform.admin')).toBeVisible()
+  await expect(page.getByText('platform.admin').first()).toBeVisible()
   await expect(page.getByText('未启用')).toBeVisible()
 })
 

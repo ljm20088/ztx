@@ -94,7 +94,7 @@ async function submit() {
       <ZAlert v-if="mode === 'initialize' && !canInitialize" class="mt-3" tone="info">
         请在服务器本机访问，或通过 SSH 本地端口转发访问后再初始化。
       </ZAlert>
-      <div class="mt-5 flex justify-center gap-1.5 text-ztx-caption text-ztx-muted"><span>企业用户？</span><RouterLink class="text-ztx-primary-strong no-underline hover:underline" to="/tenant/login">企业登录</RouterLink></div>
+      <div class="mt-5 flex justify-center gap-1.5 text-ztx-caption text-ztx-muted"><span>企业用户？</span><RouterLink class="text-ztx-primary-strong no-underline hover:underline" to="/tenant/login">返回企业登录</RouterLink></div>
     </section>
   </main>
 </template>
