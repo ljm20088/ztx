@@ -95,7 +95,7 @@ function togglePage(event: Event) {
                 v-if="header.column.getCanSort()"
                 type="button"
                 class="inline-flex items-center gap-1 hover:text-ztx-primary"
-                @click="header.column.getToggleSortingHandler()?.($event)"
+                @click="header.column.toggleSorting()"
               >
                 <FlexRender :render="header.column.columnDef.header" :props="header.getContext()" />
                 <span aria-hidden="true">{{ header.column.getIsSorted() === 'asc' ? '↑' : header.column.getIsSorted() === 'desc' ? '↓' : '↕' }}</span>
