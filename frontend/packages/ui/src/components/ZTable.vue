@@ -1,17 +1,7 @@
 <template>
-  <div class="ztx-table-wrap">
-    <table class="ztx-table"><slot /></table>
+  <div class="w-full overflow-x-auto">
+    <table class="w-full border-collapse text-left text-ztx-body [&_th]:whitespace-nowrap [&_th]:px-2 [&_th]:py-[9px] [&_th]:text-ztx-muted [&_th]:font-semibold [&_th]:border-b [&_th]:border-ztx-border [&_td]:px-2 [&_td]:py-[9px] [&_td]:border-b [&_td]:border-ztx-border [&_td_code]:text-ztx-caption">
+      <slot />
+    </table>
   </div>
 </template>
-
-<style>
-.ztx-table-wrap { width: 100%; overflow-x: auto; }
-.ztx-table { width: 100%; border-collapse: collapse; font-size: var(--ztx-font-size-body, 13px); }
-.ztx-table th,
-.ztx-table td { padding: 9px 8px; border-bottom: 1px solid var(--ztx-border); text-align: left; }
-.ztx-table th { color: var(--ztx-muted); font-weight: 600; white-space: nowrap; }
-.ztx-table td code { font-size: var(--ztx-font-size-caption, 12px); }
-@media (max-width: 760px) {
-  .ztx-table-wrap { display: block; }
-}
-</style>
