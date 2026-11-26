@@ -59,7 +59,7 @@ function togglePage(event: Event) {
 </script>
 
 <template>
-  <section class="flex min-w-0 flex-col gap-3 text-[13px] text-ztx-text">
+  <section class="flex min-w-0 flex-col gap-3 text-ztx-body text-ztx-text">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <label v-if="searchable" class="flex min-w-48 items-center gap-2 rounded-ztx-sm border border-ztx-border bg-ztx-surface px-2.5 py-1.5 text-ztx-muted focus-within:border-ztx-primary">
         <span class="sr-only">搜索列表</span>
@@ -70,15 +70,15 @@ function togglePage(event: Event) {
           @input="table.setGlobalFilter(($event.target as HTMLInputElement).value)"
         >
       </label>
-      <div class="ml-auto flex items-center gap-3 text-xs text-ztx-muted" aria-live="polite">
+      <div class="ml-auto flex items-center gap-3 text-ztx-caption text-ztx-muted" aria-live="polite">
         <span>共 {{ filteredCount }} 条</span>
         <span>已选 {{ selectedCount }} 条</span>
       </div>
     </div>
 
     <div class="min-w-0 overflow-x-auto rounded-ztx-md border border-ztx-border bg-ztx-surface">
-      <table class="w-full border-collapse text-left text-[13px]">
-        <thead class="bg-ztx-surface-soft text-xs font-semibold text-ztx-muted">
+      <table class="w-full border-collapse text-left text-ztx-body">
+        <thead class="bg-ztx-surface-soft text-ztx-caption font-semibold text-ztx-muted">
           <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id" class="h-9 border-b border-ztx-border">
             <th class="w-9 px-3">
               <input
@@ -118,7 +118,7 @@ function togglePage(event: Event) {
             </td>
           </tr>
           <tr v-if="table.getRowModel().rows.length === 0">
-            <td :colspan="table.getVisibleLeafColumns().length + 1" class="px-3 py-10 text-center text-xs text-ztx-muted">暂无数据</td>
+            <td :colspan="table.getVisibleLeafColumns().length + 1" class="px-3 py-10 text-center text-ztx-caption text-ztx-muted">暂无数据</td>
           </tr>
         </tbody>
       </table>
@@ -127,14 +127,14 @@ function togglePage(event: Event) {
     <div class="flex items-center justify-end gap-2">
       <button
         type="button"
-        class="rounded-ztx-sm border border-ztx-border px-2.5 py-1.5 text-xs text-ztx-text-secondary hover:bg-ztx-surface-soft disabled:cursor-not-allowed disabled:opacity-40"
+        class="rounded-ztx-sm border border-ztx-border px-2.5 py-1.5 text-ztx-caption text-ztx-text-secondary hover:bg-ztx-surface-soft disabled:cursor-not-allowed disabled:opacity-40"
         :disabled="!table.getCanPreviousPage()"
         @click="table.previousPage()"
       >上一页</button>
-      <span class="min-w-16 text-center text-xs tabular-nums text-ztx-muted">{{ table.getState().pagination.pageIndex + 1 }} / {{ Math.max(table.getPageCount(), 1) }}</span>
+      <span class="min-w-16 text-center text-ztx-caption tabular-nums text-ztx-muted">{{ table.getState().pagination.pageIndex + 1 }} / {{ Math.max(table.getPageCount(), 1) }}</span>
       <button
         type="button"
-        class="rounded-ztx-sm border border-ztx-border px-2.5 py-1.5 text-xs text-ztx-text-secondary hover:bg-ztx-surface-soft disabled:cursor-not-allowed disabled:opacity-40"
+        class="rounded-ztx-sm border border-ztx-border px-2.5 py-1.5 text-ztx-caption text-ztx-text-secondary hover:bg-ztx-surface-soft disabled:cursor-not-allowed disabled:opacity-40"
         :disabled="!table.getCanNextPage()"
         @click="table.nextPage()"
       >下一页</button>
