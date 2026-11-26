@@ -15,7 +15,7 @@ defineEmits<{ click: [event: MouseEvent] }>()
 <template>
   <ZTooltip :text="label">
     <button
-      :class="['ztx-icon-button', buttonClass]"
+      :class="['ztx-icon-button inline-grid h-[30px] w-[30px] place-items-center rounded-ztx-sm border-0 bg-transparent text-ztx-text-secondary hover:bg-ztx-surface-warm hover:text-ztx-primary-strong disabled:cursor-not-allowed disabled:opacity-40', buttonClass]"
       type="button"
       :aria-label="label"
       :aria-haspopup="hasPopup"
@@ -27,7 +27,3 @@ defineEmits<{ click: [event: MouseEvent] }>()
     </button>
   </ZTooltip>
 </template>
-<style>
-.ztx-icon-button{width:30px;height:30px;display:grid;place-items:center;border:0;border-radius:5px;color:var(--ztx-text-secondary);background:transparent;cursor:pointer}
-.ztx-icon-button:hover:not(:disabled){color:var(--ztx-primary-strong);background:var(--ztx-surface-warm)}.ztx-icon-button:disabled{opacity:.4;cursor:not-allowed}
-</style>
