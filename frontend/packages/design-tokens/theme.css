@@ -12,6 +12,12 @@
   --ztx-font-size-caption:12px;
   --ztx-font-size-section-title:15px;
   --ztx-font-size-page-title:18px;
+  --ztx-font-size-micro:8px;
+  --ztx-font-size-tiny:9px;
+  --ztx-font-size-small:10px;
+  --ztx-font-size-compact:11px;
+  --ztx-font-size-nav:14px;
+  --ztx-font-size-brand:19px;
   --ztx-on-primary:#fffaf5;
   --ztx-success-indicator:#6c946e;
   --ztx-surface-hover:#fffaf4;
