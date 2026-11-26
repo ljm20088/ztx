@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
   }))
 })
 
-test('工作区首屏与页面截图', async ({ page }) => {
+test('工作区首屏与页面截图', async ({ page }, testInfo) => {
   // Given 用户打开 ZTX Web 工作区
   await page.goto('/workspace')
 
@@ -37,7 +37,7 @@ test('工作区首屏与页面截图', async ({ page }) => {
   expect(headerLayout.headerHeight).toBe(44)
   expect(headerLayout.brandWidth).toBe(headerLayout.sidebarWidth)
   expect(Math.abs(headerLayout.brandBottom - headerLayout.sidebarTop)).toBeLessThan(1)
-  await page.screenshot({ path: 'artifacts/frontend-visual-captures/workspace-desktop.png', fullPage: true })
+  if (testInfo.project.name === 'chromium') await page.screenshot({ path: 'artifacts/frontend-visual-captures/workspace-desktop.png', fullPage: true })
 
   // And 窄屏下品牌区仍与导航区同宽对齐，收起侧栏后保留可用的内容宽度
   await page.setViewportSize({ width: 390, height: 844 })
@@ -54,7 +54,7 @@ test('工作区首屏与页面截图', async ({ page }) => {
     document.querySelector('.workspace-header .brand-lockup')!.getBoundingClientRect().width -
     document.querySelector('.ztx-sidebar')!.getBoundingClientRect().width
   ))).toBeLessThan(1)
-  await page.screenshot({ path: 'artifacts/frontend-visual-captures/workspace-mobile.png', fullPage: true })
+  if (testInfo.project.name === 'chromium') await page.screenshot({ path: 'artifacts/frontend-visual-captures/workspace-mobile.png', fullPage: true })
 })
 
 test('一级点击、二级悬停后指针可移入三级浮层', async ({ page }, testInfo) => {
