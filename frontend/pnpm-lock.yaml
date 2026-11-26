@@ -1902,7 +1902,7 @@ packages:
 snapshots:
   '@tanstack/table-core@8.21.3': {}
 
-  '@tanstack/vue-table@8.21.3':
+  '@tanstack/vue-table@8.21.3(vue@3.5.45(typescript@6.0.3))':
     dependencies:
       '@tanstack/table-core': 8.21.3
 
