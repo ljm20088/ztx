@@ -296,7 +296,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <Transition name="flyout">
           <div
             v-if="flyoutOpen && activeCategory"
-            class="feature-flyout absolute left-[calc(100%-1px)] z-30 max-h-[calc(100vh-110px)] w-[252px] overflow-auto rounded-ztx-md border border-ztx-border-strong bg-ztx-surface p-2.5 shadow-[var(--ztx-shadow-popover)] transition-[opacity,transform] duration-150" :class="{ 'left-[270px] max-[720px]:left-[262px]': navCollapsed }"
+            class="feature-flyout absolute left-[calc(100%-1px)] z-30 max-h-[calc(100vh-110px)] w-[252px] overflow-auto rounded-ztx-md border border-ztx-border-strong bg-ztx-surface p-2.5 shadow-[var(--ztx-shadow-popover)] transition-[opacity,transform] duration-150" :class="{ 'left-[262px] max-[720px]:left-[254px]': navCollapsed }"
             :style="{ top: flyoutTop + 'px' }"
             role="menu"
             :aria-label="activeCategory.label + '功能菜单'"
