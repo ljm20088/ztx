@@ -39,6 +39,7 @@
   --color-ztx-number-muted: var(--ztx-number-muted);
   --color-ztx-number-accent: var(--ztx-number-accent);
   --color-ztx-icon-muted: var(--ztx-icon-muted);
+  --color-ztx-tooltip: var(--ztx-tooltip-background);
   --font-sans: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
   --text-ztx-body: var(--ztx-font-size-body);
   --text-ztx-caption: var(--ztx-font-size-caption);
@@ -55,6 +56,7 @@
   --spacing-ztx-control: var(--ztx-control-height);
   --spacing-ztx-section: var(--ztx-space-section);
   --shadow-ztx-popover: var(--ztx-shadow-popover);
+  --shadow-ztx-tooltip: var(--ztx-shadow-tooltip);
 }
 
 @layer base {

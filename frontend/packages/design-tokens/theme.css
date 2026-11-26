@@ -39,4 +39,6 @@
   --ztx-status-muted:#8d775d;
   --ztx-status-soft:#f1eadf;
   --ztx-icon-muted:#a3aab4;
+  --ztx-tooltip-background:#39332d;
+  --ztx-shadow-tooltip:0 3px 10px rgba(0,0,0,.12);
 }
