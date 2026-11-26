@@ -127,21 +127,21 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
 </script>
 <template>
   <div v-if="!isAuthRoute" class="ztx-shell min-h-screen bg-ztx-page font-sans text-ztx-text">
-    <header class="workspace-header sticky top-0 z-30 flex items-center bg-ztx-surface">
-      <div class="brand-lockup flex h-11 w-[270px] shrink-0 items-center gap-2 border-r border-ztx-border px-4 max-[720px]:w-[236px] max-[720px]:basis-[236px]" :class="{ 'is-nav-collapsed': navCollapsed }" aria-label="ZTX 企业工作区">
+    <header class="workspace-header sticky top-0 z-30 flex h-11 min-h-11 items-center gap-3 border-b border-ztx-border bg-ztx-surface pr-3.5">
+      <div class="brand-lockup flex h-11 w-[270px] basis-[270px] shrink-0 items-center gap-2 border-r border-ztx-border px-4 max-[720px]:w-[236px] max-[720px]:basis-[236px]" :class="{ 'is-nav-collapsed': navCollapsed, '!w-16 !basis-16 justify-center px-0 max-[720px]:!w-14 max-[720px]:!basis-14': navCollapsed }" aria-label="ZTX 企业工作区">
         <div class="brand-mark grid size-[26px] place-items-center rounded-[6px] bg-ztx-primary text-ztx-on-primary">
           <ZCommand :size="18" :stroke-width="2.2" />
         </div>
         <div class="brand-wordmark flex flex-col gap-[3px] leading-none">
-          <strong>ZTX ERP</strong>
+          <strong class="text-[14px] font-bold tracking-[.1em]">ZTX ERP</strong>
         </div>
       </div>
-      <nav class="workspace-tabs flex min-w-0 flex-1 items-stretch overflow-x-auto" aria-label="工作区标签">
+      <nav class="workspace-tabs flex h-11 min-h-11 min-w-0 flex-1 items-stretch overflow-x-auto" aria-label="工作区标签">
         <button
           v-for="tab in workspace.tabs"
           :key="tab.path"
           class="workspace-tab relative inline-flex min-h-11 min-w-[104px] max-w-[180px] items-center justify-center gap-[9px] whitespace-nowrap px-[11px] text-ztx-body text-ztx-muted hover:bg-ztx-surface-soft hover:text-ztx-text"
-          :class="{ 'is-active': workspace.activePath === tab.path }"
+          :class="{ 'is-active': workspace.activePath === tab.path, 'border-x border-ztx-border bg-ztx-page font-semibold text-ztx-primary-strong': workspace.activePath === tab.path }"
           :aria-current="workspace.activePath === tab.path ? 'page' : undefined"
           @click="activateTab(tab.path)"
         >
@@ -205,7 +205,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
       <aside
         ref="navRoot"
         class="ztx-sidebar relative z-20 flex min-h-[calc(100vh-44px)] w-[270px] shrink-0 flex-col border-r border-ztx-border bg-ztx-surface transition-[width,flex-basis] duration-200 max-[720px]:w-[236px] max-[720px]:basis-[236px]"
-        :class="{ 'is-collapsed': navCollapsed, 'has-collapsed-menu': collapsedMenuOpen }"
+        :class="{ 'is-collapsed': navCollapsed, 'has-collapsed-menu': collapsedMenuOpen, '!w-16 !basis-16': navCollapsed, 'max-[720px]:!w-14 max-[720px]:!basis-14': navCollapsed }"
         aria-label="一级菜单"
         @pointerenter="clearCloseTimer"
         @pointerleave="onMenuPointerLeave"
@@ -216,18 +216,18 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
               class="module-entry flex min-h-11 w-full items-center justify-start gap-3 rounded-[7px] px-3 text-ztx-nav text-ztx-text hover:bg-ztx-surface-soft"
               :aria-label="module.label"
               :title="navCollapsed ? module.label : undefined"
-              :class="{ 'is-active': activeModuleId === module.id }"
+              :class="{ 'is-active': activeModuleId === module.id, 'bg-ztx-surface-warm font-semibold text-ztx-primary-strong': activeModuleId === module.id, '!min-h-[46px] justify-center px-0': navCollapsed }"
               :ref="element => setModuleButton(module.id, element as HTMLButtonElement | null)"
               :aria-expanded="navCollapsed ? activeModuleId === module.id && collapsedMenuOpen : activeModuleId === module.id"
               @pointerenter="onModulePointerEnter(module.id)"
               @click="onModuleClick(module.id, $event)"
             >
               <component :is="module.icon" :size="19" :stroke-width="1.8" />
-              <span>{{ module.label }}</span>
+              <span :class="{ hidden: navCollapsed }">{{ module.label }}</span>
               <ZChevronRight
                 v-if="!navCollapsed"
-                class="module-chevron"
-                :class="{ 'is-expanded': activeModuleId === module.id }"
+                class="module-chevron text-ztx-muted transition-transform duration-150"
+                :class="{ 'is-expanded rotate-90': activeModuleId === module.id }"
                 :size="15"
               />
             </button>
@@ -241,7 +241,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
                 :key="category.id"
                 :ref="element => setCategoryButton(category.id, element as HTMLButtonElement | null)"
                 class="category-entry flex min-h-[37px] w-full items-center justify-between gap-2 rounded-md px-[10px] text-ztx-body text-ztx-text-secondary hover:bg-ztx-surface-soft hover:text-ztx-primary-strong"
-                :class="{ 'is-open': openCategoryId === category.id && flyoutOpen }"
+                :class="{ 'is-open bg-ztx-surface-soft font-semibold text-ztx-primary-strong': openCategoryId === category.id && flyoutOpen }"
                 :aria-expanded="openCategoryId === category.id && flyoutOpen"
                 aria-haspopup="menu"
                 @pointerenter="onCategoryPointerEnter(category.id)"
@@ -282,7 +282,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         </div>
         <div class="rail-footer flex items-center justify-start gap-2.5 border-t border-ztx-border px-3.5 py-3 text-ztx-caption">
           <span class="environment-dot" />
-          <span class="environment-label">演示环境</span>
+          <span class="environment-label" :class="{ hidden: navCollapsed }">演示环境</span>
           <button
             class="nav-collapse-toggle ml-auto grid size-[30px] place-items-center rounded-[5px] border border-ztx-border bg-ztx-surface text-ztx-muted hover:bg-ztx-surface-warm hover:text-ztx-primary-strong"
             type="button"
@@ -290,13 +290,13 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
             :aria-expanded="!navCollapsed"
             @click="toggleNavigation"
           >
-            <ZChevronRight :size="17" />
+            <ZChevronRight :size="17" :class="{ 'rotate-180': !navCollapsed }" />
           </button>
         </div>
         <Transition name="flyout">
           <div
             v-if="flyoutOpen && activeCategory"
-            class="feature-flyout absolute left-[calc(100%-1px)] z-30 max-h-[calc(100vh-110px)] w-[252px] overflow-auto rounded-ztx-md border border-ztx-border-strong bg-ztx-surface p-2.5 shadow-[var(--ztx-shadow-popover)]"
+            class="feature-flyout absolute left-[calc(100%-1px)] z-30 max-h-[calc(100vh-110px)] w-[252px] overflow-auto rounded-ztx-md border border-ztx-border-strong bg-ztx-surface p-2.5 shadow-[var(--ztx-shadow-popover)] transition-[opacity,transform] duration-150"
             :style="{ top: flyoutTop + 'px' }"
             role="menu"
             :aria-label="activeCategory.label + '功能菜单'"
