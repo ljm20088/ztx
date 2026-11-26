@@ -12,4 +12,25 @@
   --ztx-font-size-caption:12px;
   --ztx-font-size-section-title:15px;
   --ztx-font-size-page-title:18px;
+  --ztx-on-primary:#fffaf5;
+  --ztx-success-indicator:#6c946e;
+  --ztx-surface-hover:#fffaf4;
+  --ztx-text-accent:#866342;
+  --ztx-accent-soft:#efe4d5;
+  --ztx-border-accent:#e4d4c2;
+  --ztx-welcome-start:#f1e6d8;
+  --ztx-welcome-middle:#f8f2ea;
+  --ztx-welcome-end:#f4ece2;
+  --ztx-on-primary-soft:#fff9f2;
+  --ztx-surface-raised:#fffefa;
+  --ztx-border-hover:#d0b59b;
+  --ztx-surface-hover-warm:#fffaf3;
+  --ztx-text-accent-muted:#9b8066;
+  --ztx-number-muted:#b89a7d;
+  --ztx-number-accent:#b18a68;
+  --ztx-success-text:#5e795d;
+  --ztx-success-soft:#e9f0e5;
+  --ztx-status-muted:#8d775d;
+  --ztx-status-soft:#f1eadf;
+  --ztx-icon-muted:#a3aab4;
 }
