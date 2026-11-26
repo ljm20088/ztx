@@ -22,7 +22,7 @@ test('平台管理员可以登录独立平台工作区', async ({ page }) => {
   await page.getByLabel('密码', { exact: true }).fill('ZtxAdmin123')
   await page.getByRole('button', { name: '安全登录' }).click()
 
-  // Then 登录后进入平台控制台
+  // Then 登录后进入平台概览
   await expect(page.getByRole('heading', { name: '平台概览' })).toBeVisible()
   await expect(page.getByText('platform.admin')).toBeVisible()
   await expect(page.getByText('未启用')).toBeVisible()
@@ -52,7 +52,7 @@ test('首次启动自动显示初始化表单并创建管理员后直接登录',
   await page.getByLabel('确认密码').fill('ZtxAdmin123')
   await page.getByRole('button', { name: '创建平台管理员' }).click()
 
-  // Then 无需重新登录，直接进入平台控制台
+  // Then 无需重新登录，直接进入平台概览
   await expect(page.getByRole('heading', { name: '平台概览' })).toBeVisible()
   await expect(page.getByText('platform.admin')).toBeVisible()
 })
