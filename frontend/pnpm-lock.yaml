@@ -191,9 +191,6 @@ importers:
       '@ztx/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@tanstack/vue-table':
-        specifier: ^8.21.3
-        version: 8.21.3(vue@3.5.45(typescript@6.0.3))
       lucide-vue-next:
         specifier: ^0.468.0
         version: 0.468.0(vue@3.5.45(typescript@6.0.3))
@@ -265,6 +262,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@tanstack/vue-table':
+        specifier: ^8.21.3
+        version: 8.21.3(vue@3.5.45(typescript@6.0.3))
       lucide-vue-next:
         specifier: '>=0.468.0'
         version: 0.468.0(vue@3.5.45(typescript@6.0.3))
