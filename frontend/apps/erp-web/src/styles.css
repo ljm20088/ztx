@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @source "../../../packages/ui/src";
-@theme inline{
+
+@theme inline {
   --color-ztx-primary: var(--ztx-primary);
   --color-ztx-primary-hover: var(--ztx-primary-hover);
   --color-ztx-primary-strong: var(--ztx-primary-strong);
@@ -8,143 +9,76 @@
   --color-ztx-surface: var(--ztx-surface);
   --color-ztx-surface-soft: var(--ztx-surface-soft);
   --color-ztx-surface-warm: var(--ztx-surface-warm);
+  --color-ztx-rail: var(--ztx-rail);
+  --color-ztx-surface-hover: var(--ztx-surface-hover);
+  --color-ztx-surface-hover-warm: var(--ztx-surface-hover-warm);
+  --color-ztx-surface-raised: var(--ztx-surface-raised);
   --color-ztx-text: var(--ztx-text);
   --color-ztx-text-secondary: var(--ztx-text-secondary);
   --color-ztx-muted: var(--ztx-muted);
+  --color-ztx-text-accent: var(--ztx-text-accent);
+  --color-ztx-text-accent-muted: var(--ztx-text-accent-muted);
   --color-ztx-border: var(--ztx-border);
   --color-ztx-border-strong: var(--ztx-border-strong);
+  --color-ztx-border-accent: var(--ztx-border-accent);
+  --color-ztx-border-hover: var(--ztx-border-hover);
+  --color-ztx-accent-soft: var(--ztx-accent-soft);
+  --color-ztx-welcome-start: var(--ztx-welcome-start);
+  --color-ztx-welcome-middle: var(--ztx-welcome-middle);
+  --color-ztx-welcome-end: var(--ztx-welcome-end);
+  --color-ztx-on-primary: var(--ztx-on-primary);
+  --color-ztx-on-primary-soft: var(--ztx-on-primary-soft);
   --color-ztx-success: var(--ztx-success);
+  --color-ztx-success-text: var(--ztx-success-text);
+  --color-ztx-success-soft: var(--ztx-success-soft);
+  --color-ztx-success-indicator: var(--ztx-success-indicator);
   --color-ztx-warning: var(--ztx-warning);
   --color-ztx-danger: var(--ztx-danger);
+  --color-ztx-status-muted: var(--ztx-status-muted);
+  --color-ztx-status-soft: var(--ztx-status-soft);
+  --color-ztx-number-muted: var(--ztx-number-muted);
+  --color-ztx-number-accent: var(--ztx-number-accent);
+  --color-ztx-icon-muted: var(--ztx-icon-muted);
   --font-sans: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
   --text-ztx-body: var(--ztx-font-size-body);
   --text-ztx-caption: var(--ztx-font-size-caption);
   --text-ztx-section-title: var(--ztx-font-size-section-title);
   --text-ztx-page-title: var(--ztx-font-size-page-title);
+  --text-ztx-micro: var(--ztx-font-size-micro);
+  --text-ztx-tiny: var(--ztx-font-size-tiny);
+  --text-ztx-small: var(--ztx-font-size-small);
+  --text-ztx-compact: var(--ztx-font-size-compact);
+  --text-ztx-nav: var(--ztx-font-size-nav);
+  --text-ztx-brand: var(--ztx-font-size-brand);
   --radius-ztx-sm: var(--ztx-radius-sm);
   --radius-ztx-md: var(--ztx-radius-md);
   --spacing-ztx-control: var(--ztx-control-height);
   --spacing-ztx-section: var(--ztx-space-section);
+  --shadow-ztx-popover: var(--ztx-shadow-popover);
 }
-@layer components{
-:root{font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--ztx-text);background:var(--ztx-page);font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-*{box-sizing:border-box}html,body,#app{width:100%;min-width:320px;min-height:100%;margin:0}body{min-height:100vh}button{font:inherit}button:focus-visible{outline:2px solid var(--ztx-primary);outline-offset:2px}
 
-
-
-
-
-
-
-
-
-
-.flyout-enter-active,.flyout-leave-active{transition:opacity .12s ease,transform .12s ease}.flyout-enter-from,.flyout-leave-to{opacity:0;transform:translateX(-4px)}
-
-
-
-
-
-
-
-
-
-
-@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
-/* 左侧导航整体折叠：收窄为图标栏，菜单通过图标重新唤出 */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* 导航结构：一级菜单纵向排列，二级菜单缩进显示在所属一级菜单下方 */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* 品牌标识与工作区标签同处顶栏，导航从顶栏下方开始 */
-
-
-
-
-
-/* 紧凑工作区头部：品牌区与导航栏同宽对齐，顶部让出更多工作空间 */
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* ZTX 字体层级与紧凑内容布局 */
-:root{--ztx-font-size-body:13px;--ztx-font-size-caption:12px;--ztx-font-size-section-title:15px;--ztx-font-size-page-title:18px;font-size:var(--ztx-font-size-body)}
-body{font-size:var(--ztx-font-size-body)}
-
-
-
-
-
-
-
-
-
-
-/* 折叠导航下，三级弹窗从二级弹窗右侧展开，避免两个弹窗互相覆盖 */
-
-
-
-
-
-
+@layer base {
+  :root {
+    font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ztx-text);
+    background: var(--ztx-page);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  * { box-sizing: border-box; }
+  html, body, #app { width: 100%; min-width: 320px; min-height: 100%; margin: 0; }
+  body { min-height: 100vh; font-size: var(--ztx-font-size-body); }
+  button { font: inherit; }
+  button:focus-visible { outline: 2px solid var(--ztx-primary); outline-offset: 2px; }
+}
+
+@layer components {
+  .flyout-enter-active, .flyout-leave-active { transition: opacity .12s ease, transform .12s ease; }
+  .flyout-enter-from, .flyout-leave-to { opacity: 0; transform: translateX(-4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

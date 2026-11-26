@@ -141,7 +141,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
           v-for="tab in workspace.tabs"
           :key="tab.path"
           class="workspace-tab relative inline-flex min-h-11 min-w-[104px] max-w-[180px] items-center justify-center gap-[9px] whitespace-nowrap px-[11px] text-ztx-body text-ztx-muted hover:bg-ztx-surface-soft hover:text-ztx-text"
-          :class="{ 'is-active': workspace.activePath === tab.path, 'border-x border-ztx-border bg-ztx-page font-semibold text-ztx-primary-strong': workspace.activePath === tab.path }"
+          :class="{ 'is-active': workspace.activePath === tab.path, 'border-x border-b-2 border-ztx-border border-b-ztx-primary bg-ztx-page font-semibold text-ztx-primary-strong': workspace.activePath === tab.path }"
           :aria-current="workspace.activePath === tab.path ? 'page' : undefined"
           @click="activateTab(tab.path)"
         >
@@ -178,19 +178,19 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
           </ZIconButton>
           <div v-if="accountMenuOpen" class="account-menu-panel absolute right-0 top-[calc(100%+7px)] z-[80] w-56 rounded-ztx-md border border-ztx-border bg-ztx-surface p-[7px] shadow-[var(--ztx-shadow-popover)]" role="menu" aria-label="用户账户菜单">
             <div class="account-menu-identity flex flex-col gap-[3px] border-b border-ztx-border px-2.5 pb-[11px] pt-[9px]">
-              <strong>{{ account?.username ?? '尚未登录' }}</strong>
-              <small>{{ account ? (account.kind === 'platform' ? '平台管理员' : '企业用户') : '账户' }}</small>
+              <strong class="text-ztx-body text-ztx-text">{{ account?.username ?? '尚未登录' }}</strong>
+              <small class="text-ztx-caption text-ztx-muted">{{ account ? (account.kind === 'platform' ? '平台管理员' : '企业用户') : '账户' }}</small>
             </div>
             <ZButton v-if="account?.kind === 'platform'" class="account-menu-item flex w-full items-center gap-[9px] rounded px-2.5 py-[9px] text-left text-ztx-body text-ztx-text-secondary hover:bg-ztx-surface-warm hover:text-ztx-primary-strong" variant="ghost" size="sm" role="menuitem" @click="openAccountPage('/platform/admin')">
               <ZShieldCheck :size="15" /> 平台控制台
             </ZButton>
-            <ZButton v-if="account?.kind === 'platform'" class="account-menu-item" variant="ghost" size="sm" role="menuitem" @click="openAccountPage('/platform/admin#password-settings')">
+            <ZButton v-if="account?.kind === 'platform'" class="account-menu-item flex w-full items-center gap-[9px] rounded px-2.5 py-[9px] text-left text-ztx-body text-ztx-text-secondary hover:bg-ztx-surface-warm hover:text-ztx-primary-strong" variant="ghost" size="sm" role="menuitem" @click="openAccountPage('/platform/admin#password-settings')">
               <ZUserRound :size="15" /> 修改密码
             </ZButton>
-            <ZButton v-if="account?.kind === 'tenant'" class="account-menu-item" variant="ghost" size="sm" role="menuitem" @click="openAccountPage('/tenant/account')">
+            <ZButton v-if="account?.kind === 'tenant'" class="account-menu-item flex w-full items-center gap-[9px] rounded px-2.5 py-[9px] text-left text-ztx-body text-ztx-text-secondary hover:bg-ztx-surface-warm hover:text-ztx-primary-strong" variant="ghost" size="sm" role="menuitem" @click="openAccountPage('/tenant/account')">
               <ZUserRound :size="15" /> 修改密码
             </ZButton>
-            <ZButton v-if="!account" class="account-menu-item" variant="ghost" size="sm" role="menuitem" @click="openAccountPage(route.path.startsWith('/platform') ? '/platform/login' : '/tenant/login')">
+            <ZButton v-if="!account" class="account-menu-item flex w-full items-center gap-[9px] rounded px-2.5 py-[9px] text-left text-ztx-body text-ztx-text-secondary hover:bg-ztx-surface-warm hover:text-ztx-primary-strong" variant="ghost" size="sm" role="menuitem" @click="openAccountPage(route.path.startsWith('/platform') ? '/platform/login' : '/tenant/login')">
               <ZUserRound :size="15" /> 登录
             </ZButton>
             <ZAlert v-if="accountMenuError" class="account-menu-error mx-2 my-[5px] text-ztx-caption text-ztx-danger" tone="error" role="alert">{{ accountMenuError }}</ZAlert>
@@ -210,7 +210,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         @pointerenter="clearCloseTimer"
         @pointerleave="onMenuPointerLeave"
       >
-        <nav class="sidebar-navigation min-h-0 flex-1 overflow-y-auto px-[9px] pb-[14px] pt-[10px]" aria-label="一级菜单">
+        <nav class="sidebar-navigation min-h-0 flex-1 overflow-y-auto px-[9px] pb-[14px] pt-[10px]" :class="{ 'px-[7px]': navCollapsed }" aria-label="一级菜单">
           <div v-for="module in menuModules" :key="module.id" class="module-group mb-[3px] flex flex-col" @pointerleave="navCollapsed && onMenuPointerLeave($event)">
             <button
               class="module-entry flex min-h-11 w-full items-center justify-start gap-3 rounded-[7px] px-3 text-ztx-nav text-ztx-text hover:bg-ztx-surface-soft"
@@ -241,7 +241,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
                 :key="category.id"
                 :ref="element => setCategoryButton(category.id, element as HTMLButtonElement | null)"
                 class="category-entry flex min-h-[37px] w-full items-center justify-between gap-2 rounded-md px-[10px] text-ztx-body text-ztx-text-secondary hover:bg-ztx-surface-soft hover:text-ztx-primary-strong"
-                :class="{ 'is-open bg-ztx-surface-soft font-semibold text-ztx-primary-strong': openCategoryId === category.id && flyoutOpen }"
+                 :class="{ 'is-open bg-ztx-surface-soft font-semibold text-ztx-primary-strong': openCategoryId === category.id && flyoutOpen }"
                 :aria-expanded="openCategoryId === category.id && flyoutOpen"
                 aria-haspopup="menu"
                 @pointerenter="onCategoryPointerEnter(category.id)"
@@ -268,8 +268,8 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
             v-for="(category, index) in activeModule.categories"
             :key="category.id"
             :ref="element => setCategoryButton(category.id, element as HTMLButtonElement | null)"
-            class="category-entry"
-            :class="{ 'is-open': openCategoryId === category.id && flyoutOpen }"
+            class="category-entry flex min-h-9 w-full items-center justify-between gap-2 rounded-md px-[9px] text-ztx-body text-ztx-text-secondary hover:bg-ztx-surface-soft hover:text-ztx-primary-strong"
+            :class="{ 'is-open bg-ztx-surface-soft font-semibold text-ztx-primary-strong': openCategoryId === category.id && flyoutOpen }"
             :aria-expanded="openCategoryId === category.id && flyoutOpen"
             aria-haspopup="menu"
             @pointerenter="onCategoryPointerEnter(category.id)"
@@ -280,8 +280,8 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
             <ZChevronRight :size="15" />
           </button>
         </div>
-        <div class="rail-footer flex items-center justify-start gap-2.5 border-t border-ztx-border px-3.5 py-3 text-ztx-caption">
-          <span class="environment-dot" />
+        <div class="rail-footer flex items-center justify-start gap-2.5 border-t border-ztx-border px-3.5 py-3 text-ztx-caption" :class="{ 'justify-center px-1.5 py-2.5': navCollapsed }">
+          <span class="environment-dot size-[7px] shrink-0 rounded-full bg-ztx-success-indicator shadow-[0_0_0_3px_rgba(108,148,110,0.12)]" />
           <span class="environment-label" :class="{ hidden: navCollapsed }">演示环境</span>
           <button
             class="nav-collapse-toggle ml-auto grid size-[30px] place-items-center rounded-[5px] border border-ztx-border bg-ztx-surface text-ztx-muted hover:bg-ztx-surface-warm hover:text-ztx-primary-strong"
@@ -296,7 +296,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <Transition name="flyout">
           <div
             v-if="flyoutOpen && activeCategory"
-            class="feature-flyout absolute left-[calc(100%-1px)] z-30 max-h-[calc(100vh-110px)] w-[252px] overflow-auto rounded-ztx-md border border-ztx-border-strong bg-ztx-surface p-2.5 shadow-[var(--ztx-shadow-popover)] transition-[opacity,transform] duration-150"
+            class="feature-flyout absolute left-[calc(100%-1px)] z-30 max-h-[calc(100vh-110px)] w-[252px] overflow-auto rounded-ztx-md border border-ztx-border-strong bg-ztx-surface p-2.5 shadow-[var(--ztx-shadow-popover)] transition-[opacity,transform] duration-150" :class="{ 'left-[270px] max-[720px]:left-[244px]': navCollapsed }"
             :style="{ top: flyoutTop + 'px' }"
             role="menu"
             :aria-label="activeCategory.label + '功能菜单'"
@@ -323,7 +323,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <RouterView />
         <footer class="workspace-footer mt-auto flex justify-between gap-3 py-[15px] pb-3 text-ztx-caption text-ztx-muted">
           <span>© 2026 ZTX · 制造业低代码 ERP 平台</span>
-          <span>平台工作区 <i /> 安全连接</span>
+          <span class="flex items-center gap-[7px]">平台工作区 <i class="size-[5px] rounded-full bg-ztx-success-indicator" /> 安全连接</span>
         </footer>
       </main>
     </div>
