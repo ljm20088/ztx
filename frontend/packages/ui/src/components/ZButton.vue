@@ -7,8 +7,9 @@ withDefaults(defineProps<{variant?:'primary'|'secondary'|'ghost'|'danger';size?:
     :class="[
       'is-' + variant,
       'size-' + size,
-      size === 'sm' ? 'min-h-[29px] px-2' : '',
-      size === 'lg' ? 'min-h-10 px-4' : '',
+      size === 'sm' ? 'min-h-[29px] px-[9px]' : '',
+      size === 'md' ? 'min-h-[34px] px-[13px]' : '',
+      size === 'lg' ? 'min-h-[40px] px-4' : '',
       variant === 'primary' ? 'bg-ztx-primary text-white hover:bg-ztx-primary-hover' : '',
       variant === 'secondary' ? 'border-ztx-border-strong bg-ztx-surface text-ztx-text hover:bg-ztx-surface-warm' : '',
       variant === 'ghost' ? 'bg-transparent text-ztx-text-secondary hover:bg-ztx-surface-soft' : '',
