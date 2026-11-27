@@ -81,8 +81,6 @@ class MetadataQueryEngineTest {
         val compiled = MetadataQueryEngine.compile(definition, JsonObject(), "TENANT_USER", emptySet(), emptySet(), emptySet())
         assertEquals(true, compiled.countSql.contains("FALSE"))
     }
-}
-
 
     /** Given 筛选 AST 包含超过总量上限的节点，When 编译查询，Then 在执行 SQL 前拒绝过量表达式。 */
     @Test
@@ -108,3 +106,4 @@ class MetadataQueryEngineTest {
         }
         assertEquals(true, error.message!!.contains("节点总数"))
     }
+}
