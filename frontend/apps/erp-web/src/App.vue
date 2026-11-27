@@ -113,7 +113,19 @@ function onFlyoutKeydown(event:KeyboardEvent){
 }
 async function navigateTo(path:string){const feature=findFeature(path);if(feature)workspace.openTab({path,title:feature.label,closable:path!='/workspace'});flyoutOpen.value=false;await router.push(path)}
 async function activateTab(path:string){workspace.activateTab(path);await router.push(path)}
-async function closeTab(path:string,event:Event){event.stopPropagation();const wasActive=workspace.activePath===path;workspace.closeTab(path);if(wasActive)await router.push(workspace.activePath)}
+async function closeTab(path:string,event:Event){
+ event.stopPropagation()
+ const wasActive=workspace.activePath===path
+ if(wasActive){
+  const remaining=workspace.tabs.filter(tab=>tab.path!==path)
+  const fallback=remaining[Math.max(0,workspace.tabs.findIndex(tab=>tab.path===path)-1)]?.path??remaining[0]?.path
+  if(fallback){
+   const failure=await router.push(fallback)
+   if(failure)return
+  }
+ }
+ workspace.closeTab(path)
+}
 async function refreshAccount(){
  if(route.path==='/platform/login'||route.path==='/tenant/login'){account.value=null;return}
  const platform=route.path.startsWith('/platform/')
@@ -334,7 +346,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         </Transition>
       </aside>
       <main class="workspace-main flex min-w-0 flex-1 flex-col px-[26px] pt-4 max-[1050px]:px-[18px] max-[720px]:px-3 max-[720px]:pt-3">
-        <RouterView />
+        <RouterView v-slot="{ Component, route: viewRoute }"><KeepAlive><component :is="Component" :key="viewRoute.fullPath" /></KeepAlive></RouterView>
         <footer class="workspace-footer mt-auto flex justify-between gap-3 py-[15px] pb-3 text-ztx-caption text-ztx-muted max-[720px]:flex-col max-[720px]:items-start">
           <span>© 2026 ZTX · 制造业低代码 ERP 平台</span>
           <span class="flex items-center gap-[7px]">{{ isPlatformWorkspace ? '平台工作区' : '企业工作区' }} <i class="size-[5px] rounded-full bg-ztx-success-indicator" /> 安全连接</span>

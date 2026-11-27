@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ZAlert, ZButton, ZFormField, ZInput } from '@ztx/ui'
 
 type Field = {
@@ -17,6 +17,14 @@ const jsonText = reactive<Record<string, string>>({})
 const busy = ref(false)
 const error = ref('')
 const message = ref('')
+const savedSnapshot = ref('')
+const currentSnapshot = computed(() => JSON.stringify({ document, jsonText }))
+const isDirty = computed(() => savedSnapshot.value !== '' && savedSnapshot.value !== currentSnapshot.value)
+onBeforeRouteLeave(() => {
+  // Given 用户编辑了单据但尚未保存，When 切换工作区标签或离开表单，Then 必须明确确认而不能静默丢弃。
+  if (!isDirty.value) return true
+  return window.confirm('当前单据有未保存的修改，确定放弃这些修改吗？')
+})
 const doctype = computed(() => String(route.params.doctype ?? ''))
 const documentId = computed(() => route.params.id ? String(route.params.id) : '')
 const fields = computed(() => {
@@ -137,7 +145,7 @@ async function runAction(action: 'submit' | 'cancel' | 'void') {
   }
 }
 watch([doctype, documentId], () => { void load() })
-onMounted(() => { void load() })
+onMounted(() => {\n  const protectUnload = (event: BeforeUnloadEvent) => {\n    if (!isDirty.value) return\n    event.preventDefault()\n    event.returnValue = ''\n  }\n  window.addEventListener('beforeunload', protectUnload)\n  void load()\n})
 </script>
 
 <template>
