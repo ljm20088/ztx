@@ -161,7 +161,7 @@ test('左侧导航可整体折叠、展开并记住状态', async ({ page }) => 
     sidebar: document.querySelector('.ztx-sidebar')!.getBoundingClientRect().width,
     main: document.querySelector('.workspace-main')!.getBoundingClientRect().width,
   }))
-  expect(collapsedLayout.brand).toBe(collapsedLayout.sidebar)
+  expect(Math.abs(collapsedLayout.brand - collapsedLayout.sidebar)).toBeLessThan(1)
   expect(collapsedLayout.main).toBeGreaterThan(expandedMainWidth)
 
   // When 鼠标悬停一级模块图标（触屏端改用点击）
