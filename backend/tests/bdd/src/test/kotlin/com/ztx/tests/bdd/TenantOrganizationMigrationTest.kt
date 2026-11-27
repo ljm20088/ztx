@@ -38,8 +38,8 @@ class TenantOrganizationMigrationTest {
                 statement.executeQuery("""SELECT count(*) FROM information_schema.tables
                     WHERE table_schema IN ('org','hr','iam') AND table_name IN
                     ('company','book','organization_unit','employee','employment','user_account',
-                     'job_position','module_role','position_module_role','employment_position','role_permission')""").use { rows ->
-                    rows.next(); assertEquals(11,rows.getInt(1))
+                     'user_session','job_position','module_role','job_position_module_role','employment_position','role_permission')""").use { rows ->
+                    rows.next(); assertEquals(12,rows.getInt(1))
                 }
             }
         }

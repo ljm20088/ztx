@@ -23,7 +23,8 @@ internal enum class AuthScope(
     val invalidIpAsNull: Boolean
 ) {
     PLATFORM("iam.platform_login_attempt", "audit.platform_security_event", "admin_id", false),
-    TENANT("iam.tenant_login_attempt", "audit.tenant_security_event", "tenant_admin_id", true)
+    TENANT("iam.tenant_login_attempt", "audit.tenant_security_event", "tenant_admin_id", true),
+    TENANT_USER("iam.tenant_login_attempt", "audit.tenant_security_event", "tenant_user_id", true)
 }
 
 /** 平台与企业认证共用的密码、令牌、审计和 HTTP 基础处理；业务策略仍由各自服务负责。 */

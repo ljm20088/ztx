@@ -25,7 +25,8 @@ test('企业管理员可以创建企业并为企业建立账套', async ({ page 
 
   // When 租户管理员新增企业
   await page.goto('/enterprise/companies')
-  await expect(page.getByRole('heading', { name: '企业信息' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '企业信息', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '新增' }).click()
   await page.getByLabel('企业编码').fill('acme')
   await page.getByLabel('企业名称').fill('Acme 制造')
   await page.getByRole('button', { name: '保存' }).click()
@@ -35,6 +36,7 @@ test('企业管理员可以创建企业并为企业建立账套', async ({ page 
 
   // When 管理员进入账套管理并为企业创建账套
   await page.goto('/enterprise/books')
+  await page.getByRole('button', { name: '新增' }).click()
   await page.getByLabel('所属企业 ID').fill('company-1')
   await page.getByLabel('账套编码').fill('MAIN')
   await page.getByLabel('账套名称').fill('主账套')
