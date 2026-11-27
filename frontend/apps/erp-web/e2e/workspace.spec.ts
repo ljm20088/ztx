@@ -423,9 +423,9 @@ test('表单未保存保护与工作区视图实例恢复', async ({ page }) => 
   await tabs.getByRole('button', { name: /工作台/ }).click()
   await expect(page).toHaveURL(/\/workspace$/)
 
-  // Then 工作区仍保留原表单 Tab，重新激活后表单实例仍在
+  // Then 用户已确认放弃修改，重新激活表单时显示数据库中的原值
   await tabs.locator('button.workspace-tab').filter({ hasText: '元数据单据' }).click()
-  await expect(page.locator('#doc-code')).toHaveValue('PO-EDITED')
+  await expect(page.locator('#doc-code')).toHaveValue('PO-001')
 })
 
 test('报表使用独立的参数与结果视图', async ({ page }) => {
