@@ -27,6 +27,19 @@ async function refresh() {
   }
 }
 onMounted(() => { void refresh() })
+function eventTypeLabel(value: string) {
+  const labels: Record<string, string> = {
+    ADMIN_INITIALIZED: '平台管理员初始化',
+    LOGIN: '登录',
+    MFA_LOGIN: '动态验证码登录',
+    LOGOUT: '退出登录',
+    PASSWORD_CHANGED: '修改密码',
+    MFA_ENROLLMENT_STARTED: '开始绑定多重身份验证',
+    MFA_ENABLED: '启用多重身份验证',
+    ADMIN_PASSWORD_RESET: '重置平台管理员密码',
+  }
+  return labels[value] ?? '其他操作'
+}
 function outcomeLabel(value: AuditEvent['outcome']) {
   return value === 'SUCCESS' ? '成功' : value === 'FAILURE' ? '失败' : '拒绝'
 }
@@ -45,7 +58,7 @@ function outcomeLabel(value: AuditEvent['outcome']) {
         <tbody>
           <tr v-for="event in events" :key="event.id" class="border-t border-ztx-border">
             <td class="whitespace-nowrap px-3 py-2.5">{{ new Date(event.occurredAt).toLocaleString() }}</td>
-            <td class="px-3 py-2.5">{{ event.eventType }}</td>
+            <td class="px-3 py-2.5">{{ eventTypeLabel(event.eventType) }}</td>
             <td class="px-3 py-2.5">{{ outcomeLabel(event.outcome) }}</td>
             <td class="px-3 py-2.5">{{ event.adminUsername || '—' }}</td>
             <td class="px-3 py-2.5">{{ event.sourceIp || '—' }}</td>
