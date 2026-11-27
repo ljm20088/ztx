@@ -352,7 +352,7 @@ class TenantOrganizationRoutes {
                         }
                         permissions.put(key,JsonObject().put("allowed",!denied).put("effect",if(denied)"DENY" else "ALLOW")
                             .put("dataScope",scope).put("scopeConstraints",constraints)
-                            .put("fieldPermissions",JsonObject(fieldModes.mapValues { it.value as Any }))))
+                            .put("fieldPermissions",JsonObject(fieldModes.mapValues { it.value as Any })))
                     }
                     JsonObject().put("employmentId",employmentId.toString()).put("permissions",permissions)
                 }
