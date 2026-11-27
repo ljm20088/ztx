@@ -145,7 +145,15 @@ async function runAction(action: 'submit' | 'cancel' | 'void') {
   }
 }
 watch([doctype, documentId], () => { void load() })
-onMounted(() => {\n  const protectUnload = (event: BeforeUnloadEvent) => {\n    if (!isDirty.value) return\n    event.preventDefault()\n    event.returnValue = ''\n  }\n  window.addEventListener('beforeunload', protectUnload)\n  void load()\n})
+onMounted(() => {
+  const protectUnload = (event: BeforeUnloadEvent) => {
+    if (!isDirty.value) return
+    event.preventDefault()
+    event.returnValue = ''
+  }
+  window.addEventListener('beforeunload', protectUnload)
+  void load()
+})
 </script>
 
 <template>
