@@ -33,6 +33,11 @@ object PlatformAdminResetCommand {
             }
             promptAndReset(console, service, operator)
         } catch (error: Exception) {
+            // 数据库仍可用时，尽力记录命令执行失败；数据库不可用时无法保证审计落库。
+            runCatching {
+                database.ping().await()
+                service.recordPasswordResetCommandFailure(operator, "COMMAND_EXECUTION_FAILED").await()
+            }
             System.err.println("平台管理员密码重置未完成。请检查数据库连接、迁移状态和服务器日志；不要将密码或凭据写入日志。")
             1
         } finally {
