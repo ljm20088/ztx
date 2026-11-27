@@ -28,6 +28,7 @@ import java.net.Socket
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.sql.DriverManager
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -116,18 +117,39 @@ class PlatformAuthIntegrationTest {
             assertFalse(missingAdminReset.success)
             assertEquals(false, service.initializationStatus().await())
 
-            // When：两个初始化请求并发提交不同账号
-            val concurrentAttempts = listOf(
-                service.initialize("platform.admin", "ZtxAdmin123", "127.0.0.1", "bdd-test"),
-                service.initialize("second.admin", "ZtxAdmin123", "127.0.0.1", "bdd-test")
-            )
-            val outcomes = concurrentAttempts.map { attempt -> runCatching { attempt.await() } }
+            // Given：初始化路由仍在服务器回环地址监听
+            val initializeRouter = Router.router(vertx)
+            PlatformAuthRoutes(service, secureCookies = false).register(initializeRouter)
+            val initializeServer = vertx.createHttpServer()
+                .requestHandler(initializeRouter).listen(0, "127.0.0.1").await()
+            val initializeHost = "127.0.0.1:${initializeServer.actualPort()}"
+            try {
+                // When：两个真实 HTTP 初始化请求并发提交相同的首个平台管理员
+                val concurrentRequests = listOf(
+                    CompletableFuture.supplyAsync {
+                        rawHttpRequest(initializeServer.actualPort(), "POST",
+                            "/api/v1/platform/auth/initialize", initializeHost)
+                    },
+                    CompletableFuture.supplyAsync {
+                        rawHttpRequest(initializeServer.actualPort(), "POST",
+                            "/api/v1/platform/auth/initialize", initializeHost)
+                    }
+                )
+                val responses = concurrentRequests.map { it.get(30, TimeUnit.SECONDS) }
 
-            // Then：数据库事务锁保证只能创建一个首个平台管理员
-            assertEquals(1, outcomes.count { it.isSuccess })
-            val initialized = outcomes.single { it.isSuccess }.getOrThrow()
+                // Then：真实 API 只创建一个管理员；另一请求得到冲突响应
+                assertEquals(1, responses.count { it.startsWith("HTTP/1.1 201") })
+                assertEquals(1, responses.count { it.startsWith("HTTP/1.1 409") })
+                assertTrue(responses.any { it.lowercase().contains("set-cookie: ztx_platform_session=") })
+            } finally {
+                initializeServer.close().await()
+            }
+
+            // Then：通过 HTTP 初始化成功后，数据库中只有一个管理员
+            assertTrue(service.initializationStatus().await())
+            val initialized = service.login("platform.admin", "ZtxAdmin123", null,
+                "127.0.0.1", "bdd-test").await()
             val admin = initialized.admin
-            assertEquals(true, service.initializationStatus().await())
 
             // When：模拟 Server 重启后由新认证服务实例读取同一控制面数据库
             val restartedService = PlatformAuthService(database, "test-mfa-encryption-key-32-bytes-minimum")
