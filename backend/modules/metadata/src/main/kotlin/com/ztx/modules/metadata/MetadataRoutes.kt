@@ -131,8 +131,8 @@ class MetadataRoutes(private val schemaMigrations: SchemaMigrationService = Sche
                     val version = row.getInteger("version")
                     // Given 元数据校验通过，When 发布该版本，Then 先完成受控物理 Schema Migration，再激活定义。
                     val migration: Future<Void> = if (diagnostics.isEmpty()) {
-                        schemaMigrations.migrate(principal.database, doctype, version, definition, principal.userId).map { Unit }
-                    } else Future.succeededFuture()
+                        schemaMigrations.migrate(principal.database, doctype, version, definition, principal.userId).mapEmpty<Void>()
+                    } else Future.succeededFuture<Void>()
                     migration.compose {
                         connection.preparedQuery(
                             """UPDATE meta.document_definition SET status=$2,updated_by=$3,updated_at=clock_timestamp()
