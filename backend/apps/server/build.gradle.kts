@@ -14,7 +14,10 @@ dependencies {
     implementation(libs.slf4j.api)
     runtimeOnly(libs.logback.classic)
 }
-application { mainClass.set("com.ztx.server.MainKt") }
+application {
+    mainClass.set("com.ztx.server.MainKt")
+    applicationDefaultJvmArgs = listOf("-Dztx.version=${project.version}")
+}
 tasks.named<JavaExec>("run") { workingDir = rootProject.projectDir }
 
 // 生产/本地集成启动时，将 Vue 构建产物纳入 Server 的 classpath/webroot。

@@ -22,6 +22,8 @@ class HealthEndpointTest {
             override fun ping(): Future<Void> = Future.failedFuture("database unavailable")
         }
         var server: io.vertx.core.http.HttpServer? = null
+        val previousVersion = System.getProperty("ztx.version")
+        System.setProperty("ztx.version", "0.1.0-test")
 
         try {
             // When：启动健康检查端点并分别请求 liveness 和 readiness
@@ -40,11 +42,14 @@ class HealthEndpointTest {
             // Then：liveness 不受数据库故障影响，readiness 明确返回 503
             assertEquals(200, live.statusCode())
             assertTrue(live.body().contains("\"status\":\"UP\""))
+            assertTrue(live.body().contains("\"version\":\"0.1.0-test\""))
             assertEquals(503, ready.statusCode())
             assertTrue(ready.body().contains("\"database\":\"DOWN\""))
         } finally {
             server?.close()?.toCompletionStage()?.toCompletableFuture()?.get(10, TimeUnit.SECONDS)
             vertx.close().toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS)
+            if (previousVersion == null) System.clearProperty("ztx.version")
+            else System.setProperty("ztx.version", previousVersion)
         }
     }
 }
