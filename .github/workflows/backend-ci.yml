@@ -53,6 +53,7 @@ jobs:
               - 'gradle.properties'
               - 'gradlew'
               - 'gradlew.bat'
+              - '.github/workflows/backend-ci.yml'
             launcher:
               - 'backend/**'
               - 'frontend/**'
@@ -66,6 +67,7 @@ jobs:
               - '.devcontainer/**'
               - '.env.example'
               - 'ztx'
+              - '.github/workflows/backend-ci.yml'
 
   backend:
     name: JDK 21 · Gradle 9.7 · Kotlin 2.4
