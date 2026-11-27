@@ -1,22 +1,48 @@
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+
 export interface WorkspaceTab { path: string; title: string; closable: boolean }
+type WorkspaceMode = 'tenant' | 'platform'
+
 export const useWorkspaceStore = defineStore('workspace', () => {
-  const tabs = ref<WorkspaceTab[]>([{ path: '/workspace', title: '工作台', closable: false }])
-  const activePath = ref('/workspace')
+  const mode = ref<WorkspaceMode>('tenant')
+  const tenantTabs = ref<WorkspaceTab[]>([{ path: '/workspace', title: '工作台', closable: false }])
+  const platformTabs = ref<WorkspaceTab[]>([{ path: '/platform/admin', title: '平台概览', closable: false }])
+  const tenantActivePath = ref('/workspace')
+  const platformActivePath = ref('/platform/admin')
+  const tabs = computed(() => mode.value === 'platform' ? platformTabs.value : tenantTabs.value)
+  const activePath = computed(() => mode.value === 'platform' ? platformActivePath.value : tenantActivePath.value)
+
+  function setMode(next: WorkspaceMode) {
+    mode.value = next
+  }
+
   function openTab(tab: WorkspaceTab) {
-    if (!tabs.value.some((item) => item.path === tab.path)) tabs.value.push(tab)
-    activePath.value = tab.path
+    const currentTabs = tabs.value
+    if (!currentTabs.some(item => item.path === tab.path)) currentTabs.push(tab)
+    if (mode.value === 'platform') platformActivePath.value = tab.path
+    else tenantActivePath.value = tab.path
   }
+
   function activateTab(path: string) {
-    if (tabs.value.some((item) => item.path === path)) activePath.value = path
+    if (tabs.value.some(item => item.path === path)) {
+      if (mode.value === 'platform') platformActivePath.value = path
+      else tenantActivePath.value = path
+    }
   }
+
   function closeTab(path: string) {
-    const index = tabs.value.findIndex((item) => item.path === path)
-    if (index < 0 || !tabs.value[index]?.closable) return
+    const currentTabs = tabs.value
+    const index = currentTabs.findIndex(item => item.path === path)
+    if (index < 0 || !currentTabs[index]?.closable) return
     const wasActive = activePath.value === path
-    tabs.value.splice(index, 1)
-    if (wasActive) activePath.value = (tabs.value[Math.max(0, index - 1)] ?? tabs.value[0])?.path ?? '/workspace'
+    currentTabs.splice(index, 1)
+    if (wasActive) {
+      const fallback = (currentTabs[Math.max(0, index - 1)] ?? currentTabs[0])?.path
+      if (mode.value === 'platform') platformActivePath.value = fallback ?? '/platform/admin'
+      else tenantActivePath.value = fallback ?? '/workspace'
+    }
   }
-  return { tabs, activePath, openTab, activateTab, closeTab }
+
+  return { mode, tabs, activePath, setMode, openTab, activateTab, closeTab }
 })
