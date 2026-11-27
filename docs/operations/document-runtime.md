@@ -26,6 +26,19 @@ Codec 支持 UUID、LocalDate、LocalDateTime、LocalTime、BigDecimal、Long、
 
 当前切片覆盖纯元数据 Document 的通用 CRUD、草稿/提交/撤销/作废、嵌套 JSON 明细、统一权限/事务/审计、动态表单，以及通过服务端可信代码注册的 Kotlin 业务扩展。独立关系型明细表映射不属于本 Issue 的交付范围；当前明细按 JSONB 保存。
 
+
+## Kotlin 业务代码的数据访问门面
+
+DocumentBehaviorContext 提供租户作用域化的 context.db，业务代码不需要自行选择租户数据库或拼接数据访问前缀：
+
+- db.new(doctype)：按元数据创建内存 Document，应用默认值；不写数据库。
+- db.get(doctype, id)：按当前租户和用户数据范围读取 Document，并执行字段读取权限。
+- db.update(document)：只保存显式修改的字段，使用 Document 版本进行乐观锁校验；成功后返回新版本 Document。
+- db.list(doctype, query)：使用受控查询编译器，直接返回分页 JSON，不要求额外 DTO。
+- db.getValue(doctype, id, field)：读取单个字段，并执行字段读取权限。
+
+这些操作复用 Hook 当前的 SqlConnection，与外层单据写入、业务规则和审计处于同一事务。DynamicDocument 支持下标读写和类型化 getter；内存赋值不会自动持久化，必须显式调用 db.update(document)。版本冲突禁止静默覆盖。
+
 ## Kotlin 业务扩展
 
 Document Runtime 支持三种执行模式：

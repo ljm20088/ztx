@@ -165,7 +165,18 @@ class DocumentRuntimeRoutes(
             }
         }
 
-    private fun validateScopeFields(connection: SqlConnection, definition: JsonObject): Future<Void> {
+    internal fun loadDefinition(connection: SqlConnection, doctype: String): Future<JsonObject> =
+        connection.preparedQuery(
+            """SELECT definition_json FROM meta.document_definition
+               WHERE scope='TENANT' AND doctype=$1 AND status='VALIDATED'
+               ORDER BY version DESC LIMIT 1"""
+        ).execute(Tuple.of(doctype)).compose { rows ->
+            val definition = rows.firstOrNull()?.getJsonObject("definition_json")
+                ?: return@compose Future.failedFuture<JsonObject>("DocType 不存在或尚未通过校验")
+            validateScopeFields(connection, definition).map { definition }
+        }
+
+    internal fun validateScopeFields(connection: SqlConnection, definition: JsonObject): Future<Void> {
         val table = definition.getJsonObject("table") ?: return Future.failedFuture("缺少物理表映射")
         tableSql(definition)
         return connection.preparedQuery(
@@ -209,7 +220,7 @@ class DocumentRuntimeRoutes(
         }
     }
 
-    private fun updateRow(
+    internal fun updateRow(
         connection: SqlConnection,
         definition: JsonObject,
         id: UUID,
@@ -239,7 +250,7 @@ class DocumentRuntimeRoutes(
         }
     }
 
-    private fun selectOne(
+    internal fun selectOne(
         connection: SqlConnection,
         definition: JsonObject,
         id: UUID,
@@ -255,7 +266,7 @@ class DocumentRuntimeRoutes(
         }
     }
 
-    private fun scopeWhere(
+    internal fun scopeWhere(
         definition: JsonObject,
         principal: TenantPrincipal,
         parameters: MutableList<Any?>
@@ -276,7 +287,7 @@ class DocumentRuntimeRoutes(
         return conditions.takeIf { it.isNotEmpty() }?.joinToString(" AND ", prefix = " AND ") ?: ""
     }
 
-    private fun enforceCompanyScope(
+    internal fun enforceCompanyScope(
         definition: JsonObject,
         values: JsonObject,
         principal: TenantPrincipal,
@@ -295,7 +306,7 @@ class DocumentRuntimeRoutes(
         if (organization != null && organization !in principal.organizationUnitIds) throw IllegalArgumentException("无权访问指定组织的数据")
     }
 
-    private fun writableEntries(
+    internal fun writableEntries(
         definition: JsonObject,
         values: JsonObject,
         principal: TenantPrincipal
@@ -316,13 +327,13 @@ class DocumentRuntimeRoutes(
         }
     }
 
-    private fun encodeJson(value: Any): String = when (value) {
+    internal fun encodeJson(value: Any): String = when (value) {
         is JsonObject -> value.encode()
         is JsonArray -> value.encode()
         else -> throw IllegalArgumentException("JSON/明细字段必须是对象或数组")
     }
 
-    private fun tableSql(definition: JsonObject): String {
+    internal fun tableSql(definition: JsonObject): String {
         val table = definition.getJsonObject("table") ?: throw IllegalArgumentException("缺少表映射")
         val schema = table.getString("schema", "")
         val name = table.getString("name", "")
@@ -332,7 +343,7 @@ class DocumentRuntimeRoutes(
         return "\"$schema\".\"$name\""
     }
 
-    private fun authorize(definition: JsonObject, principal: TenantPrincipal, action: String) {
+    internal fun authorize(definition: JsonObject, principal: TenantPrincipal, action: String) {
         val roles = definition.getJsonObject("permissions")?.getJsonArray(action)
         if (roles == null || roles.isEmpty) {
             if (principal.role != "TENANT_ADMIN") throw IllegalArgumentException("无权执行单据动作：$action")
@@ -341,7 +352,7 @@ class DocumentRuntimeRoutes(
         }
     }
 
-    private fun redact(definition: JsonObject, principal: TenantPrincipal, row: JsonObject): JsonObject {
+    internal fun redact(definition: JsonObject, principal: TenantPrincipal, row: JsonObject): JsonObject {
         val fields = definition.getJsonArray("fields") ?: JsonArray()
         val allowed = fields.filterIsInstance<JsonObject>().filter { field ->
             val roles = field.getJsonArray("readRoles")
@@ -352,7 +363,7 @@ class DocumentRuntimeRoutes(
         }
     }
 
-    private fun audit(
+    internal fun audit(
         connection: SqlConnection,
         principal: TenantPrincipal,
         doctype: String,

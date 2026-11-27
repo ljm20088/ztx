@@ -81,6 +81,8 @@ class DynamicDocument private constructor(
         if (it is LocalTime) it else LocalTime.parse(it.toString())
     }
 
+    internal fun metadata(): JsonObject = definition.copy()
+
     fun dirtyFields(): Set<String> = changed.toSet()
     fun changes(): JsonObject = JsonObject().also { result ->
         changed.forEach { field -> result.put(field, copyValue(values.getValue(field))) }

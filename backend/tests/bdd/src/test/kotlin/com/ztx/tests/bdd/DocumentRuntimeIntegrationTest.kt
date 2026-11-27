@@ -2,6 +2,7 @@ package com.ztx.tests.bdd
 
 import com.ztx.adapters.postgres.FlywayMigrator
 import com.ztx.adapters.postgres.PgDatabase
+import com.ztx.modules.document.Db
 import com.ztx.modules.document.DocumentBehavior
 import com.ztx.modules.document.DocumentBehaviorContext
 import com.ztx.modules.document.DocumentBehaviorRegistry
@@ -47,10 +48,11 @@ class DocumentRuntimeIntegrationTest {
             before: JsonObject,
             action: String
         ): Future<Void> {
-            if (action == "submit" && before.getString("code") == "BLOCK") {
-                return Future.failedFuture<Void>(IllegalArgumentException("业务规则不允许提交"))
+            if (action != "submit") return Future.succeededFuture()
+            return context.db.getValue(context.doctype, context.documentId!!, "code").compose { code ->
+                if (code == "BLOCK") Future.failedFuture<Void>(IllegalArgumentException("业务规则不允许提交"))
+                else Future.succeededFuture()
             }
-            return Future.succeededFuture()
         }
     }
 
@@ -159,8 +161,34 @@ class DocumentRuntimeIntegrationTest {
             assertEquals(409, staleUpdate.statusCode())
             assertTrue(JsonObject(staleUpdate.body()).getJsonObject("error").getString("message").contains("其他用户修改"))
 
+            // Given 当前 Hook/业务请求已绑定租户事务，When 使用 db.get/list/new/update，Then 操作复用同一连接并返回动态 Document 或原始 JSON。
+            val loaded = database.withTransaction { connection ->
+                Db(principal, connection).get("DocumentProbe", UUID.fromString(documentId))
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals("PO-002", loaded.getString("code"))
+            assertEquals(2, loaded.version)
+
+            val listed = database.withTransaction { connection ->
+                Db(principal, connection).list("DocumentProbe", JsonObject().put("page", 1))
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals(1L, listed.getLong("total"))
+            assertEquals("PO-002", listed.getJsonArray("items").getJsonObject(0).getString("code"))
+
+            val newDocument = database.withTransaction { connection ->
+                Db(principal, connection).new("DocumentProbe")
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals(null, newDocument.id)
+            assertEquals(0, newDocument.version)
+
+            loaded["code"] = "PO-DB-003"
+            val dbUpdated = database.withTransaction { connection ->
+                Db(principal, connection).update(loaded)
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals("PO-DB-003", dbUpdated.getString("code"))
+            assertEquals(3, dbUpdated.version)
+
             val submitted = sendJson(client, "$base/$documentId/actions/submit", "POST",
-                JsonObject().put("version", updatedBody.getInteger("version")))
+                JsonObject().put("version", dbUpdated.version))
             assertEquals(200, submitted.statusCode())
             assertEquals(1, JsonObject(submitted.body()).getInteger("docstatus"))
 

@@ -27,7 +27,10 @@ data class DocumentBehaviorContext(
     val before: JsonObject? = null,
     val after: JsonObject? = null,
     val action: String? = null
-)
+) {
+    /** Hook 内的数据访问复用当前租户主体和当前业务事务连接。 */
+    val db: Db get() = Db(principal, connection)
+}
 
 /**
  * 一个 DocType 对应一个已编译并随服务部署的 Kotlin 实现。
