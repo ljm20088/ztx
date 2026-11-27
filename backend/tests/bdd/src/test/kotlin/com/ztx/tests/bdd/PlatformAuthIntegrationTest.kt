@@ -4,8 +4,11 @@ import com.ztx.adapters.postgres.FlywayMigrator
 import com.ztx.adapters.postgres.PgDatabase
 import com.ztx.adapters.postgres.PostgresOutboxStore
 import com.ztx.server.BackgroundTaskWorker
+import com.ztx.server.PlatformAdminResetCommand
 import com.ztx.modules.iam.PlatformAuthService
+import com.ztx.platform.common.AppConfig
 import com.ztx.platform.common.DatabaseConfig
+import com.ztx.platform.common.RuntimeRole
 import io.vertx.core.Future
 import io.vertx.core.Vertx
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -130,6 +133,21 @@ class PlatformAuthIntegrationTest {
                 "platform.admin", "ZtxAdmin123", currentTotp(enrollment.secret), "127.0.0.1", "bdd-test"
             ).await()
 
+            // When：从非交互式进程调用服务器重置命令（没有可用终端）
+            val commandConfig = AppConfig(
+                role = RuntimeRole.SERVER,
+                httpHost = "127.0.0.1",
+                httpPort = 8080,
+                migrateOnStart = false,
+                mfaEncryptionKey = "test-mfa-encryption-key-32-bytes-minimum",
+                secureCookies = false,
+                database = config
+            )
+            val nonInteractiveExitCode = PlatformAdminResetCommand.execute(commandConfig, null)
+
+            // Then：命令拒绝非交互式输入并记录失败审计，不触碰现有会话
+            assertEquals(2, nonInteractiveExitCode)
+
             // Then：会话在有效期内可认证；超过有效期后服务端拒绝该会话
             assertNotNull(service.authenticate(mfaLogin.sessionToken).await())
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
@@ -204,8 +222,8 @@ class PlatformAuthIntegrationTest {
                         while (rows.next()) {
                             resetAudits += Triple(rows.getString("outcome"), rows.getString("operator"), rows.getString("target_username"))
                         }
-                        assertEquals(3, resetAudits.size)
-                        assertEquals(2, resetAudits.count { it.first == "FAILURE" })
+                        assertEquals(4, resetAudits.size)
+                        assertEquals(3, resetAudits.count { it.first == "FAILURE" })
                         assertEquals(1, resetAudits.count { it.first == "SUCCESS" })
                         assertTrue(resetAudits.all { it.second == "ztx-deployer" })
                         assertTrue(resetAudits.all { it.third == "platform.admin" })
