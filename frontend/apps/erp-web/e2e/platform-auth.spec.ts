@@ -127,5 +127,6 @@ test('平台管理员可以查看平台安全审计记录', async ({ page }) => 
   await expect(page.getByRole('cell', { name: '启用多重身份验证', exact: true })).toBeVisible()
   await expect(page.getByRole('cell', { name: '重置平台管理员密码', exact: true })).toBeVisible()
   await expect(page.getByRole('cell', { name: 'LOGIN', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('cell', { name: '成功', exact: true })).toHaveCount(8)
+  await expect(page.getByRole('cell', { name: '成功', exact: true })).toHaveCount(7)
+  await expect(page.getByRole('cell', { name: '失败', exact: true })).toHaveCount(1)
 })
