@@ -105,7 +105,7 @@ class DocumentRuntimeRoutes(
             val expectedVersion = request.getInteger("version")
                 ?: return@compose Future.failedFuture<JsonObject>("保存单据必须提供版本号")
             request.remove("version")
-            val values = DocumentValueCodec.decode(definition, request)
+            val values = DocumentValueCodec.decode(definition, request, applyDefaults = false)
             enforceCompanyScope(definition, values, principal, requireValue = false)
             val doctype = context.pathParam("doctype")
             val behavior = behaviors.resolve(definition, doctype)
@@ -240,7 +240,7 @@ class DocumentRuntimeRoutes(
         val placeholders = mutableListOf("$1", "$2", "$3")
         entries.forEach { (name, value, json) ->
             columns += "\"$name\""
-            parameters += if (json) encodeJson(value) else value
+            parameters += if (json && value != null) encodeJson(value) else value
             val marker = "$" + parameters.size
             placeholders += if (json) marker + "::jsonb" else marker
         }
@@ -259,7 +259,7 @@ class DocumentRuntimeRoutes(
         principal: TenantPrincipal,
         expectedVersion: Int
     ): Future<JsonObject> {
-        val entries = writableEntries(definition, values, principal)
+        val entries = writableEntries(definition, values, principal, includeNulls = true)
         if (entries.isEmpty()) return Future.failedFuture("没有可更新字段")
         val parameters = mutableListOf<Any?>()
         val assignments = entries.map { (name, value, json) ->
@@ -350,15 +350,18 @@ class DocumentRuntimeRoutes(
     internal fun writableEntries(
         definition: JsonObject,
         values: JsonObject,
-        principal: TenantPrincipal
-    ): List<Triple<String, Any, Boolean>> {
+        principal: TenantPrincipal,
+        includeNulls: Boolean = false
+    ): List<Triple<String, Any?, Boolean>> {
         val fields = definition.getJsonArray("fields") ?: JsonArray()
         return fields.filterIsInstance<JsonObject>().mapNotNull { field ->
             val name = field.getString("name") ?: return@mapNotNull null
             if (name in setOf("id", "docstatus", "created_at", "updated_at") || field.getBoolean("readOnly", false)) {
                 return@mapNotNull null
             }
-            val value = values.getValue(name) ?: return@mapNotNull null
+            if (!values.containsKey(name)) return@mapNotNull null
+            val value = values.getValue(name)
+            if (value == null && !includeNulls) return@mapNotNull null
             val writeRoles = field.getJsonArray("writeRoles")
             if (writeRoles != null && !writeRoles.isEmpty && writeRoles.none {
                 it == principal.role || it == "TENANT_ADMIN"

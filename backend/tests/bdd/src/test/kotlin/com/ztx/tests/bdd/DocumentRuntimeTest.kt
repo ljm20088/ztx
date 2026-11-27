@@ -6,6 +6,7 @@ import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -43,6 +44,16 @@ class DocumentRuntimeTest {
             DocumentValueCodec.decode(definition, JsonObject())
         }
         assertEquals("字段 code 为必填项", error.message)
+    }
+
+    /** Given 可选字段显式传入 null，When 解码更新请求，Then 保留 null 以支持清空字段。 */
+    @Test
+    fun preservesExplicitNullForOptionalFields() {
+        val definition = JsonObject().put("fields", JsonArray()
+            .add(JsonObject().put("name", "remark").put("type", "string")))
+        val decoded = DocumentValueCodec.decode(definition, JsonObject().put("remark", null), applyDefaults = false)
+        assertTrue(decoded.containsKey("remark"))
+        assertEquals(null, decoded.getValue("remark"))
     }
 
     /** Given 单据处于草稿，When 执行提交动作，Then 状态变为已提交。 */

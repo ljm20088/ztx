@@ -71,11 +71,14 @@ class Db(
             val normalized = JsonObject()
             changes.fieldNames().forEach { name ->
                 val field = fields[name] ?: throw IllegalArgumentException("DocType 未定义字段：$name")
-                val value = changes.getValue(name) ?: throw IllegalArgumentException("字段 $name 不支持写入 null")
-                normalized.put(name, DocumentValueCodec.normalizeField(field, value))
+                val value = changes.getValue(name)
+                if (value == null && field.getBoolean("required", false)) {
+                    throw IllegalArgumentException("字段 $name 为必填项，不允许清空")
+                }
+                normalized.put(name, value?.let { DocumentValueCodec.normalizeField(field, it) })
             }
             routes.enforceCompanyScope(definition, normalized, principal, requireValue = false)
-            val entries = routes.writableEntries(definition, normalized, principal)
+            val entries = routes.writableEntries(definition, normalized, principal, includeNulls = true)
             if (entries.size != normalized.size()) throw IllegalArgumentException("存在不可写字段")
             routes.selectOne(connection, definition, id, principal, lock = true).compose { before ->
                 if (before.getInteger("version", 1) != document.version) {
@@ -227,12 +230,15 @@ class Db(
  * 不持有全局租户状态；每次调用都绑定调用者提供的可信 TenantPrincipal。
  */
 class DbProvider(private val routes: DocumentRuntimeRoutes = DocumentRuntimeRoutes()) {
-    fun <T : Any> transaction(principal: TenantPrincipal, block: (Db) -> Future<T>): Future<T> =
-        principal.database.withTransaction<T> { connection ->
+    private data class TransactionResult<T>(val value: T)
+
+    /** 支持 nullable 查询结果；使用非空包装值跨过 Vert.x 事务泛型边界，事务完成后再还原结果。 */
+    fun <T> transaction(principal: TenantPrincipal, block: (Db) -> Future<T>): Future<T> =
+        principal.database.withTransaction<Any> { connection ->
             try {
-                block(Db(principal, connection, routes))
+                block(Db(principal, connection, routes)).map { result -> TransactionResult(result) as Any }
             } catch (error: Throwable) {
-                Future.failedFuture<T>(error)
+                Future.failedFuture<Any>(error)
             }
-        }
+        }.map { result -> (result as TransactionResult<T>).value }
 }

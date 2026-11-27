@@ -14,18 +14,27 @@ import kotlin.reflect.full.primaryConstructor
 
 /** 将 JSON 输入按 DocType 字段定义转换为稳定的 Kotlin 值；不执行元数据中的表达式或脚本。 */
 object DocumentValueCodec {
-    fun decode(definition: JsonObject, input: JsonObject): JsonObject {
+    fun decode(definition: JsonObject, input: JsonObject, applyDefaults: Boolean = true): JsonObject {
         val fields = definition.getJsonArray("fields") ?: JsonArray()
         val result = JsonObject()
         fields.filterIsInstance<JsonObject>().forEach { field ->
             val name = field.getString("name") ?: return@forEach
             val type = field.getString("type", "")
-            val supplied = input.getValue(name)
-            if (supplied == null && field.getBoolean("required", false) && !field.containsKey("defaultValue")) {
-                throw IllegalArgumentException("字段 $name 为必填项")
+            if (input.containsKey(name)) {
+                val supplied = input.getValue(name)
+                if (supplied == null) {
+                    if (field.getBoolean("required", false)) throw IllegalArgumentException("字段 $name 为必填项")
+                    result.put(name, null)
+                } else {
+                    result.put(name, normalize(name, type, supplied, field))
+                }
+            } else if (applyDefaults) {
+                val defaultValue = field.getValue("defaultValue")
+                if (defaultValue == null && field.getBoolean("required", false)) {
+                    throw IllegalArgumentException("字段 $name 为必填项")
+                }
+                if (defaultValue != null) result.put(name, normalize(name, type, defaultValue, field))
             }
-            val value = if (supplied == null) field.getValue("defaultValue") else supplied
-            if (value != null) result.put(name, normalize(name, type, value, field))
         }
         val known = fields.filterIsInstance<JsonObject>().mapNotNull { it.getString("name") }.toSet()
         val unknown = input.fieldNames() - known

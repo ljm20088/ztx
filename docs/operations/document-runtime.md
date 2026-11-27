@@ -118,3 +118,8 @@ db.new("PurchaseOrder").compose { document ->
 ```json
 { "name": "attachment_content", "type": "json", "loadOnDemand": true }
 ```
+
+## 可选字段清空与部分更新
+
+更新请求只处理实际提交的字段；未提交字段不会被默认值覆盖。可选字段显式传入 `null` 表示清空，必填字段传入 `null` 会被拒绝。`db.update(document)` 同样支持将可选字段设为 `null` 后显式保存。
+

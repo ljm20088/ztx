@@ -83,7 +83,8 @@ class DocumentRuntimeIntegrationTest {
             .put("fields", JsonArray()
                 .add(JsonObject().put("name", "code").put("type", "string").put("required", true))
                  .add(JsonObject().put("name", "company_id").put("type", "uuid").put("required", true))
-                .add(JsonObject().put("name", "payload").put("type", "json").put("loadOnDemand", true)))
+                .add(JsonObject().put("name", "payload").put("type", "json").put("loadOnDemand", true))
+                .add(JsonObject().put("name", "remark").put("type", "string")))
             .put("permissions", JsonObject()
                 .put("read", JsonArray().add("TENANT_ADMIN"))
                 .put("create", JsonArray().add("TENANT_ADMIN"))
@@ -108,7 +109,7 @@ class DocumentRuntimeIntegrationTest {
                        id uuid PRIMARY KEY, docstatus integer NOT NULL DEFAULT 0, version integer NOT NULL DEFAULT 1,
                        created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
                        updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-                       code text NOT NULL, company_id uuid NOT NULL, payload jsonb)"""
+                       code text NOT NULL, company_id uuid NOT NULL, payload jsonb, remark text)"""
                 )
             }
             connection.prepareStatement(
@@ -150,7 +151,7 @@ class DocumentRuntimeIntegrationTest {
         try {
             val created = sendJson(client, base, "POST",
                 JsonObject().put("code", "PO-001").put("company_id", companyId.toString())
-                    .put("payload", JsonObject().put("content", "large-document-body")))
+                    .put("payload", JsonObject().put("content", "large-document-body")).put("remark", "initial remark"))
             assertEquals(201, created.statusCode())
             val createdBody = JsonObject(created.body())
             val documentId = createdBody.getString("id")
@@ -180,8 +181,8 @@ class DocumentRuntimeIntegrationTest {
             // Given Document 默认不加载大字段，When 通过字段 API 显式读取，Then 仅按需返回大字段内容。
             val deferredReadRejected = runCatching { loaded["payload"] }.exceptionOrNull()
             assertTrue(deferredReadRejected is IllegalStateException)
-            val payload = database.withTransaction { connection ->
-                Db(principal, connection).getValue("DocumentProbe", UUID.fromString(documentId), "payload")
+            val payload = DbProvider().transaction(principal) { db ->
+                db.getValue("DocumentProbe", UUID.fromString(documentId), "payload")
             }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
             assertEquals("large-document-body", (payload as JsonObject).getString("content"))
             val fieldResponse = client.send(
@@ -228,10 +229,12 @@ class DocumentRuntimeIntegrationTest {
             assertEquals("PO-DB-INSERT", afterRejected.getString("code"))
 
             loaded["code"] = "PO-DB-003"
+            loaded["remark"] = null
             val dbUpdated = database.withTransaction { connection ->
                 Db(principal, connection).update(loaded)
             }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
             assertEquals("PO-DB-003", dbUpdated.getString("code"))
+            assertEquals(null, dbUpdated["remark"])
             assertEquals(3, dbUpdated.version)
 
             val scopedRead = DbProvider().transaction(principal) { db ->
