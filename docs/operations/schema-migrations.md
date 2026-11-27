@@ -21,7 +21,7 @@ ZTX 保留两种 Schema 变更入口：
 - 对已有数据的表新增必填列，必须提供可安全转换的默认值；否则迁移拒绝并要求显式数据回填方案。
 - 将可空列改为必填时，先回填默认值或确认没有空值；存在无法处理的空值时拒绝迁移。
 - 元数据声明 unique/indexed 时创建对应索引；唯一索引遇到重复数据时迁移失败，不会绕过约束。
-- 每个目标表通过 PostgreSQL advisory transaction lock 串行化；同一 DocType 版本和 Schema checksum 重复执行幂等。
+- Flyway 与运行期 DDL 共用 PostgreSQL 全局 advisory lock，避免两类迁移同时修改 Schema；同一 DocType 版本和 Schema checksum 重复执行幂等。
 - DDL 和成功状态在同一事务提交；失败回滚 DDL，并在独立事务记录 FAILED 状态及诊断。失败版本可使用相同 checksum 重试。
 - 同一版本 checksum 不一致必须提升版本号，不允许覆盖已记录的迁移内容。
 

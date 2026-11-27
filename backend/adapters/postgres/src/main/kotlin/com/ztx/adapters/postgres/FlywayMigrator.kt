@@ -11,10 +11,10 @@ class FlywayMigrator(private val config: DatabaseConfig) {
         .validateMigrationNaming(true)
         .load()
 
-    fun migrate(): Int {
+    fun migrate(): Int = withMigrationLock {
         val executed = configuredFlyway().migrate().migrationsExecuted
         synchronizeFlywayHistory()
-        return executed
+        executed
     }
 
     /** 正式部署只检查，不擅自执行待迁移脚本。 */
@@ -32,6 +32,26 @@ class FlywayMigrator(private val config: DatabaseConfig) {
      * Flyway 保留自己的原生执行历史；此处将成功记录镜像到统一治理表，
      * 与运行期 RUNTIME Schema Migration 共用查询、审计和运维入口。
      */
+
+    /** Flyway 与运行期动态 DDL 共用同一 PostgreSQL advisory lock。 */
+    private fun <T> withMigrationLock(work: () -> T): T {
+        val connection = DriverManager.getConnection(config.jdbcUrl, config.user, config.password)
+        try {
+            connection.createStatement().use { statement ->
+                statement.execute("SELECT pg_advisory_lock(hashtext('ztx.schema-migration'), hashtext('global'))")
+            }
+            return work()
+        } finally {
+            try {
+                connection.createStatement().use { statement ->
+                    statement.execute("SELECT pg_advisory_unlock(hashtext('ztx.schema-migration'), hashtext('global'))")
+                }
+            } finally {
+                connection.close()
+            }
+        }
+    }
+
     private fun synchronizeFlywayHistory() {
         DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
             val registryExists = connection.createStatement().use { statement ->

@@ -77,7 +77,7 @@ class SchemaMigrationService {
         val migrationId = UUID.randomUUID()
         return database.withTransaction { connection ->
             connection.preparedQuery("SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))")
-                .execute(Tuple.of("ztx.schema-migration", "$schema.$table"))
+                .execute(Tuple.of("ztx.schema-migration", "global"))
                 .compose {
                     connection.preparedQuery(
                         """SELECT id,checksum,status FROM meta.schema_migration
