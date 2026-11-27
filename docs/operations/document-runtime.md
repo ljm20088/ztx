@@ -110,3 +110,11 @@ db.new("PurchaseOrder").compose { document ->
     db.update(saved)
 }
 ```
+
+## 大字段与附件的延迟加载
+
+普通 `db.get()` / `db.getAll()` 默认读取全部普通字段，但跳过元数据标记 `loadOnDemand: true` 的大字段或附件字段。对尚未加载的延迟字段执行 `document["field"]` 会明确报错，避免把“未加载”误判为 `null`。业务代码可通过 `db.getValue(doctype, id, field)` 显式读取；HTTP 运行时也提供 `GET /api/v1/tenant/documents/{doctype}/{id}/fields/{field}`。两种方式都继续执行租户范围、DocType 读取权限和字段 `readRoles` 检查。
+
+```json
+{ "name": "attachment_content", "type": "json", "loadOnDemand": true }
+```

@@ -26,6 +26,7 @@ class DocumentRuntimeRoutes(
         router.get("/api/v1/tenant/runtime/doctypes/:doctype").handler(::runtimeDefinition)
         router.post("/api/v1/tenant/documents/:doctype").handler(::create)
         router.get("/api/v1/tenant/documents/:doctype/:id").handler(::read)
+        router.get("/api/v1/tenant/documents/:doctype/:id/fields/:field").handler(::getField)
         router.put("/api/v1/tenant/documents/:doctype/:id").handler(::update)
         router.post("/api/v1/tenant/documents/:doctype/:id/actions/:action").handler(::action)
     }
@@ -60,10 +61,40 @@ class DocumentRuntimeRoutes(
             authorize(definition, principal, "read")
             val id = UUID.fromString(context.pathParam("id"))
             principal.database.withTransaction { connection ->
-                selectOne(connection, definition, id, principal, lock = false)
+                selectOne(connection, definition, id, principal, lock = false, includeDeferred = false)
             }.onSuccess { send(context, redact(definition, principal, it)) }
                 .onFailure { fail(context, status(it), it.message ?: "读取单据失败") }
         }.onFailure { fail(context, status(it), it.message ?: "读取单据失败") }
+    }
+
+    /** 按需读取被标记为延迟加载的大字段/附件，不把它们放进普通 Document 响应。 */
+    private fun getField(context: RoutingContext) = withPrincipal(context) { principal ->
+        loadDefinition(principal, context.pathParam("doctype")).compose { definition ->
+            authorize(definition, principal, "read")
+            val fieldName = context.pathParam("field")
+            val field = (definition.getJsonArray("fields") ?: JsonArray())
+                .filterIsInstance<JsonObject>().firstOrNull { it.getString("name") == fieldName }
+                ?: return@compose Future.failedFuture<JsonObject>("DocType 未定义字段：$fieldName")
+            if (!field.getBoolean("loadOnDemand", false)) {
+                return@compose Future.failedFuture<JsonObject>("字段 $fieldName 不是延迟加载字段")
+            }
+            val roles = field.getJsonArray("readRoles")
+            if (roles != null && !roles.isEmpty && roles.none { it == principal.role || it == "TENANT_ADMIN" }) {
+                return@compose Future.failedFuture<JsonObject>("无权读取字段：$fieldName")
+            }
+            val id = UUID.fromString(context.pathParam("id"))
+            principal.database.withTransaction { connection ->
+                val parameters = mutableListOf<Any?>(id)
+                val where = scopeWhere(definition, principal, parameters)
+                val sql = "SELECT \"$fieldName\" FROM " + tableSql(definition) +
+                    " WHERE \"id\"=$1" + where
+                connection.preparedQuery(sql).execute(Tuple.from(parameters)).map { rows ->
+                    val row = rows.firstOrNull() ?: throw IllegalArgumentException("单据不存在或无权访问")
+                    JsonObject().put("field", fieldName).put("value", row.getValue(fieldName))
+                }
+            }
+        }.onSuccess { send(context, it) }
+            .onFailure { fail(context, status(it), it.message ?: "读取字段失败") }
     }
 
     private fun update(context: RoutingContext) = withPrincipal(context) { principal ->
@@ -250,16 +281,26 @@ class DocumentRuntimeRoutes(
         }
     }
 
+    internal fun documentProjection(definition: JsonObject, includeDeferred: Boolean): String {
+        val system = listOf("id", "docstatus", "version", "created_at", "updated_at")
+        val fields = (definition.getJsonArray("fields") ?: JsonArray()).filterIsInstance<JsonObject>()
+            .filter { includeDeferred || !it.getBoolean("loadOnDemand", false) }
+            .mapNotNull { it.getString("name") }
+        return (system + fields).distinct().joinToString(", ") { "\"$it\"" }
+    }
+
     internal fun selectOne(
         connection: SqlConnection,
         definition: JsonObject,
         id: UUID,
         principal: TenantPrincipal,
-        lock: Boolean
+        lock: Boolean,
+        includeDeferred: Boolean = true
     ): Future<JsonObject> {
         val parameters = mutableListOf<Any?>(id)
         val where = scopeWhere(definition, principal, parameters)
-        val sql = "SELECT * FROM " + tableSql(definition) + " WHERE \"id\"=$1" + where +
+        val sql = "SELECT " + documentProjection(definition, includeDeferred) +
+            " FROM " + tableSql(definition) + " WHERE \"id\"=$1" + where +
             if (lock) " FOR UPDATE" else ""
         return connection.preparedQuery(sql).execute(Tuple.from(parameters)).map { rows ->
             rows.firstOrNull()?.toJson() ?: throw IllegalArgumentException("单据不存在或无权访问")

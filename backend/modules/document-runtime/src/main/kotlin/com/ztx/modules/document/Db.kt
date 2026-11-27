@@ -54,7 +54,7 @@ class Db(
     fun get(doctype: String, id: UUID): Future<DynamicDocument> =
         routes.loadDefinition(connection, doctype).compose { definition ->
             routes.authorize(definition, principal, "read")
-            routes.selectOne(connection, definition, id, principal, lock = false).map { row ->
+            routes.selectOne(connection, definition, id, principal, lock = false, includeDeferred = false).map { row ->
                 DynamicDocument.loaded(doctype, definition, routes.redact(definition, principal, row))
             }
         }
@@ -142,8 +142,8 @@ class Db(
             routes.authorize(definition, principal, "read")
             val parameters = mutableListOf<Any?>(ids.distinct().toTypedArray())
             val where = routes.scopeWhere(definition, principal, parameters)
-            val sql = "SELECT * FROM " + routes.tableSql(definition) +
-                " WHERE \"id\" = ANY($1::uuid[])" + where
+            val sql = "SELECT " + routes.documentProjection(definition, includeDeferred = false) +
+                " FROM " + routes.tableSql(definition) + " WHERE \"id\" = ANY($1::uuid[])" + where
             connection.preparedQuery(sql).execute(Tuple.from(parameters)).map { rows ->
                 rows.map { row ->
                     val json = row.toJson()
@@ -207,7 +207,17 @@ class Db(
                 readRoles.none { it == principal.role || it == "TENANT_ADMIN" }) {
                 return@compose Future.failedFuture<Any?>("无权读取字段：$field")
             }
-            get(doctype, id).map { it[field] }
+            if (!metadata.getBoolean("loadOnDemand", false)) {
+                return@compose get(doctype, id).map { it[field] }
+            }
+            routes.authorize(definition, principal, "read")
+            val parameters = mutableListOf<Any?>(id)
+            val where = routes.scopeWhere(definition, principal, parameters)
+            val sql = "SELECT \"$field\" FROM " + routes.tableSql(definition) + " WHERE \"id\"=$1" + where
+            connection.preparedQuery(sql).execute(Tuple.from(parameters)).map { rows ->
+                val row = rows.firstOrNull() ?: throw IllegalArgumentException("单据不存在或无权访问")
+                row.getValue(field)
+            }
         }
 }
 

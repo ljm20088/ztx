@@ -95,6 +95,9 @@ object MetadataDefinitionValidator {
             if (field.getBoolean("required", false) && field.getBoolean("readOnly", false) && !field.containsKey("defaultValue")) {
                 errors += MetadataDiagnostic("READ_ONLY_REQUIRED_WITHOUT_DEFAULT", path, "只读必填字段必须提供默认值")
             }
+            if (field.containsKey("loadOnDemand") && field.getValue("loadOnDemand") !is Boolean) {
+                errors += MetadataDiagnostic("INVALID_LOAD_POLICY", "$path.loadOnDemand", "loadOnDemand 必须是布尔值")
+            }
             listOf("unique", "indexed").forEach { indexFlag ->
                 if (field.containsKey(indexFlag) && field.getValue(indexFlag) !is Boolean) {
                     errors += MetadataDiagnostic("INVALID_INDEX_FLAG", "$path.$indexFlag", "$indexFlag 必须是布尔值")

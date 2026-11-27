@@ -82,7 +82,8 @@ class DocumentRuntimeIntegrationTest {
             .put("table", JsonObject().put("schema", "org").put("name", "document_probe"))
             .put("fields", JsonArray()
                 .add(JsonObject().put("name", "code").put("type", "string").put("required", true))
-                .add(JsonObject().put("name", "company_id").put("type", "uuid").put("required", true)))
+                 .add(JsonObject().put("name", "company_id").put("type", "uuid").put("required", true))
+                .add(JsonObject().put("name", "payload").put("type", "json").put("loadOnDemand", true)))
             .put("permissions", JsonObject()
                 .put("read", JsonArray().add("TENANT_ADMIN"))
                 .put("create", JsonArray().add("TENANT_ADMIN"))
@@ -107,7 +108,7 @@ class DocumentRuntimeIntegrationTest {
                        id uuid PRIMARY KEY, docstatus integer NOT NULL DEFAULT 0, version integer NOT NULL DEFAULT 1,
                        created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
                        updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-                       code text NOT NULL, company_id uuid NOT NULL)"""
+                       code text NOT NULL, company_id uuid NOT NULL, payload jsonb)"""
                 )
             }
             connection.prepareStatement(
@@ -148,7 +149,8 @@ class DocumentRuntimeIntegrationTest {
         val base = "http://127.0.0.1:${server.actualPort()}/api/v1/tenant/documents/DocumentProbe"
         try {
             val created = sendJson(client, base, "POST",
-                JsonObject().put("code", "PO-001").put("company_id", companyId.toString()))
+                JsonObject().put("code", "PO-001").put("company_id", companyId.toString())
+                    .put("payload", JsonObject().put("content", "large-document-body")))
             assertEquals(201, created.statusCode())
             val createdBody = JsonObject(created.body())
             val documentId = createdBody.getString("id")
@@ -175,6 +177,19 @@ class DocumentRuntimeIntegrationTest {
             }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
             assertEquals("PO-002", loaded.getString("code"))
             assertEquals(2, loaded.version)
+            // Given Document 默认不加载大字段，When 通过字段 API 显式读取，Then 仅按需返回大字段内容。
+            val deferredReadRejected = runCatching { loaded["payload"] }.exceptionOrNull()
+            assertTrue(deferredReadRejected is IllegalStateException)
+            val payload = database.withTransaction { connection ->
+                Db(principal, connection).getValue("DocumentProbe", UUID.fromString(documentId), "payload")
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals("large-document-body", (payload as JsonObject).getString("content"))
+            val fieldResponse = client.send(
+                HttpRequest.newBuilder(URI.create("$base/$documentId/fields/payload")).GET().build(),
+                HttpResponse.BodyHandlers.ofString()
+            )
+            assertEquals(200, fieldResponse.statusCode())
+            assertEquals("large-document-body", JsonObject(fieldResponse.body()).getJsonObject("value").getString("content"))
 
             val listed = database.withTransaction { connection ->
                 Db(principal, connection).list("DocumentProbe", JsonObject().put("page", 1))

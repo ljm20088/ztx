@@ -29,7 +29,10 @@ class DynamicDocument private constructor(
     private val changed = linkedSetOf<String>()
 
     operator fun get(field: String): Any? {
-        requireField(field)
+        val metadata = requireField(field)
+        if (metadata.getBoolean("loadOnDemand", false) && !values.containsKey(field)) {
+            throw IllegalStateException("字段 $field 尚未加载，请显式调用 db.getValue() 或字段加载接口")
+        }
         return copyValue(values.getValue(field))
     }
 

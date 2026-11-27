@@ -55,6 +55,14 @@ class MetadataDefinitionValidatorTest {
         assertTrue(MetadataDefinitionValidator.validate(definition).any { it.code == "INVALID_SCHEMA" })
     }
 
+    // Given 元数据延迟加载标志不是布尔值，When 执行校验，Then 拒绝不明确的字段加载策略。
+    @Test
+    fun rejectsInvalidDeferredLoadPolicy() {
+        val definition = validDefinition()
+        definition.getJsonArray("fields").getJsonObject(0).put("loadOnDemand", "yes")
+        assertTrue(MetadataDefinitionValidator.validate(definition).any { it.code == "INVALID_LOAD_POLICY" })
+    }
+
     // Given 租户管理员试图声明平台级范围，When 执行校验，Then 拒绝跨越元数据作用域边界。
     @Test
     fun rejectsPlatformScopeInTenantDefinitions() {
