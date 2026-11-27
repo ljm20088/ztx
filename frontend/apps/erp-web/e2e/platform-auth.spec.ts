@@ -86,7 +86,7 @@ test('平台管理员只看到独立的平台管理导航', async ({ page }) => 
   await expect(page.getByText('API Server')).toBeVisible()
   await expect(page.getByText('PostgreSQL')).toBeVisible()
   await expect(page.getByText('1 个运行中')).toBeVisible()
-  await expect(page.getByText('运行中')).toBeVisible()
+  await expect(page.getByText('运行中', { exact: true })).toBeVisible()
 })
 
 test('平台管理员可以查看平台安全审计记录', async ({ page }) => {
