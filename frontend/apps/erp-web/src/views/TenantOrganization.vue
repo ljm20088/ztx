@@ -204,7 +204,7 @@ onMounted(()=>{resetForm();void load()})
         <ZFormField label="角色 ID" field-id="permission-role-id"><ZInput id="permission-role-id" v-model="roleId"/></ZFormField>
         <ZFormField label="权限标识" field-id="permission-key"><ZInput id="permission-key" v-model="permissionKey" placeholder="例如 purchase.order.approve"/></ZFormField>
         <ZFormField label="授权效果" field-id="permission-effect"><ZInput id="permission-effect" v-model="effect" placeholder="ALLOW / DENY"/></ZFormField>
-        <ZFormField label="数据范围" field-id="permission-scope"><ZInput id="permission-scope" v-model="dataScope" placeholder="SELF / UNIT / SUBTREE / BOOK / COMPANY / TENANT"/></ZFormField>
+        <ZFormField label="数据范围" field-id="permission-scope"><ZInput id="permission-scope" v-model="dataScope" placeholder="SELF / UNIT / SUBTREE / BOOK / COMPANY / TENANT / ALL"/></ZFormField>
         <ZFormField label="字段权限 JSON" field-id="permission-fields"><ZInput id="permission-fields" v-model="fieldPermissions" placeholder='{"amount":"READ_ONLY","supplier":"MASKED"}'/></ZFormField>
         <ZButton @click="savePermission">保存角色权限</ZButton>
       </div>

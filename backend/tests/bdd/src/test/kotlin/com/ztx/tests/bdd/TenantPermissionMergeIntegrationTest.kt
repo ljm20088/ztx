@@ -7,6 +7,7 @@ import com.ztx.modules.iam.TenantPrincipal
 import com.ztx.modules.iam.TENANT_CONTEXT_KEY
 import com.ztx.platform.common.DatabaseConfig
 import io.vertx.core.Vertx
+import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
@@ -211,6 +212,73 @@ class TenantPermissionMergeIntegrationTest {
                     s.setObject(1,userId);s.executeQuery().use { rows -> rows.next();assertEquals(1,rows.getInt(1)) }
                 }
             }
+        } finally {
+            server.close().toCompletionStage().toCompletableFuture().get(10,TimeUnit.SECONDS)
+            database.close()
+            vertx.close().toCompletionStage().toCompletableFuture().get(10,TimeUnit.SECONDS)
+        }
+    }
+
+
+    // 场景：集团保护字段不能被企业覆盖，已被企业引用的集团档案不能直接停用
+    @Test
+    fun groupMasterShouldProtectEnterpriseFieldsAndBlockDisableWhileReferenced() {
+        // Given：集团档案已被企业启用，企业补充信息包含一个尚未受保护的字段
+        val projectDir=Path.of(System.getProperty("ztx.projectDir"))
+        val config=DatabaseConfig(host=postgres.host,port=postgres.firstMappedPort,
+            database=postgres.databaseName,user=postgres.username,password=postgres.password,poolSize=4,
+            migrationLocations="filesystem:${projectDir.resolve("database/tenant-migrations")}")
+        FlywayMigrator(config).migrate()
+        val adminId=UUID.randomUUID();val companyId=UUID.randomUUID();val masterId=UUID.randomUUID()
+        DriverManager.getConnection(config.jdbcUrl,config.user,config.password).use { connection ->
+            connection.prepareStatement("INSERT INTO iam.tenant_admin(id,username,password_hash,is_group_admin) VALUES (?,?,?,TRUE)").use { s ->
+                s.setObject(1,adminId);s.setString(2,"group.admin.${adminId.toString().take(8)}");s.setString(3,"unused-hash");s.executeUpdate()
+            }
+            connection.prepareStatement("INSERT INTO org.company(id,code,name) VALUES (?,?,?)").use { s ->
+                s.setObject(1,companyId);s.setString(2,"group-ref-${companyId.toString().take(8)}");s.setString(3,"集团引用企业");s.executeUpdate()
+            }
+            connection.prepareStatement("""INSERT INTO org.group_master_item(id,category,code,name,master_data,protected_fields,created_by)
+                VALUES (?,'PRODUCT','GM-1','集团产品','{}'::jsonb,?,?)""").use { s ->
+                s.setObject(1,masterId);s.setArray(2,connection.createArrayOf("text",arrayOf("sku")));s.setObject(3,adminId);s.executeUpdate()
+            }
+            connection.prepareStatement("""INSERT INTO org.company_group_master(company_id,master_item_id,local_data)
+                VALUES (?,?,'{"name":"企业本地名称"}'::jsonb)""").use { s ->
+                s.setObject(1,companyId);s.setObject(2,masterId);s.executeUpdate()
+            }
+        }
+        val vertx=Vertx.vertx()
+        val database=PgDatabase(vertx,config)
+        val principal=TenantPrincipal(UUID.randomUUID(),"testtenant",config.database,adminId,
+            "group.admin","TENANT_ADMIN",database,true,"ADMIN")
+        val router=Router.router(vertx)
+        router.route("/api/v1/tenant/*").handler(BodyHandler.create().setBodyLimit(16*1024))
+        router.route("/api/v1/tenant/*").handler { context -> context.put(TENANT_CONTEXT_KEY,principal);context.next() }
+        TenantOrganizationRoutes().register(router)
+        val server=vertx.createHttpServer().requestHandler(router).listen(0,"127.0.0.1")
+            .toCompletionStage().toCompletableFuture().get(10,TimeUnit.SECONDS)
+        try {
+            val client=HttpClient.newHttpClient()
+            // When：集团管理员试图把企业正在使用的字段新增为保护字段
+            val updateMaster=HttpRequest.newBuilder(URI("http://127.0.0.1:${server.actualPort()}/api/v1/tenant/organization/group-master/${masterId}"))
+                .header("content-type","application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString(JsonObject().put("name","集团产品")
+                    .put("masterData",JsonObject()).put("protectedFields",JsonArray().add("sku").add("name")).encode())).build()
+            // Then：保护字段变更被拒绝，避免企业已有补充数据失效
+            assertEquals(409,client.send(updateMaster,HttpResponse.BodyHandlers.ofString()).statusCode())
+
+            // When：企业管理员试图在本地补充信息中覆盖集团保护字段
+            val updateLocal=HttpRequest.newBuilder(URI("http://127.0.0.1:${server.actualPort()}/api/v1/tenant/organization/company-group-master/${masterId}"))
+                .header("content-type","application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString(JsonObject().put("companyId",companyId.toString())
+                    .put("masterItemId",masterId.toString()).put("localData",JsonObject().put("sku","LOCAL")).encode())).build()
+            // Then：本地补充信息不能覆盖集团控制字段
+            assertEquals(400,client.send(updateLocal,HttpResponse.BodyHandlers.ofString()).statusCode())
+
+            // When：集团管理员尝试停用仍被企业引用的集团档案
+            val disable=HttpRequest.newBuilder(URI("http://127.0.0.1:${server.actualPort()}/api/v1/tenant/organization/group-master/${masterId}/disable"))
+                .POST(HttpRequest.BodyPublishers.noBody()).build()
+            // Then：服务端阻止停用，保留企业历史引用
+            assertEquals(409,client.send(disable,HttpResponse.BodyHandlers.ofString()).statusCode())
         } finally {
             server.close().toCompletionStage().toCompletableFuture().get(10,TimeUnit.SECONDS)
             database.close()

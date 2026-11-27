@@ -386,15 +386,27 @@ class TenantOrganizationRoutes {
         val masterData=body.getJsonObject("masterData")?:JsonObject()
         val protectedFields=body.getJsonArray("protectedFields")?:JsonArray()
         principal.database.withTransaction { connection ->
-            connection.preparedQuery("""UPDATE org.group_master_item SET name=$2,master_data=$3::jsonb,
-                protected_fields=$4,updated_by=$5,updated_at=clock_timestamp() WHERE id=$1""")
-                .execute(Tuple.of(id,required(body,"name",160),masterData.encode(),
-                    protectedFields.map { it.toString() }.toTypedArray(),principal.userId)).compose { result ->
-                    if(result.rowCount()!=1)return@compose io.vertx.core.Future.failedFuture<Boolean>("档案不存在")
-                    audit(connection,principal,"group_master_item",id,"UPDATE",body)
-                }
+            connection.preparedQuery("""SELECT EXISTS(
+                SELECT 1 FROM org.company_group_master cgm
+                CROSS JOIN LATERAL jsonb_object_keys(cgm.local_data) AS fields(field_key)
+                WHERE cgm.master_item_id=$1 AND fields.field_key=ANY($2::text[])
+            ) AS conflicts""").execute(Tuple.of(id,protectedFields.map { it.toString() }.toTypedArray())).compose { checks ->
+                if(checks.first().getBoolean("conflicts"))
+                    return@compose io.vertx.core.Future.failedFuture<Boolean>("新增的集团保护字段已被企业补充信息使用")
+                connection.preparedQuery("""UPDATE org.group_master_item SET name=$2,master_data=$3::jsonb,
+                    protected_fields=$4,updated_by=$5,updated_at=clock_timestamp() WHERE id=$1""")
+                    .execute(Tuple.of(id,required(body,"name",160),masterData.encode(),
+                        protectedFields.map { it.toString() }.toTypedArray(),principal.userId)).compose { result ->
+                        if(result.rowCount()!=1)return@compose io.vertx.core.Future.failedFuture<Boolean>("档案不存在")
+                        audit(connection,principal,"group_master_item",id,"UPDATE",body)
+                    }
+            }
         }.onSuccess { context.response().setStatusCode(204).end() }
-            .onFailure { fail(context,400,"集团档案更新失败") }
+            .onFailure { cause ->
+                if(cause.message?.contains("新增的集团保护字段") == true)
+                    fail(context,409,"新增的集团保护字段已被企业补充信息使用")
+                else fail(context,400,"集团档案更新失败")
+            }
     }
 
     private fun enableGroupMasterForCompany(context: RoutingContext) = withAdmin(context) { principal ->

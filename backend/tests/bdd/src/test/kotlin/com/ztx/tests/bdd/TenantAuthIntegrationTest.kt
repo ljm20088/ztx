@@ -14,7 +14,6 @@ import com.ztx.platform.common.DatabaseConfig
 import io.vertx.core.Vertx
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
-import io.vertx.ext.web.handler.CookieHandler
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -87,7 +86,6 @@ class TenantAuthIntegrationTest {
 
             // When：租户管理员通过管理 API 创建一个独立于员工档案的业务用户
             val userRouter=Router.router(vertx)
-            userRouter.route().handler(CookieHandler.create())
             TenantAuthRoutes(auth,lifecycle,false).registerGuard(userRouter)
             userRouter.route("/api/v1/tenant/*").handler(BodyHandler.create())
             TenantOrganizationRoutes().register(userRouter)
