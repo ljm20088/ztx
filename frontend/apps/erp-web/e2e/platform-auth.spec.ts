@@ -110,6 +110,7 @@ test('平台管理员可以查看平台安全审计记录', async ({ page }) => 
       { id: 'event-6', eventType: 'MFA_ENROLLMENT_STARTED', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
       { id: 'event-7', eventType: 'MFA_ENABLED', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
       { id: 'event-8', eventType: 'ADMIN_PASSWORD_RESET', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-9', eventType: 'TENANT_PROVISIONED', outcome: 'SUCCESS', sourceIp: null, adminUsername: 'platform.admin', tenantCode: 'demo', tenantName: '演示企业', occurredAt: '2026-11-27T00:00:00Z' },
     ]),
   }))
 
@@ -126,7 +127,9 @@ test('平台管理员可以查看平台安全审计记录', async ({ page }) => 
   await expect(page.getByRole('cell', { name: '开始绑定多重身份验证', exact: true })).toBeVisible()
   await expect(page.getByRole('cell', { name: '启用多重身份验证', exact: true })).toBeVisible()
   await expect(page.getByRole('cell', { name: '重置平台管理员密码', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '租户开通成功', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '演示企业（demo）', exact: true })).toBeVisible()
   await expect(page.getByRole('cell', { name: 'LOGIN', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('cell', { name: '成功', exact: true })).toHaveCount(7)
+  await expect(page.getByRole('cell', { name: '成功', exact: true })).toHaveCount(8)
   await expect(page.getByRole('cell', { name: '失败', exact: true })).toHaveCount(1)
 })
