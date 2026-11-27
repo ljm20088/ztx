@@ -16,6 +16,7 @@ data class CompiledMetadataQuery(
  * 不接受 SQL 字符串、表达式、表名或客户端自定义列清单。
  */
 object MetadataQueryEngine {
+    private data class FilterBudget(var nodes: Int = 0)
     private val identifier = Regex("[a-z][a-z0-9_]{0,62}")
     private val protectedSchemas = setOf("platform", "iam", "meta", "audit", "pg_catalog", "information_schema")
     private val operators = setOf("eq", "ne", "gt", "gte", "lt", "lte", "contains", "startsWith", "in", "isNull")
@@ -74,7 +75,7 @@ object MetadataQueryEngine {
 
         val where = mutableListOf<String>()
         val values = mutableListOf<Any?>()
-        request.getJsonObject("filter")?.let { where += compileNode(it, filterable, values, 0) }
+        request.getJsonObject("filter")?.let { where += compileNode(it, filterable, values, 0, FilterBudget()) }
 
         // 企业、账套和组织范围来自认证主体，绝不读取客户端传入的范围参数。
         addScope("company_id", fieldNames, companyIds, where, values)
@@ -86,7 +87,7 @@ object MetadataQueryEngine {
                 values += search
                 val parameter = "$" + values.size
                 where += searchable.joinToString(" OR ", prefix = "(", postfix = ")") {
-                    "position(lower($parameter) in lower(\"$it\")) > 0"
+                    "position(lower($parameter) in lower(CAST(\"$it\" AS text))) > 0"
                 }
             }
         }
@@ -133,15 +134,17 @@ object MetadataQueryEngine {
         }
     }
 
-    private fun compileNode(node: JsonObject, allowed: Set<String>, values: MutableList<Any?>, depth: Int): String {
+    private fun compileNode(node: JsonObject, allowed: Set<String>, values: MutableList<Any?>, depth: Int, budget: FilterBudget): String {
         if (depth > 8) invalid("筛选条件嵌套层级不能超过 8 层")
+        budget.nodes++
+        if (budget.nodes > 200) invalid("筛选 AST 节点总数不能超过 200 个")
         val logical = node.getString("op", "").lowercase()
         if (logical == "and" || logical == "or") {
             val children = node.getJsonArray("conditions") ?: invalid("逻辑筛选缺少 conditions")
             if (children.isEmpty || children.size() > 50) invalid("逻辑筛选条件数量不合法")
             val parts = children.map { raw ->
                 val child = raw as? JsonObject ?: invalid("筛选条件必须是对象")
-                compileNode(child, allowed, values, depth + 1)
+                compileNode(child, allowed, values, depth + 1, budget)
             }
             return parts.joinToString(if (logical == "and") " AND " else " OR ", prefix = "(", postfix = ")")
         }
@@ -169,7 +172,7 @@ object MetadataQueryEngine {
             values += value.toString()
             val parameter = "$" + values.size
             return if (operator == "contains")
-                "position(lower($parameter) in lower(\"$field\")) > 0"
+                "position(lower($parameter) in lower(CAST(\"$field\" AS text))) > 0"
             else
                 "left(lower(\"$field\"), char_length($parameter)) = lower($parameter)"
         }

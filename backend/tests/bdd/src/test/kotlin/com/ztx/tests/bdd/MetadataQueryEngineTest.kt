@@ -82,3 +82,25 @@ class MetadataQueryEngineTest {
         assertEquals(true, compiled.countSql.contains("FALSE"))
     }
 }
+
+
+    /** Given 筛选 AST 包含超过总量上限的节点，When 编译查询，Then 在执行 SQL 前拒绝过量表达式。 */
+    @Test
+    fun rejectsFilterAstWithTooManyNodes() {
+        val conditions = JsonArray()
+        repeat(201) {
+            conditions.add(JsonObject().put("field", "supplier_name").put("operator", "eq").put("value", "A"))
+        }
+        val oversized = JsonObject().put("op", "and").put("conditions", conditions)
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            MetadataQueryEngine.compile(
+                definition,
+                JsonObject().put("filter", oversized),
+                "TENANT_ADMIN",
+                setOf(companyId),
+                emptySet(),
+                emptySet()
+            )
+        }
+        assertEquals(true, error.message!!.contains("节点总数"))
+    }
