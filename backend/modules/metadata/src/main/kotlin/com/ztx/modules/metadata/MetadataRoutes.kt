@@ -91,7 +91,9 @@ class MetadataRoutes(private val schemaMigrations: SchemaMigrationService = Sche
                        WHERE scope='TENANT' AND doctype=$1 ORDER BY version DESC LIMIT 1 FOR UPDATE"""
                 ).execute(Tuple.of(doctype)).compose { rows ->
                     val row = rows.firstOrNull() ?: return@compose Future.failedFuture<MetadataWriteResult>("DocType 不存在")
-                    if (row.getString("status") == "RETIRED") return@compose Future.failedFuture<MetadataWriteResult>("已退役定义不可修改")
+                    if (row.getString("status") != "DRAFT") {
+                        return@compose Future.failedFuture<MetadataWriteResult>("已发布或退役定义不可直接修改，请复制为新版本后编辑")
+                    }
                     val id = row.getUUID("id")
                     val version = row.getInteger("version")
                     val checksum = checksum(definition)

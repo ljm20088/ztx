@@ -89,6 +89,14 @@ class MetadataManagementIntegrationTest {
             }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
             assertTrue(publishedSchema.first)
             assertTrue(publishedSchema.second)
+            // Given 当前 DocType 版本已发布，When 尝试原地覆盖定义，Then 必须拒绝并保持已激活版本不变。
+            val editPublished = client.send(
+                HttpRequest.newBuilder(URI.create("$base/api/v1/tenant/metadata/doctypes/MetadataTestItem"))
+                    .header("content-type", "application/json")
+                    .PUT(HttpRequest.BodyPublishers.ofString(definition.copy().put("label", "changed").encode())).build(),
+                HttpResponse.BodyHandlers.ofString()
+            )
+            assertEquals(409, editPublished.statusCode())
             val history = client.send(
                 HttpRequest.newBuilder(URI.create("$base/api/v1/tenant/metadata/doctypes/MetadataTestItem/history")).GET().build(),
                 HttpResponse.BodyHandlers.ofString()
