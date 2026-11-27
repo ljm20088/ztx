@@ -279,11 +279,11 @@ class PlatformAuthService(
                    FOR UPDATE"""
             ).execute().compose { rows ->
                 val admin = rows.firstOrNull()
-                val adminId = if (rows.size() == 1) UUID.fromString(requireNotNull(admin).getString("id")) else null
+                val adminId = if (rows.count() == 1) UUID.fromString(requireNotNull(admin).getString("id")) else null
                 val details = JsonObject()
                     .put("operator", operator.take(128))
                     .put("mechanism", "server-command")
-                    .put("targetAdminCount", rows.size())
+                    .put("targetAdminCount", rows.count())
                 if (adminId != null) details.put("targetUsername", admin!!.getString("username"))
 
                 val failureReason = when {
