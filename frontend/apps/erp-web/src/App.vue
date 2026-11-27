@@ -19,7 +19,8 @@ const activeMenuModules=computed(()=>isPlatformWorkspace.value?platformMenuModul
 const activeModule=computed(()=>activeMenuModules.value.find(item=>item.id===activeModuleId.value)??activeMenuModules.value[0]!)
 const activeCategory=computed(()=>activeModule.value.categories.find(item=>item.id===openCategoryId.value))
 watch(navCollapsed,value=>localStorage.setItem('ztx-nav-collapsed',String(value)))
-watch(()=>route.fullPath,path=>{
+watch(()=>route.fullPath,()=>{
+ const path=route.path
  if(path==='/'||path==='/tenant/login'||path==='/platform/login')return
  const platform=path.startsWith('/platform/')
  workspace.setMode(platform?'platform':'tenant')
