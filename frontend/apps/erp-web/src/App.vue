@@ -111,8 +111,15 @@ function onFlyoutKeydown(event:KeyboardEvent){
   event.preventDefault();flyoutOpen.value=false;const id=openCategoryId.value;if(id)nextTick(()=>categoryButtons.get(id)?.focus())
  }
 }
-async function navigateTo(path:string){const feature=findFeature(path);if(feature)workspace.openTab({path,title:feature.label,closable:path!='/workspace'});flyoutOpen.value=false;await router.push(path)}
-async function activateTab(path:string){workspace.activateTab(path);await router.push(path)}
+async function navigateTo(path:string){
+ flyoutOpen.value=false
+ // 路由守卫可能因未保存修改拒绝导航；仅在导航成功后由 route watcher 创建/激活 Tab。
+ await router.push(path)
+}
+async function activateTab(path:string){
+ // 不提前改变 activePath，避免用户取消未保存提示后出现“激活标签与当前页面不一致”。
+ await router.push(path)
+}
 async function closeTab(path:string,event:Event){
  event.stopPropagation()
  const wasActive=workspace.activePath===path
