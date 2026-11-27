@@ -146,7 +146,6 @@ test('平台管理员会话不能用于访问企业业务工作区', async ({ pa
     name: 'ztx_platform_session',
     value: 'platform-only-session',
     url: new URL(page.url()).origin,
-    path: '/api/v1/platform',
     httpOnly: true,
     sameSite: 'Strict',
   }])
@@ -169,7 +168,6 @@ test('企业用户会话不能用于访问平台管理工作区', async ({ page 
     name: 'ztx_tenant_session',
     value: 'demo.tenant-only-session-token',
     url: new URL(page.url()).origin,
-    path: '/api/v1/tenant',
     httpOnly: true,
     sameSite: 'Strict',
   }])
