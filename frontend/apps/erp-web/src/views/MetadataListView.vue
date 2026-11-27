@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ZButton, ZDataGrid } from '@ztx/ui'
 
 type Field = { name: string; label?: string; type: string }
 type Definition = { doctype: string; fields: Field[]; list?: { columns?: string[]; filters?: Array<string | { field: string }>; sort?: Array<string | { field: string }>; search?: string[] } }
-type Row = Record<string, unknown>
+type Row = Record<string, unknown> & { id?: string }
 const route = useRoute()
+const router = useRouter()
 const definition = ref<Definition | null>(null)
 const rows = ref<Row[]>([])
 const page = ref(1)
@@ -89,6 +90,10 @@ function previousPage() {
 function nextPage() {
   if (page.value * pageSize < total.value) { page.value++; void load() }
 }
+function openDocument(row: Row) {
+  if (!row.id) return
+  void router.push('/developer/documents/' + encodeURIComponent(doctype.value) + '/' + encodeURIComponent(row.id))
+}
 watch(doctype, () => { page.value = 1; void load() })
 onMounted(() => { void load() })
 </script>
@@ -149,7 +154,7 @@ onMounted(() => { void load() })
       <ZButton size="sm" :disabled="busy" @click="searchNow">应用排序</ZButton>
     </div>
 
-    <ZDataGrid :data="rows" :columns="columns" :page-size="200" :searchable="false" :show-pagination="false" :show-summary="false" @selection-change="selectedCount = $event" />
+    <ZDataGrid :data="rows" :columns="columns" :page-size="200" :searchable="false" :show-pagination="false" :show-summary="false" @selection-change="selectedCount = $event" @row-activate="openDocument" />
 
     <footer class="flex items-center justify-between gap-3 text-ztx-caption text-ztx-muted">
       <span aria-live="polite">共 {{ total }} 条 · 已选 {{ selectedCount }} 条 · 第 {{ page }} 页 · 每页 {{ pageSize }} 条</span>

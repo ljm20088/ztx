@@ -29,7 +29,7 @@ const props = withDefaults(defineProps<{
   showSummary: true,
 })
 
-const emit = defineEmits<{ 'selection-change': [count: number] }>()
+const emit = defineEmits<{ 'selection-change': [count: number]; 'row-activate': [row: TData] }>()
 const sorting = ref<SortingState>([])
 const globalFilter = ref('')
 const rowSelection = ref<RowSelectionState>({})
@@ -118,7 +118,15 @@ function togglePage(event: Event) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in table.getRowModel().rows" :key="row.id" class="h-ztx-table-row-compact border-b border-ztx-border last:border-b-0 hover:bg-ztx-surface-warm">
+          <tr
+            v-for="row in table.getRowModel().rows"
+            :key="row.id"
+            class="h-ztx-table-row-compact cursor-pointer border-b border-ztx-border last:border-b-0 hover:bg-ztx-surface-warm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ztx-primary"
+            tabindex="0"
+            :aria-label="'打开第 ' + (row.index + 1) + ' 行'"
+            @dblclick="emit('row-activate', row.original)"
+            @keydown.enter.prevent="emit('row-activate', row.original)"
+          >
             <td class="px-ztx-grid-cell-x py-ztx-grid-cell-y">
               <input
                 type="checkbox"

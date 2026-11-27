@@ -75,6 +75,19 @@ class MetadataQueryEngineTest {
         assertEquals(true, error.message!!.contains("不允许按字段排序"))
     }
 
+    /** Given 列表元数据只声明业务列，When 编译查询，Then 仍返回隐藏系统主键供打开 Document。 */
+    @Test
+    fun alwaysProjectsSystemDocumentId() {
+        val definitionWithoutId = definition.copy().put("fields", JsonArray()
+            .add(JsonObject().put("name", "supplier_name").put("type", "string"))
+            .add(JsonObject().put("name", "company_id").put("type", "uuid")))
+            .put("list", JsonObject().put("columns", JsonArray().add("supplier_name")))
+        val compiled = MetadataQueryEngine.compile(
+            definitionWithoutId, JsonObject(), "TENANT_ADMIN", setOf(companyId), emptySet(), emptySet()
+        )
+        assertEquals(true, compiled.selectSql.startsWith("SELECT \"id\", \"supplier_name\""))
+    }
+
     /** Given 用户没有企业数据范围，When 编译查询，Then 查询条件强制为空集。 */
     @Test
     fun emptyCompanyScopeReturnsNoRows() {

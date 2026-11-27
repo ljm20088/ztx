@@ -18,7 +18,7 @@ data class CompiledMetadataQuery(
 object MetadataQueryEngine {
     private data class FilterBudget(var nodes: Int = 0)
     private val identifier = Regex("[a-z][a-z0-9_]{0,62}")
-    private val protectedSchemas = setOf("platform", "iam", "meta", "audit", "pg_catalog", "information_schema")
+    private val protectedSchemas = setOf("public", "platform", "iam", "meta", "audit", "pg_catalog", "information_schema")
     private val operators = setOf("eq", "ne", "gt", "gte", "lt", "lte", "contains", "startsWith", "in", "isNull")
 
     fun compile(
@@ -58,6 +58,8 @@ object MetadataQueryEngine {
             roles == null || roles.isEmpty || roles.any { it == role || it == "TENANT_ADMIN" }
         }.mapNotNull { it.getString("name") }.toSet()
         val selected = allowedColumns.filter { it in readable }
+        // 系统主键始终作为隐藏投影返回，供列表行打开对应 Document；不要求元数据把 id 声明为普通字段。
+        val projection = (listOf("id") + selected).distinct()
         if (selected.isEmpty()) invalid("当前用户没有可读取的列表字段")
 
         fun configuredFields(key: String): Set<String> =
@@ -113,7 +115,7 @@ object MetadataQueryEngine {
         val selectValues = values.toMutableList()
         selectValues += pageSize
         selectValues += (page - 1) * pageSize
-        val selectSql = "SELECT " + selected.joinToString(", ") { "\"$it\"" } +
+        val selectSql = "SELECT " + projection.joinToString(", ") { "\"$it\"" } +
             from + whereSql + orderSql + " LIMIT $" + (selectValues.size - 1) + " OFFSET $" + selectValues.size
         return CompiledMetadataQuery(selectSql, countSql, selectValues, values.toList())
     }

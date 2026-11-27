@@ -28,7 +28,7 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   }))
   await page.route('**/api/v1/tenant/query/PurchaseOrder', route => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify({ items: [{ supplier_name: '华东轴承', order_date: '2026-11-27' }], total: 21, page: 1, pageSize: 20 }),
+    body: JSON.stringify({ items: [{ id: '00000000-0000-0000-0000-000000000099', supplier_name: '华东轴承', order_date: '2026-11-27' }], total: 21, page: 1, pageSize: 20 }),
   }))
   await page.route('**/api/v1/tenant/documents/PurchaseOrder', route => route.fulfill({
     status: 201, contentType: 'application/json',
@@ -48,6 +48,14 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   await expect(page.getByText('华东轴承')).toBeVisible()
   await expect(page.getByText('共 21 条')).toBeVisible()
   if (testInfo.project.name === 'chromium') await page.screenshot({ path: 'artifacts/frontend-visual-captures/metadata-list-desktop.png', fullPage: true })
+
+  // When 用户双击列表记录或用键盘 Enter 激活行，Then 打开独立编辑表单 Tab。
+  await page.getByRole('row').filter({ hasText: '华东轴承' }).dblclick()
+  await expect(page.getByLabel('供应商')).toHaveValue('华东轴承')
+  const workspaceTabs = page.getByRole('navigation', { name: '工作区标签' })
+  await workspaceTabs.locator('button.workspace-tab').filter({ hasText: '元数据列表' }).click()
+  await expect(page.getByText('共 21 条')).toBeVisible()
+
   await page.getByRole('button', { name: '筛选' }).click()
   await page.getByPlaceholder('搜索列表字段').fill('华东轴承')
   await page.getByPlaceholder('搜索列表字段').press('Enter')
