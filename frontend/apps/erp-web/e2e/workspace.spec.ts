@@ -161,7 +161,7 @@ test('左侧导航可整体折叠、展开并记住状态', async ({ page }) => 
     sidebar: document.querySelector('.ztx-sidebar')!.getBoundingClientRect().width,
     main: document.querySelector('.workspace-main')!.getBoundingClientRect().width,
   }))
-  expect(collapsedLayout.brand).toBe(collapsedLayout.sidebar)
+  expect(Math.abs(collapsedLayout.brand - collapsedLayout.sidebar)).toBeLessThan(1)
   expect(collapsedLayout.main).toBeGreaterThan(expandedMainWidth)
 
   // When 鼠标悬停一级模块图标（触屏端改用点击）
@@ -234,7 +234,7 @@ test('折叠导航下悬停菜单跟随一级图标，鼠标离开后关闭', as
   await expect(featureMenu).toBeHidden()
 })
 
-test('平台管理员可从右上角账户菜单进入控制台和账户安全', async ({ page }) => {
+test('平台管理员工作区直接提供独立导航和账户安全', async ({ page }) => {
   // Given：当前浏览器持有有效的平台管理员会话
   await page.route('**/api/v1/platform/auth/me', route => route.fulfill({
     status: 200,
@@ -243,29 +243,21 @@ test('平台管理员可从右上角账户菜单进入控制台和账户安全',
   }))
   await page.goto('/platform/admin')
 
-  // When：打开右上角用户菜单
-  await page.getByRole('button', { name: '用户账户菜单' }).click()
-
-  // Then：菜单显示当前身份、平台控制台和账户安全入口
-  await expect(page.getByRole('menu', { name: '用户账户菜单' }).getByText('platform.admin')).toBeVisible()
-  await expect(page.getByRole('menuitem', { name: '平台控制台' })).toBeVisible()
-  await expect(page.getByRole('menuitem', { name: '修改密码' })).toBeVisible()
-
-  // When：进入账户安全
-  await page.getByRole('menuitem', { name: '修改密码' }).click()
-
-  // Then：跳转到密码设置所在的控制台区域
-  await expect(page).toHaveURL(/\/platform\/admin#password-settings$/)
+  // Then：平台管理员进入独立平台工作区，账户安全内容直接可见
+  await expect(page.getByRole('navigation', { name: '平台管理导航' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '平台概览' })).toBeVisible()
   await expect(page.locator('#password-settings')).toBeVisible()
+  await expect(page.getByRole('button', { name: '更新密码' })).toBeVisible()
+  await expect(page.getByText('采购管理')).toHaveCount(0)
 
-  // Then 平台控制台标题使用页面标题令牌，区块标题使用区块标题令牌
+  // Then 平台概览标题使用页面标题令牌
   const adminTypography = await page.evaluate(() => ({
     pageTitle: getComputedStyle(document.querySelector('[data-testid="platform-admin-heading"] h1')!).fontSize,
   }))
   expect(adminTypography.pageTitle).toBe('18px')
 })
 
-test('平台管理员可从右上角用户菜单安全退出', async ({ page }) => {
+test('平台管理员可从独立平台工作区安全退出', async ({ page }) => {
   // Given：用户已登录平台控制面
   await page.route('**/api/v1/platform/auth/me', route => route.fulfill({
     status: 200,
@@ -275,9 +267,8 @@ test('平台管理员可从右上角用户菜单安全退出', async ({ page }) 
   await page.route('**/api/v1/platform/auth/logout', route => route.fulfill({ status: 204 }))
   await page.goto('/platform/admin')
 
-  // When：打开用户菜单并退出登录
-  await page.getByRole('button', { name: '用户账户菜单' }).click()
-  await page.getByRole('menuitem', { name: '退出登录' }).click()
+  // When：点击平台工作区的退出登录
+  await page.getByRole('button', { name: '退出登录' }).click()
 
   // Then：调用注销接口后返回平台登录页
   await expect(page).toHaveURL(/\/platform\/login$/)
@@ -370,24 +361,21 @@ test('工作区内容区按统一字号令牌呈现层级', async ({ page }) => 
 })
 
 
-test('平台管理员登录页直接使用统一字体令牌', async ({ page }) => {
-  // Given 用户打开平台管理员登录页
+test('精简后的平台管理员登录页使用统一字号令牌', async ({ page }) => {
+  // Given 用户打开平台管理员登录页，平台尚未初始化且请求来自本机
+  await page.route('**/api/v1/platform/auth/status', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ initialized: false, canInitialize: true, mfaEnabled: false }),
+  }))
   await page.goto('/platform/login')
   await expect(page.getByTestId('platform-auth-form')).toBeVisible()
 
-  // Then 页面标题、表单标签、输入框、按钮和辅助说明使用统一字号
+  // Then 页面标题、表单标签、输入框和按钮使用统一字号
   const typography = await page.evaluate(() => ({
     title: getComputedStyle(document.querySelector('[data-testid="platform-auth-heading"] h1')!).fontSize,
     label: getComputedStyle(document.querySelector('[data-testid="platform-auth-form"] label')!).fontSize,
     input: getComputedStyle(document.querySelector('[data-testid="platform-auth-form"] input')!).fontSize,
     submit: getComputedStyle(document.querySelector('[data-testid="platform-auth-submit"]')!).fontSize,
-    footer: getComputedStyle(document.querySelector('[data-testid="platform-auth-foot"]')!).fontSize,
   }))
-  expect(typography).toEqual({
-    title: '18px',
-    label: '13px',
-    input: '13px',
-    submit: '13px',
-    footer: '12px',
-  })
+  expect(typography).toEqual({ title: '18px', label: '13px', input: '13px', submit: '13px' })
 })

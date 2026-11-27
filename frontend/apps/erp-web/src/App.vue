@@ -6,6 +6,7 @@ import { menuModules, findFeature } from './navigation/menu'
 import { useWorkspaceStore } from './stores/workspace'
 const route=useRoute(),router=useRouter(),workspace=useWorkspaceStore()
 const isAuthRoute=computed(()=>route.path==='/'||route.path==='/tenant/login'||route.path==='/platform/login')
+const isPlatformWorkspace=computed(()=>route.path.startsWith('/platform/')&&route.path!='/platform/login')
 const activeModuleId=ref('workspace'),openCategoryId=ref<string|null>('personal'),flyoutOpen=ref(false),isTouch=ref(false)
 const account=ref<{id:string;username:string;mfaEnabled?:boolean;kind:'platform'|'tenant'}|null>(null),accountMenuOpen=ref(false),accountMenuError=ref('')
 const navCollapsed=ref(localStorage.getItem('ztx-nav-collapsed')==='true'),collapsedMenuOpen=ref(false)
@@ -19,6 +20,11 @@ const activeCategory=computed(()=>activeModule.value.categories.find(item=>item.
 watch(navCollapsed,value=>localStorage.setItem('ztx-nav-collapsed',String(value)))
 watch(()=>route.fullPath,path=>{
  if(path==='/'||path==='/tenant/login'||path==='/platform/login')return
+ if(path.startsWith('/platform/')) {
+  accountMenuOpen.value=false
+  void refreshAccount()
+  return
+ }
  const feature=findFeature(path)
  workspace.openTab({path,title:feature?.label??String(route.meta.title??'功能页面'),closable:path!='/workspace'})
  accountMenuOpen.value=false
@@ -126,7 +132,33 @@ onMounted(()=>{isTouch.value=window.matchMedia('(pointer: coarse)').matches;wind
 onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEventListener('keydown',onGlobalKeydown)})
 </script>
 <template>
-  <div v-if="!isAuthRoute" class="ztx-shell min-h-screen bg-ztx-page font-sans text-ztx-text">
+  <div v-if="isPlatformWorkspace" class="min-h-screen bg-ztx-page font-sans text-ztx-text">
+    <header class="flex h-12 items-center justify-between border-b border-ztx-border bg-ztx-surface px-5">
+      <div class="flex items-center gap-3">
+        <span class="grid size-7 place-items-center rounded-md bg-ztx-primary text-white"><ZCommand :size="17" /></span>
+        <strong class="text-[14px] tracking-[.1em]">ZTX</strong>
+        <span class="border-l border-ztx-border pl-3 text-ztx-body text-ztx-muted">平台管理</span>
+      </div>
+      <div class="flex items-center gap-3 text-ztx-body">
+        <span class="text-ztx-muted">{{ account?.username ?? '平台管理员' }}</span>
+        <ZButton variant="ghost" size="sm" @click="logout"><ZX :size="14" /> 退出登录</ZButton>
+      </div>
+    </header>
+    <div class="flex min-h-[calc(100vh-48px)]">
+      <aside class="w-[210px] shrink-0 border-r border-ztx-border bg-ztx-surface p-3">
+        <nav class="flex flex-col gap-1" aria-label="平台管理导航">
+          <RouterLink to="/platform/admin" class="rounded-md px-3 py-2.5 text-ztx-body no-underline" :class="route.path==='/platform/admin'?'bg-ztx-surface-warm font-semibold text-ztx-primary-strong':'text-ztx-text-secondary hover:bg-ztx-surface-soft'">平台概览</RouterLink>
+          <RouterLink to="/platform/tenants" class="rounded-md px-3 py-2.5 text-ztx-body no-underline" :class="route.path==='/platform/tenants'?'bg-ztx-surface-warm font-semibold text-ztx-primary-strong':'text-ztx-text-secondary hover:bg-ztx-surface-soft'">租户管理</RouterLink>
+          <RouterLink to="/platform/operations" class="rounded-md px-3 py-2.5 text-ztx-body no-underline" :class="route.path==='/platform/operations'?'bg-ztx-surface-warm font-semibold text-ztx-primary-strong':'text-ztx-text-secondary hover:bg-ztx-surface-soft'">运维管理</RouterLink>
+          <RouterLink to="/platform/audit" class="rounded-md px-3 py-2.5 text-ztx-body no-underline" :class="route.path==='/platform/audit'?'bg-ztx-surface-warm font-semibold text-ztx-primary-strong':'text-ztx-text-secondary hover:bg-ztx-surface-soft'">安全审计</RouterLink>
+        </nav>
+      </aside>
+      <main class="min-w-0 flex-1 px-6 py-5 max-[720px]:px-3">
+        <RouterView />
+      </main>
+    </div>
+  </div>
+  <div v-else-if="!isAuthRoute" class="ztx-shell min-h-screen bg-ztx-page font-sans text-ztx-text">
     <header class="workspace-header sticky top-0 z-30 flex h-11 min-h-11 items-center gap-3 border-b border-ztx-border bg-ztx-surface pr-3.5">
       <div class="brand-lockup flex h-ztx-topbar w-ztx-sidebar basis-ztx-sidebar shrink-0 items-center gap-2 border-r border-ztx-border px-4 max-[720px]:w-ztx-sidebar-mobile max-[720px]:basis-ztx-sidebar-mobile" :class="{ 'is-nav-collapsed': navCollapsed, '!w-ztx-sidebar-collapsed !basis-ztx-sidebar-collapsed justify-center px-0 max-[720px]:!w-ztx-sidebar-collapsed-mobile max-[720px]:!basis-ztx-sidebar-collapsed-mobile': navCollapsed }" aria-label="ZTX 企业工作区">
         <div class="brand-mark grid size-[26px] place-items-center rounded-[6px] bg-ztx-primary text-ztx-on-primary">

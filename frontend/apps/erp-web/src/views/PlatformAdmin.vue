@@ -74,8 +74,8 @@ async function changePassword() {
 <template>
   <section class="mx-auto w-full max-w-[1180px]">
     <header data-testid="platform-admin-heading" class="mb-[18px] flex items-end justify-between gap-4 max-[780px]:items-start">
-      <div><span class="text-ztx-caption font-bold tracking-[.13em] text-ztx-muted">PLATFORM CONTROL PLANE</span><h1 class="my-1 text-ztx-page-title text-ztx-text">平台控制台</h1><p class="text-ztx-caption text-ztx-muted">平台级身份与安全设置。此处不管理租户业务用户。</p></div>
-      <ZButton variant="secondary" @click="router.push('/platform/tenants')">租户管理</ZButton>
+      <div><span class="text-ztx-caption font-bold tracking-[.13em] text-ztx-muted">PLATFORM CONTROL PLANE</span><h1 class="my-1 text-ztx-page-title text-ztx-text">平台概览</h1><p class="text-ztx-caption text-ztx-muted">平台运行入口与平台管理员账户安全。平台身份不属于任何企业。</p></div>
+      <div class="flex gap-2"><ZButton variant="secondary" @click="router.push('/platform/operations')">运维管理</ZButton><ZButton variant="secondary" @click="router.push('/platform/tenants')">租户管理</ZButton></div>
     </header>
     <ZAlert v-if="message" class="mb-3" tone="info">{{ message }}</ZAlert>
     <ZAlert v-if="error" class="mb-3" tone="error" role="alert">{{ error }}</ZAlert>

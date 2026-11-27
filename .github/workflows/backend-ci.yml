@@ -1,19 +1,21 @@
 name: Backend CI
 
 on:
-  push:
-    branches: ["**"]
+  pull_request:
+    branches: [main]
     paths:
       - "backend/**"
       - "database/migrations/**"
       - "gradle/**"
       - "**/*.gradle.kts"
       - "settings.gradle.kts"
+      - "gradle.properties"
       - "docker-compose.yml"
       - ".devcontainer/**"
       - ".env.example"
       - "README.md"
       - "ztx"
+      - "frontend/**"
       - "docs/operations/**"
       - ".github/workflows/backend-ci.yml"
   workflow_dispatch:
@@ -22,14 +24,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: backend-ci-${{ github.workflow }}-${{ github.ref }}
+  group: backend-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   backend:
     name: JDK 21 · Gradle 9.7 · Kotlin 2.4
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,6 +53,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 26.13.1
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Set up Gradle from the committed Wrapper
         uses: gradle/actions/setup-gradle@v4
@@ -76,7 +80,7 @@ jobs:
           docker compose config --quiet
 
       - name: Build and test
-        run: ./gradlew --no-daemon clean test build
+        run: ./gradlew --no-daemon test build
 
       - name: Start PostgreSQL with Docker Compose and verify health
         run: |

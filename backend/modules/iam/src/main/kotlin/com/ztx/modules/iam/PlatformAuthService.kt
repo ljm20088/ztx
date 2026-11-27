@@ -2,6 +2,8 @@ package com.ztx.modules.iam
 
 import com.ztx.adapters.postgres.PgDatabase
 import io.vertx.core.Future
+import io.vertx.core.json.JsonArray
+import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 import java.nio.ByteBuffer
@@ -18,6 +20,7 @@ import javax.crypto.spec.SecretKeySpec
 data class PlatformAdmin(val id: UUID, val username: String, val mfaEnabled: Boolean)
 data class PlatformLogin(val sessionToken: String, val admin: PlatformAdmin)
 data class MfaEnrollment(val secret: String, val otpauthUri: String)
+data class PlatformPasswordResetResult(val success: Boolean, val reason: String)
 private data class LoginOutcome(val login: PlatformLogin?)
 private data class AdminLookup(val admin: PlatformAdmin?)
 
@@ -26,83 +29,85 @@ class PlatformAuthService(
     private val database: PgDatabase,
     private val mfaEncryptionKey: String
 ) {
-    @Volatile private var activeSetupCredential: String? = null
-    @Volatile private var setupCredentialExpiresAt: Instant? = null
-
     fun initializationStatus(): Future<Boolean> =
         database.withTransaction { connection ->
             connection.preparedQuery("SELECT EXISTS (SELECT 1 FROM iam.platform_admin) AS initialized")
                 .execute().map { rows -> rows.first().getBoolean("initialized") }
         }
 
-    /** 仅供 loopback 安装管理入口读取；明文只保存在当前进程内存。 */
-    fun currentSetupCredential(): Future<String?> {
-        val token = activeSetupCredential
-            ?.takeIf { setupCredentialExpiresAt?.isAfter(Instant.now()) == true }
-            ?: return Future.succeededFuture<String?>(null)
-        return database.withTransaction { connection ->
+    fun mfaEnabled(): Future<Boolean> =
+        database.withTransaction { connection ->
             connection.preparedQuery(
-                """SELECT 1 FROM iam.platform_admin_setup_token
-                   WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > clock_timestamp()"""
-            ).execute(Tuple.of(AuthSupport.sha256(token))).map { rows -> rows.size() == 1 }
-        }.map { isCurrent -> if (isCurrent) token else null }
-    }
-
-    fun createSetupCredential(): Future<String> {
-        val token = AuthSupport.randomToken(32)
-        return database.withTransaction { connection ->
-            connection.preparedQuery(
-                """WITH lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(724193810233))
-                   SELECT count(*) AS total FROM iam.platform_admin CROSS JOIN lock"""
-            ).execute().compose { rows ->
-                if (rows.first().getLong("total") > 0L) {
-                    Future.failedFuture("平台管理员已初始化，拒绝再次生成初始化凭据")
-                } else {
-                    connection.preparedQuery(
-                        "UPDATE iam.platform_admin_setup_token SET consumed_at = clock_timestamp() WHERE consumed_at IS NULL"
-                    ).execute().compose {
-                        connection.preparedQuery(
-                            """INSERT INTO iam.platform_admin_setup_token (id, token_hash, expires_at)
-                               VALUES ($1, $2, clock_timestamp() + INTERVAL '15 minutes')"""
-                        ).execute(Tuple.of(UUID.randomUUID(), AuthSupport.sha256(token))).map(token)
-                    }
-                }
-            }
-        }.map { issued ->
-            activeSetupCredential = issued
-            setupCredentialExpiresAt = Instant.now().plusSeconds(15 * 60)
-            issued
+                "SELECT COALESCE((SELECT mfa_enabled FROM iam.platform_admin LIMIT 1), FALSE) AS enabled"
+            ).execute().map { rows -> rows.first().getBoolean("enabled") }
         }
-    }
 
+    fun recentAuditEvents(limit: Int = 100): Future<JsonArray> =
+        database.withTransaction { connection ->
+            connection.preparedQuery(
+                """SELECT event.id::text AS id, event.event_type, event.outcome,
+                          host(event.source_ip) AS source_ip, event.occurred_at,
+                          admin.username AS admin_username
+                   FROM audit.platform_security_event event
+                   LEFT JOIN iam.platform_admin admin ON admin.id = event.admin_id
+                   ORDER BY event.occurred_at DESC
+                   LIMIT $1"""
+            ).execute(Tuple.of(limit.coerceIn(1, 200))).map { rows ->
+                JsonArray(rows.map { row ->
+                    JsonObject()
+                        .put("id", row.getString("id"))
+                        .put("eventType", row.getString("event_type"))
+                        .put("outcome", row.getString("outcome"))
+                        .put("sourceIp", row.getString("source_ip"))
+                        .put("adminUsername", row.getString("admin_username"))
+                        .put("occurredAt", row.getOffsetDateTime("occurred_at").toString())
+                })
+            }
+        }
+
+    fun workerInstances(limit: Int = 20): Future<JsonArray> =
+        database.withTransaction { connection ->
+            connection.preparedQuery(
+                """SELECT worker_id, started_at, last_seen_at,
+                          CASE WHEN last_seen_at >= clock_timestamp() - INTERVAL '45 seconds'
+                               THEN 'UP' ELSE 'DOWN' END AS status
+                   FROM platform.worker_instance
+                   WHERE last_seen_at >= clock_timestamp() - INTERVAL '24 hours'
+                   ORDER BY last_seen_at DESC
+                   LIMIT $1"""
+            ).execute(Tuple.of(limit.coerceIn(1, 100))).map { rows ->
+                JsonArray(rows.map { row ->
+                    JsonObject()
+                        .put("workerId", row.getString("worker_id"))
+                        .put("startedAt", row.getOffsetDateTime("started_at").toString())
+                        .put("lastSeenAt", row.getOffsetDateTime("last_seen_at").toString())
+                        .put("status", row.getString("status"))
+                })
+            }
+        }
+
+    /**
+     * 首次初始化只允许本机/SSH 隧道请求进入路由层；数据库事务锁确保并发请求只能创建一个管理员。
+     * 初始化成功后管理员记录永久存在，服务重启不会重新开放初始化。
+     */
     fun initialize(
-        token: String, username: String, password: String, ip: String?, userAgent: String? = null
+        username: String, password: String, ip: String?, userAgent: String? = null
     ): Future<PlatformLogin> {
         require(username.matches(Regex("[A-Za-z0-9._-]{3,80}"))) { "管理员账号格式不正确" }
         validatePassword(password)
         val passwordHash = AuthSupport.hashPassword(password, PBKDF2_ITERATIONS)
         return database.withTransaction { connection ->
-            connection.preparedQuery(
-                """WITH lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(724193810233))
-                   SELECT token.id::text AS id FROM iam.platform_admin_setup_token token CROSS JOIN lock
-                   WHERE token.token_hash = $1 AND token.consumed_at IS NULL
-                     AND token.expires_at > clock_timestamp()
-                   FOR UPDATE OF token"""
-            ).execute(Tuple.of(AuthSupport.sha256(token))).compose { tokens ->
-                if (tokens.size() != 1) return@compose Future.failedFuture("初始化凭据无效或已过期")
+            connection.preparedQuery("SELECT pg_advisory_xact_lock(724193810233)").execute().compose {
                 connection.preparedQuery("SELECT count(*) AS total FROM iam.platform_admin").execute().compose { admins ->
-                    if (admins.first().getLong("total") > 0L) return@compose Future.failedFuture("平台管理员已初始化")
-                    val id = UUID.randomUUID()
-                    val rawSession = AuthSupport.randomToken(32)
-                    connection.preparedQuery(
-                        "INSERT INTO iam.platform_admin (id, username, password_hash) VALUES ($1, $2, $3)"
-                    ).execute(Tuple.of(id, username, passwordHash)).compose {
+                    if (admins.first().getLong("total") > 0L) {
+                        Future.failedFuture("平台管理员已初始化")
+                    } else {
+                        val id = UUID.randomUUID()
+                        val rawSession = AuthSupport.randomToken(32)
                         connection.preparedQuery(
-                            """UPDATE iam.platform_admin_setup_token SET consumed_at = clock_timestamp()
-                               WHERE id = $1 AND consumed_at IS NULL"""
-                        ).execute(Tuple.of(UUID.fromString(tokens.first().getString("id")))).compose { consumed ->
-                            if (consumed.rowCount() != 1) Future.failedFuture("初始化凭据已被使用")
-                            else connection.preparedQuery(
+                            "INSERT INTO iam.platform_admin (id, username, password_hash) VALUES ($1, $2, $3)"
+                        ).execute(Tuple.of(id, username, passwordHash)).compose {
+                            connection.preparedQuery(
                                 """INSERT INTO iam.platform_admin_session
                                    (id, admin_id, token_hash, expires_at, user_agent, ip_address)
                                    VALUES ($1, $2, $3, clock_timestamp() + INTERVAL '8 hours', $4, $5::inet)"""
@@ -115,10 +120,6 @@ class PlatformAuthService(
                     }
                 }
             }
-        }.map { login ->
-            activeSetupCredential = null
-            setupCredentialExpiresAt = null
-            login
         }
     }
 
@@ -265,6 +266,95 @@ class PlatformAuthService(
         }.compose { enabled ->
             if (enabled) Future.succeededFuture() else Future.failedFuture("动态验证码不正确")
         }
+
+    /**
+     * 服务器部署人员通过独立命令重置唯一平台管理员密码。
+     * MFA 字段保持原样；同一事务中撤销全部会话并写入包含本机操作者的审计记录。
+     */
+    fun resetPasswordFromServerCommand(password: String, operator: String): Future<PlatformPasswordResetResult> =
+        database.withTransaction { connection ->
+            connection.preparedQuery(
+                """SELECT id::text AS id, username, password_hash
+                   FROM iam.platform_admin
+                   FOR UPDATE"""
+            ).execute().compose { rows ->
+                val admin = rows.firstOrNull()
+                val adminId = if (rows.count() == 1) UUID.fromString(requireNotNull(admin).getString("id")) else null
+                val details = JsonObject()
+                    .put("operator", operator.take(128))
+                    .put("mechanism", "server-command")
+                    .put("targetAdminCount", rows.count())
+                if (adminId != null) details.put("targetUsername", admin!!.getString("username"))
+
+                val failureReason = when {
+                    rows.count() != 1 -> "UNIQUE_PLATFORM_ADMIN_REQUIRED"
+                    password.length < 8 || !password.any(Char::isLetter) || !password.any(Char::isDigit) ->
+                        "PASSWORD_POLICY_REJECTED"
+                    AuthSupport.verifyPassword(password, requireNotNull(admin).getString("password_hash")) ->
+                        "PASSWORD_UNCHANGED"
+                    else -> null
+                }
+                if (failureReason != null) {
+                    details.put("reason", failureReason)
+                    writePasswordResetAudit(connection, adminId, "FAILURE", details)
+                        .map(PlatformPasswordResetResult(false, failureReason))
+                } else {
+                    val targetId = requireNotNull(adminId)
+                    val passwordHash = AuthSupport.hashPassword(password, PBKDF2_ITERATIONS)
+                    connection.preparedQuery(
+                        """UPDATE iam.platform_admin
+                           SET password_hash = $2, updated_at = clock_timestamp()
+                           WHERE id = $1"""
+                    ).execute(Tuple.of(targetId, passwordHash)).compose {
+                        connection.preparedQuery(
+                            """UPDATE iam.platform_admin_session
+                               SET revoked_at = clock_timestamp()
+                               WHERE admin_id = $1 AND revoked_at IS NULL"""
+                        ).execute(Tuple.of(targetId))
+                    }.compose { revoked ->
+                        details.put("revokedSessionCount", revoked.rowCount())
+                        connection.preparedQuery("DELETE FROM iam.platform_login_attempt").execute().compose {
+                            writePasswordResetAudit(connection, targetId, "SUCCESS", details)
+                        }
+                    }.map(PlatformPasswordResetResult(true, "SUCCESS"))
+                }
+            }
+        }
+
+    /** 交互式命令取消或输入确认不一致时也留下失败审计，不暴露目标账号是否存在。 */
+    fun recordPasswordResetCommandFailure(
+        operator: String,
+        reason: String
+    ): Future<PlatformPasswordResetResult> =
+        database.withTransaction { connection ->
+            connection.preparedQuery(
+                """SELECT id::text AS id, username
+                   FROM iam.platform_admin
+                   FOR UPDATE"""
+            ).execute().compose { rows ->
+                val admin = rows.firstOrNull()
+                val adminId = if (rows.count() == 1) UUID.fromString(requireNotNull(admin).getString("id")) else null
+                val details = JsonObject()
+                    .put("operator", operator.take(128))
+                    .put("mechanism", "server-command")
+                    .put("targetAdminCount", rows.count())
+                    .put("reason", reason)
+                if (adminId != null) details.put("targetUsername", admin!!.getString("username"))
+                writePasswordResetAudit(connection, adminId, "FAILURE", details)
+                    .map(PlatformPasswordResetResult(false, reason))
+            }
+        }
+
+    private fun writePasswordResetAudit(
+        connection: SqlConnection,
+        adminId: UUID?,
+        outcome: String,
+        details: JsonObject
+    ): Future<Void> = connection.preparedQuery(
+        """INSERT INTO audit.platform_security_event
+           (id, admin_id, event_type, outcome, source_ip, details)
+           VALUES ($1, $2, 'ADMIN_PASSWORD_RESET', $3, NULL, $4::jsonb)"""
+    ).execute(Tuple.of(UUID.randomUUID(), adminId, outcome, details.encode())).mapEmpty()
 
     private fun encrypt(value: String): String {
         val nonce = AuthSupport.randomBytes(12)

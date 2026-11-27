@@ -2,11 +2,17 @@ package com.ztx.tests.bdd
 
 import com.ztx.adapters.postgres.FlywayMigrator
 import com.ztx.adapters.postgres.PgDatabase
+import com.ztx.adapters.postgres.PostgresOutboxStore
+import com.ztx.server.BackgroundTaskWorker
+import com.ztx.server.PlatformAdminResetCommand
 import com.ztx.modules.iam.PlatformAuthService
+import com.ztx.platform.common.AppConfig
 import com.ztx.platform.common.DatabaseConfig
+import com.ztx.platform.common.RuntimeRole
 import io.vertx.core.Future
 import io.vertx.core.Vertx
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -31,8 +37,9 @@ class PlatformAuthIntegrationTest {
         val postgres = PostgreSQLContainer<Nothing>("postgres:18.6")
     }
 
+    // 平台首次初始化仅允许创建一个管理员，成功后自动登录且不可重复初始化。
     @Test
-    fun setupExpiryReplaySessionExpiryMfaAndLoginThrottlingAreEnforced() {
+    fun firstRunInitializationSessionExpiryMfaAndLoginThrottlingAreEnforced() {
         // Given：全新的控制面数据库，尚未创建任何平台管理员
         val projectDir = Path.of(System.getProperty("ztx.projectDir"))
         val config = DatabaseConfig(
@@ -48,35 +55,31 @@ class PlatformAuthIntegrationTest {
         val vertx = Vertx.vertx()
         val database = PgDatabase(vertx, config)
         val service = PlatformAuthService(database, "test-mfa-encryption-key-32-bytes-minimum")
+        var worker: BackgroundTaskWorker? = null
 
         try {
-            // Given：部署人员生成了一次性初始化凭据，随后该凭据超过有效期
-            val expiredToken = service.createSetupCredential().await()
-            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
-                connection.prepareStatement(
-                    "UPDATE iam.platform_admin_setup_token SET expires_at = clock_timestamp() - INTERVAL '1 second' WHERE token_hash = ?"
-                ).use { statement ->
-                    statement.setString(1, sha256(expiredToken))
-                    statement.executeUpdate()
-                }
-            }
+            // Given：Worker 以独立进程身份启动并持续上报心跳
+            val workerInstance = BackgroundTaskWorker(vertx, database, PostgresOutboxStore(database), "bdd-worker")
+            worker = workerInstance
+            workerInstance.start().await()
+            val workerInstances = service.workerInstances().await()
+            assertEquals(1, workerInstances.size())
+            assertEquals("UP", workerInstances.getJsonObject(0).getString("status"))
 
-            // When / Then：过期初始化凭据不能创建管理员
-            assertFailureContaining("初始化凭据无效或已过期") {
-                service.initialize(expiredToken, "expired.admin", "ZtxAdmin123", "127.0.0.1").await()
-            }
+            // Given：平台尚未初始化，且初始化不再依赖一次性口令
+            assertEquals(false, service.initializationStatus().await())
 
-            // When：重新生成有效凭据；新口令立即使此前未使用的口令失效
-            val staleToken = service.createSetupCredential().await()
-            val setupToken = service.createSetupCredential().await()
-            assertFailureContaining("初始化凭据无效或已过期") {
-                service.initialize(staleToken, "stale.admin", "ZtxAdmin123", "127.0.0.1").await()
-            }
+            // When：尚无管理员时执行受控密码重置
+            val missingAdminReset = service.resetPasswordFromServerCommand("ZtxRecovery456", "ztx-deployer").await()
 
-            // When：两个初始化请求并发使用同一有效口令
+            // Then：拒绝重置且不创建管理员
+            assertFalse(missingAdminReset.success)
+            assertEquals(false, service.initializationStatus().await())
+
+            // When：两个初始化请求并发提交不同账号
             val concurrentAttempts = listOf(
-                service.initialize(setupToken, "platform.admin", "ZtxAdmin123", "127.0.0.1"),
-                service.initialize(setupToken, "second.admin", "ZtxAdmin123", "127.0.0.1")
+                service.initialize("platform.admin", "ZtxAdmin123", "127.0.0.1", "bdd-test"),
+                service.initialize("second.admin", "ZtxAdmin123", "127.0.0.1", "bdd-test")
             )
             val outcomes = concurrentAttempts.map { attempt -> runCatching { attempt.await() } }
 
@@ -84,6 +87,7 @@ class PlatformAuthIntegrationTest {
             assertEquals(1, outcomes.count { it.isSuccess })
             val initialized = outcomes.single { it.isSuccess }.getOrThrow()
             val admin = initialized.admin
+            assertEquals(true, service.initializationStatus().await())
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
                 connection.createStatement().use { statement ->
                     statement.executeQuery("SELECT count(*) FROM iam.platform_admin").use { rows ->
@@ -96,6 +100,12 @@ class PlatformAuthIntegrationTest {
             // Then：初始化成功后已自动建立会话，无需再次登录
             assertEquals(admin.id, service.authenticate(initialized.sessionToken).await()?.id)
 
+            // Given：平台管理员已存在
+            // Then：重复初始化被拒绝，不能创建第二个管理员或重置现有账号
+            assertFailureContaining("平台管理员已初始化") {
+                service.initialize("second.admin", "ZtxAdmin123", "127.0.0.1", "bdd-test").await()
+            }
+
             // Given：尚未配置 MFA 加密密钥
             val serviceWithoutMfaKey = PlatformAuthService(database, "")
             // Then：普通用户名密码登录仍可使用；只有启用 MFA 时才要求配置密钥
@@ -104,11 +114,6 @@ class PlatformAuthIntegrationTest {
             ).await().admin.id)
             assertThrows(IllegalArgumentException::class.java) {
                 serviceWithoutMfaKey.enrollMfa(admin)
-            }
-
-            // Then：同一初始化凭据不可重放
-            assertFailureContaining("初始化凭据无效或已过期") {
-                service.initialize(setupToken, "second.admin", "ZtxAdmin123", "127.0.0.1").await()
             }
 
             // When：管理员登录并验证服务端会话
@@ -129,6 +134,26 @@ class PlatformAuthIntegrationTest {
             val mfaLogin = service.login(
                 "platform.admin", "ZtxAdmin123", currentTotp(enrollment.secret), "127.0.0.1", "bdd-test"
             ).await()
+
+            // Given：同一管理员另有一个仍然有效的平台会话
+            val activeSession = service.login(
+                "platform.admin", "ZtxAdmin123", currentTotp(enrollment.secret), "127.0.0.1", "bdd-test"
+            ).await()
+
+            // When：从非交互式进程调用服务器重置命令（没有可用终端）
+            val commandConfig = AppConfig(
+                role = RuntimeRole.SERVER,
+                httpHost = "127.0.0.1",
+                httpPort = 8080,
+                migrateOnStart = false,
+                mfaEncryptionKey = "test-mfa-encryption-key-32-bytes-minimum",
+                secureCookies = false,
+                database = config
+            )
+            val nonInteractiveExitCode = PlatformAdminResetCommand.execute(commandConfig, null)
+
+            // Then：命令拒绝非交互式输入并记录失败审计，不触碰现有会话
+            assertEquals(2, nonInteractiveExitCode)
 
             // Then：会话在有效期内可认证；超过有效期后服务端拒绝该会话
             assertNotNull(service.authenticate(mfaLogin.sessionToken).await())
@@ -157,6 +182,62 @@ class PlatformAuthIntegrationTest {
                     "127.0.0.1", "bdd-test").await()
             }
 
+            // Given：部署人员通过服务器交互式命令执行恢复，先提交一次确认不一致的失败尝试
+            val mismatch = service.recordPasswordResetCommandFailure(
+                "ztx-deployer", "PASSWORD_CONFIRMATION_MISMATCH"
+            ).await()
+            assertFalse(mismatch.success)
+
+            // When：部署人员提交不符合策略的新密码
+            val rejectedPassword = service.resetPasswordFromServerCommand("weak", "ztx-deployer").await()
+
+            // Then：密码保持不变，会话不被撤销，失败操作留下审计
+            assertFalse(rejectedPassword.success)
+            assertNotNull(service.authenticate(activeSession.sessionToken).await())
+
+            // When：部署人员提交符合策略的新密码
+            val reset = service.resetPasswordFromServerCommand("ZtxRecovery456", "ztx-deployer").await()
+
+            // Then：只重置现有管理员密码，撤销全部会话，并保留已启用的 MFA
+            assertTrue(reset.success)
+            assertNull(service.authenticate(activeSession.sessionToken).await())
+            assertEquals(true, service.mfaEnabled().await())
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.executeQuery(
+                        "SELECT count(*) FROM iam.platform_admin_session WHERE revoked_at IS NULL AND expires_at > clock_timestamp()"
+                    ).use { rows ->
+                        rows.next()
+                        assertEquals(0, rows.getInt(1))
+                    }
+                }
+            }
+            val recoveredLogin = service.login(
+                "platform.admin", "ZtxRecovery456", currentTotp(enrollment.secret), "127.0.0.1", "bdd-test"
+            ).await()
+            assertEquals(admin.id, recoveredLogin.admin.id)
+
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.prepareStatement(
+                    """SELECT outcome, details->>'operator' AS operator, details->>'targetUsername' AS target_username
+                       FROM audit.platform_security_event
+                       WHERE event_type = 'ADMIN_PASSWORD_RESET'
+                       ORDER BY occurred_at"""
+                ).use { statement ->
+                    statement.executeQuery().use { rows ->
+                        val resetAudits = mutableListOf<Triple<String, String?, String?>>()
+                        while (rows.next()) {
+                            resetAudits += Triple(rows.getString("outcome"), rows.getString("operator"), rows.getString("target_username"))
+                        }
+                        assertEquals(5, resetAudits.size)
+                        assertEquals(4, resetAudits.count { it.first == "FAILURE" })
+                        assertEquals(1, resetAudits.count { it.first == "SUCCESS" })
+                        assertTrue(resetAudits.all { it.second == "ztx-deployer" })
+                        assertTrue(resetAudits.all { it.third == "platform.admin" })
+                    }
+                }
+            }
+
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
                 connection.createStatement().use { statement ->
                     statement.executeQuery("SELECT count(*) FROM audit.platform_security_event").use { rows ->
@@ -166,6 +247,7 @@ class PlatformAuthIntegrationTest {
                 }
             }
         } finally {
+            worker?.close()
             database.close()
             vertx.close().toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS)
         }

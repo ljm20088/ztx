@@ -5,6 +5,8 @@ import PlatformLogin from '../views/PlatformLogin.vue'
 import PlatformAdmin from '../views/PlatformAdmin.vue'
 import TenantManagement from '../views/TenantManagement.vue'
 import TenantLogin from '../views/TenantLogin.vue'
+import PlatformOperations from '../views/PlatformOperations.vue'
+import PlatformAudit from '../views/PlatformAudit.vue'
 import TenantAccount from '../views/TenantAccount.vue'
 
 export const router = createRouter({
@@ -15,8 +17,10 @@ export const router = createRouter({
     { path: '/tenant/account', name: 'tenant-account', component: TenantAccount, meta: { title: '账户与安全', closable: true } },
     { path: '/workspace', name: 'workspace', component: WorkspaceHome, meta: { title: '工作台', closable: false } },
     { path: '/platform/login', name: 'platform-login', component: PlatformLogin, meta: { title: '平台管理登录', closable: false, public: true } },
-    { path: '/platform/admin', name: 'platform-admin', component: PlatformAdmin, meta: { title: '平台控制台', closable: true } },
+    { path: '/platform/admin', name: 'platform-admin', component: PlatformAdmin, meta: { title: '平台概览', closable: true } },
     { path: '/platform/tenants', name: 'platform-tenants', component: TenantManagement, meta: { title: '租户管理', closable: true } },
+    { path: '/platform/operations', name: 'platform-operations', component: PlatformOperations, meta: { title: '运维管理', closable: true } },
+    { path: '/platform/audit', name: 'platform-audit', component: PlatformAudit, meta: { title: '安全审计', closable: true } },
     { path: '/:section/:feature', name: 'feature', component: PlaceholderView },
     { path: '/:pathMatch(.*)*', redirect: '/workspace' },
   ],

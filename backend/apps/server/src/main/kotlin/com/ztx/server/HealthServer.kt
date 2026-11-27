@@ -10,6 +10,7 @@ import io.vertx.core.http.HttpServer
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.StaticHandler
+import java.time.Instant
 
 class HealthServer(
     private val vertx: Vertx,
@@ -20,6 +21,8 @@ class HealthServer(
     private val tenantLifecycleRoutes: TenantLifecycleRoutes? = null,
     private val tenantAuthRoutes: TenantAuthRoutes? = null
 ) {
+    private val startedAt = Instant.now()
+    private val version = System.getProperty("ztx.version") ?: "development"
     fun start(): Future<HttpServer> {
         val router = Router.router(vertx)
         tenantAuthRoutes?.registerGuard(router)
@@ -37,7 +40,8 @@ class HealthServer(
         }
         router.get("/health/live").handler { context ->
             context.response().putHeader("content-type", "application/json; charset=utf-8")
-                .end(JsonObject().put("status", "UP").put("service", "ztx-server").encode())
+                .end(JsonObject().put("status", "UP").put("service", "ztx-server")
+                    .put("version", version).put("startedAt", startedAt.toString()).encode())
         }
         router.get("/health/ready").handler { context ->
             database.ping().onSuccess {
