@@ -96,7 +96,8 @@ class SchemaMigrationService {
                                 schema, table, checksum, "SUCCEEDED", migrationPlan)
                         )
                     }
-                    markRunning(connection, migrationId, doctype, version, schema, table, checksum, migrationPlan, actorId)
+                    val activeMigrationId = existing?.getUUID("id") ?: migrationId
+                    markRunning(connection, activeMigrationId, doctype, version, schema, table, checksum, migrationPlan, actorId)
                         .compose { applyPlan(connection, migrationPlan) }
                         .compose {
                             connection.preparedQuery(
@@ -105,15 +106,29 @@ class SchemaMigrationService {
                                    WHERE source='RUNTIME' AND version=$1 AND doctype=$2"""
                             ).execute(Tuple.of(version.toString(), doctype))
                         }.map {
-                            RuntimeSchemaMigrationResult(migrationId, doctype, version,
+                            RuntimeSchemaMigrationResult(activeMigrationId, doctype, version,
                                 schema, table, checksum, "SUCCEEDED", migrationPlan)
                         }
                 }
         }.recover { error ->
             if (error is SchemaMigrationConflictException) return@recover Future.failedFuture(error)
             database.withTransaction { connection ->
-                recordFailure(connection, migrationId, doctype, version, schema, table,
-                    checksum, migrationPlan, actorId, error)
+                connection.preparedQuery("SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))")
+                    .execute(Tuple.of("ztx.schema-migration", "global"))
+                    .compose {
+                        connection.preparedQuery(
+                            """SELECT checksum,status FROM meta.schema_migration
+                               WHERE source='RUNTIME' AND version=$1 AND doctype=$2 FOR UPDATE"""
+                        ).execute(Tuple.of(version.toString(), doctype))
+                    }.compose { rows ->
+                        val current = rows.firstOrNull()
+                        if (current?.getString("status") == "SUCCEEDED" && current.getString("checksum") == checksum) {
+                            Future.succeededFuture()
+                        } else {
+                            recordFailure(connection, migrationId, doctype, version, schema, table,
+                                checksum, migrationPlan, actorId, error)
+                        }
+                    }
             }.compose { Future.failedFuture(error) }
         }
     }

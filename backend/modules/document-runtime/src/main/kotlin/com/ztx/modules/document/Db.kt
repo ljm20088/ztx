@@ -184,11 +184,11 @@ class Db(
  */
 class DbProvider(private val routes: DocumentRuntimeRoutes = DocumentRuntimeRoutes()) {
     fun <T> transaction(principal: TenantPrincipal, block: (Db) -> Future<T>): Future<T> =
-        principal.database.withTransaction { connection ->
+        principal.database.withTransaction<T> { connection ->
             try {
                 block(Db(principal, connection, routes))
             } catch (error: Throwable) {
-                Future.failedFuture(error)
+                Future.failedFuture<T>(error)
             }
         }
 }
