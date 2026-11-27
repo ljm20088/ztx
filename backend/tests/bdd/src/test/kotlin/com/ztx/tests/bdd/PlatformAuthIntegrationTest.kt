@@ -74,7 +74,7 @@ class PlatformAuthIntegrationTest {
 
                 // Then：本机请求可读取状态，并获知当前允许初始化
                 assertTrue(localStatus.startsWith("HTTP/1.1 200"))
-                assertTrue(localStatus.contains("\\\"canInitialize\\\":true"))
+                assertTrue(localStatus.contains("\"canInitialize\":true"))
 
                 // When：通过伪造的代理转发头提交初始化请求
                 val forwardedRequest = rawHttpRequest(
