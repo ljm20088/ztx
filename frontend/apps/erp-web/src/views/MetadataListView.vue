@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onActivated, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ZButton, ZDataGrid } from '@ztx/ui'
 
@@ -95,7 +95,8 @@ function openDocument(row: Row) {
   void router.push('/developer/documents/' + encodeURIComponent(doctype.value) + '/' + encodeURIComponent(row.id))
 }
 watch(doctype, () => { page.value = 1; void load() })
-onMounted(() => { void load() })
+// Given 列表 Tab 从表单重新激活，When 页面恢复，Then 保留本地筛选/排序/分页状态并刷新最新查询结果。
+onActivated(() => { void load() })
 </script>
 
 <template>

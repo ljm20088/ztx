@@ -263,7 +263,7 @@ class DocumentRuntimeRoutes(
         if (entries.isEmpty()) return Future.failedFuture("没有可更新字段")
         val parameters = mutableListOf<Any?>()
         val assignments = entries.map { (name, value, json) ->
-            parameters += if (json) encodeJson(value) else value
+            parameters += if (json && value != null) encodeJson(value) else value
             val marker = "$" + parameters.size
             "\"$name\"=" + marker + if (json) "::jsonb" else ""
         }.toMutableList()

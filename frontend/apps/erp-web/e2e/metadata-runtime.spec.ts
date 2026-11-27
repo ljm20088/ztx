@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test('元数据驱动列表可分页并打开动态单据表单', async ({ page }, testInfo) => {
+  let documentCreated = false
   // Given 用户已登录，系统存在已校验的采购订单元数据
   const definition = {
     doctype: 'PurchaseOrder',
@@ -28,12 +29,15 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   }))
   await page.route('**/api/v1/tenant/query/PurchaseOrder', route => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify({ items: [{ id: '00000000-0000-0000-0000-000000000099', supplier_name: '华东轴承', order_date: '2026-11-27' }], total: 21, page: 1, pageSize: 20 }),
+    body: JSON.stringify({ items: [{ id: '00000000-0000-0000-0000-000000000099', supplier_name: '华东轴承', order_date: '2026-11-27' }], total: documentCreated ? 22 : 21, page: 1, pageSize: 20 }),
   }))
-  await page.route('**/api/v1/tenant/documents/PurchaseOrder', route => route.fulfill({
-    status: 201, contentType: 'application/json',
-    body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000099', version: 1, supplier_name: '华东轴承', order_date: '2026-11-27', start_time: '08:30:00', lines: [], docstatus: 0 }),
-  }))
+  await page.route('**/api/v1/tenant/documents/PurchaseOrder', route => {
+    documentCreated = true
+    return route.fulfill({
+      status: 201, contentType: 'application/json',
+      body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000099', version: 1, supplier_name: '华东轴承', order_date: '2026-11-27', start_time: '08:30:00', lines: [], docstatus: 0 }),
+    })
+  })
   await page.route('**/api/v1/tenant/documents/PurchaseOrder/00000000-0000-0000-0000-000000000099', route => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000099', version: 1, supplier_name: '华东轴承', order_date: '2026-11-27', lines: [], docstatus: 0 }),
@@ -80,4 +84,5 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   const tabs = page.getByRole('navigation', { name: '工作区标签' })
   await tabs.locator('button.workspace-tab').filter({ hasText: '元数据列表' }).click()
   await expect(page.getByPlaceholder('搜索列表字段')).toHaveValue('华东轴承')
+  await expect(page.getByText('共 22 条')).toBeVisible()
 })
