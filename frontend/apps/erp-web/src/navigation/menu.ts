@@ -9,6 +9,7 @@ import {
   House,
   Settings,
   ShoppingCart,
+  ShieldCheck,
 } from 'lucide-vue-next'
 
 export interface MenuFeature { id:string; label:string; path:string; description:string }
@@ -167,6 +168,22 @@ export const menuModules:MenuModule[] = [
   },
 ]
 
+
+export const platformMenuModules:MenuModule[] = [
+  {
+    id:'platform', label:'平台管理', icon:ShieldCheck, categories:[
+      {id:'platform-operations',label:'平台运营',features:[
+        feature('platform-overview','平台概览','/platform/admin','查看平台管理概况与管理员安全设置'),
+        feature('platform-tenants','租户管理','/platform/tenants','创建、启用和管理租户'),
+        feature('platform-operations-status','运维管理','/platform/operations','查看 Server、数据库和 Worker 运行状态'),
+      ]},
+      {id:'platform-security',label:'安全管理',features:[
+        feature('platform-audit','安全审计','/platform/audit','查看平台管理员安全事件与操作记录'),
+      ]},
+    ],
+  },
+]
+
 export function findFeature(path:string):MenuFeature|undefined {
-  return menuModules.flatMap(item=>item.categories).flatMap(item=>item.features).find(item=>item.path===path)
+  return [...menuModules,...platformMenuModules].flatMap(item=>item.categories).flatMap(item=>item.features).find(item=>item.path===path)
 }
