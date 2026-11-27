@@ -181,7 +181,11 @@ class MetadataRoutes {
         }.onSuccess { raw ->
             val row = raw as JsonObject
             if (!row.containsKey("id")) fail(context, 404, "DocType 不存在")
-            else send(context, row.put("definition", row.getJsonObject("definition_json")).remove("definition_json"))
+            else {
+                row.put("definition", row.getJsonObject("definition_json"))
+                row.remove("definition_json")
+                send(context, row)
+            }
         }.onFailure { fail(context, 503, "读取元数据定义失败") }
     }
 
