@@ -62,3 +62,6 @@
 - PostgreSQL/Testcontainers：租户迁移、模型独立性、跨企业岗位约束、业务用户登录、企业管理员数据范围和有效权限合并。
 - BDD 场景及关键测试注释采用中文 Given-When-Then。
 - Playwright：企业、账套管理流程和任职权限合并展示。
+
+
+> CI 验收状态以对应 Pull Request 的实际工作流结果为准；未执行的检查不得标记为通过。
