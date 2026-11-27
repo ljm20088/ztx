@@ -35,9 +35,14 @@ class MetadataQueryRoutes {
                 val row = definitions.firstOrNull() ?: return@compose Future.failedFuture<JsonObject>("DocType 不存在或尚未通过校验")
                 val definition = row.getJsonObject("definition_json")
                 val permissions = definition.getJsonObject("permissions")?.getJsonArray("read")
-                if (permissions != null && !permissions.isEmpty && permissions.none {
-                    it == principal.role || it == "TENANT_ADMIN"
-                }) return@compose Future.failedFuture<JsonObject>("无权读取此 DocType")
+                val allowedRoles = permissions?.takeIf { !it.isEmpty }
+                if (allowedRoles == null) {
+                    if (principal.role != "TENANT_ADMIN") {
+                        return@compose Future.failedFuture<JsonObject>("无权读取此 DocType")
+                    }
+                } else if (allowedRoles.none { it == principal.role || it == "TENANT_ADMIN" }) {
+                    return@compose Future.failedFuture<JsonObject>("无权读取此 DocType")
+                }
                 validateScopeFields(connection, definition).compose {
                     val compiled = MetadataQueryEngine.compile(definition, request, principal.role, principal.companyIds, principal.bookIds, principal.organizationUnitIds)
                     connection.preparedQuery(compiled.countSql).execute(Tuple.from(compiled.countParameters))

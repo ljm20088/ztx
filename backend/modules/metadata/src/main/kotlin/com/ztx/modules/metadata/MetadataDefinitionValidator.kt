@@ -15,6 +15,7 @@ data class MetadataDiagnostic(
 object MetadataDefinitionValidator {
     private val doctypePattern = Regex("[A-Za-z][A-Za-z0-9_]{0,119}")
     private val identifierPattern = Regex("[a-z][a-z0-9_]{0,62}")
+    private val rolePattern = Regex("(?i)[a-z][a-z0-9_]{0,62}")
     private val supportedTypes = setOf("string", "text", "uuid", "date", "datetime", "decimal", "integer", "boolean", "reference", "select", "money", "json", "table")
     private val dangerousContent = Regex("(?i)<\\s*/?\\s*(script|iframe|object|embed)\\b|javascript\\s*:|on(error|load|click)\\s*=")
 
@@ -96,7 +97,7 @@ object MetadataDefinitionValidator {
             }
             listOf("readRoles", "writeRoles").forEach { roleKey ->
                 val roles = field.getJsonArray(roleKey)
-                if (roles != null && roles.any { it !is String || !identifierPattern.matches(it) }) {
+                if (roles != null && roles.any { it !is String || !rolePattern.matches(it) }) {
                     errors += MetadataDiagnostic("INVALID_FIELD_ROLE", "$path.$roleKey", "字段角色标识格式不正确")
                 }
             }
@@ -127,7 +128,7 @@ object MetadataDefinitionValidator {
                     errors += MetadataDiagnostic("INVALID_PERMISSION_ACTION", "permissions.$action", "不支持的权限动作")
                 }
                 val roles = permissions.getJsonArray(action)
-                if (roles != null && roles.any { it !is String || !identifierPattern.matches(it) }) {
+                if (roles != null && roles.any { it !is String || !rolePattern.matches(it) }) {
                     errors += MetadataDiagnostic("INVALID_PERMISSION_ROLE", "permissions.$action", "角色标识格式不正确")
                 }
             }

@@ -102,3 +102,15 @@ class MetadataDefinitionValidatorTest {
             .put("void", JsonArray().add("manager")))
         assertTrue(MetadataDefinitionValidator.validate(definition).isEmpty())
     }
+
+
+    // Given 元数据声明系统内置大写角色，When 执行字段与功能权限校验，Then 接受合法角色标识。
+    @Test
+    fun acceptsUppercaseBuiltInRoles() {
+        val definition = validDefinition()
+        definition.getJsonArray("fields").getJsonObject(0)
+            .put("readRoles", JsonArray().add("TENANT_ADMIN"))
+            .put("writeRoles", JsonArray().add("TENANT_USER"))
+        definition.put("permissions", JsonObject().put("read", JsonArray().add("TENANT_ADMIN")))
+        assertTrue(MetadataDefinitionValidator.validate(definition).isEmpty())
+    }
