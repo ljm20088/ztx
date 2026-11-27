@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test'
 test('租户管理员可以在 DocType 设计器创建并校验元数据草稿', async ({ page }) => {
   // Given 租户管理员已登录，当前租户尚无 DocType 定义
   const definitions: Array<{doctype:string;version:number;status:string}> = []
+  let savedDefinition: { fields: Array<{ loadOnDemand?: boolean }> } | null = null
   await page.route('**/api/v1/tenant/auth/me', route => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000001', username: 'tenant.admin', role: 'TENANT_ADMIN' }),
@@ -15,7 +16,8 @@ test('租户管理员可以在 DocType 设计器创建并校验元数据草稿',
       return
     }
     if (request.method() === 'POST' && url.pathname.endsWith('/doctypes')) {
-      const payload = request.postDataJSON() as {doctype:string}
+      const payload = request.postDataJSON() as {doctype:string;fields:Array<{loadOnDemand?:boolean}>}
+      savedDefinition = payload
       definitions.push({ doctype: payload.doctype, version: 1, status: 'DRAFT' })
       await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ doctype: payload.doctype, version: 1, status: 'DRAFT' }) })
       return

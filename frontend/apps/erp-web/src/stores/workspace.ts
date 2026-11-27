@@ -24,6 +24,20 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     else tenantActivePath.value = tab.path
   }
 
+  /** 将新建单据保存后的临时表单 Tab 原位迁移到持久化 Document 路径，避免产生重复 Tab。 */
+  function replaceTabPath(oldPath: string, newPath: string) {
+    const currentTabs = tabs.value
+    const index = currentTabs.findIndex(item => item.path === oldPath)
+    if (index < 0) return
+    const existing = currentTabs.findIndex(item => item.path === newPath)
+    if (existing >= 0 && existing !== index) currentTabs.splice(index, 1)
+    else currentTabs[index]!.path = newPath
+    if (activePath.value === oldPath) {
+      if (mode.value === 'platform') platformActivePath.value = newPath
+      else tenantActivePath.value = newPath
+    }
+  }
+
   function setDirty(path: string, dirty: boolean) {
     const tab = tabs.value.find(item => item.path === path)
     if (tab) tab.dirty = dirty
@@ -49,5 +63,5 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  return { mode, tabs, activePath, setMode, openTab, activateTab, setDirty, closeTab }
+  return { mode, tabs, activePath, setMode, openTab, activateTab, setDirty, replaceTabPath, closeTab }
 })

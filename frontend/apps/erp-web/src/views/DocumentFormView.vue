@@ -23,7 +23,7 @@ const message = ref('')
 const savedSnapshot = ref('')
 const currentSnapshot = computed(() => JSON.stringify({ document, jsonText }))
 const isDirty = computed(() => savedSnapshot.value !== '' && savedSnapshot.value !== currentSnapshot.value)
-watch(isDirty, dirty => workspace.setDirty(route.path, dirty), { immediate: true })
+watch(isDirty, dirty => workspace.setDirty(route.fullPath, dirty), { immediate: true })
 
 function restoreSnapshot() {
   if (!savedSnapshot.value) return
@@ -39,7 +39,7 @@ onBeforeRouteLeave(() => {
   if (!isDirty.value) return true
   if (!window.confirm('当前单据有未保存的修改，确定放弃这些修改吗？')) return false
   restoreSnapshot()
-  workspace.setDirty(route.path, false)
+  workspace.setDirty(route.fullPath, false)
   return true
 })
 const doctype = computed(() => String(route.params.doctype ?? ''))
@@ -167,10 +167,12 @@ async function save() {
     savedSnapshot.value = currentSnapshot.value
     message.value = '单据已保存'
     if (!documentId.value && result.id) {
-      await router.replace({
+      const target = {
         path: '/developer/documents/' + encodeURIComponent(doctype.value) + '/' + encodeURIComponent(String(result.id)),
         query: { saved: '1' },
-      })
+      }
+      workspace.replaceTabPath(route.fullPath, router.resolve(target).fullPath)
+      await router.replace(target)
     }
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '保存失败'
