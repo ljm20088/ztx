@@ -29,7 +29,7 @@ class SchemaMigrationConflictException(message: String) : RuntimeException(messa
  */
 class SchemaMigrationService {
     private val identifier = Regex("[a-z][a-z0-9_]{0,62}")
-    private val protectedSchemas = setOf("platform", "iam", "meta", "audit", "pg_catalog", "information_schema")
+    private val protectedSchemas = setOf("public", "platform", "iam", "meta", "audit", "pg_catalog", "information_schema")
 
     fun plan(doctype: String, version: Int, definition: JsonObject): JsonObject {
         require(version > 0) { "Schema Migration 版本必须大于 0" }

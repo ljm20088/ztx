@@ -47,6 +47,14 @@ class MetadataDefinitionValidatorTest {
         assertTrue("UNKNOWN_LAYOUT_FIELD" in codes)
     }
 
+    // Given 租户定义试图写入公共 Schema，When 执行校验，Then 只能使用租户业务 Schema。
+    @Test
+    fun rejectsPublicSchemaForTenantDefinitions() {
+        val definition = validDefinition()
+        definition.getJsonObject("table").put("schema", "public")
+        assertTrue(MetadataDefinitionValidator.validate(definition).any { it.code == "INVALID_SCHEMA" })
+    }
+
     // Given 租户管理员试图声明平台级范围，When 执行校验，Then 拒绝跨越元数据作用域边界。
     @Test
     fun rejectsPlatformScopeInTenantDefinitions() {

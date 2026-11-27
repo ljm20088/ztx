@@ -19,7 +19,7 @@ class DocumentRuntimeRoutes(
     internal val behaviors: DocumentBehaviorRegistry = DocumentBehaviorRegistry.load()
 ) {
     private val identifier = Regex("[a-z][a-z0-9_]{0,62}")
-    private val protectedSchemas = setOf("platform", "iam", "meta", "audit", "pg_catalog", "information_schema")
+    private val protectedSchemas = setOf("public", "platform", "iam", "meta", "audit", "pg_catalog", "information_schema")
 
     fun register(router: Router) {
         router.route("/api/v1/tenant/documents/*").handler(BodyHandler.create().setBodyLimit(1024 * 1024))
