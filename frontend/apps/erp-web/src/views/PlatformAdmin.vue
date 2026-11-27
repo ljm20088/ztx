@@ -99,7 +99,7 @@ async function changePassword() {
         </div>
         <div id="password-settings" class="grid grid-cols-1 gap-[9px] pt-[14px]">
           <ZFormField label="当前密码" field-id="old-password"><ZInput id="old-password" v-model="oldPassword" type="password" autocomplete="current-password" /></ZFormField>
-          <ZFormField label="新密码" field-id="new-password" hint="至少 8 位，且同时包含字母和数字"><ZInput id="new-password" v-model="newPassword" type="password" autocomplete="new-password" placeholder="至少 8 位，且同时包含字母和数字" /></ZFormField>
+          <ZFormField label="新密码" field-id="new-password"><ZInput id="new-password" v-model="newPassword" type="password" autocomplete="new-password" placeholder="至少 8 位，且同时包含字母和数字" /></ZFormField>
           <ZFormField label="确认新密码" field-id="confirm-password"><ZInput id="confirm-password" v-model="confirmPassword" type="password" autocomplete="new-password" placeholder="再次输入新密码" /></ZFormField>
           <ZButton class="justify-self-start" variant="secondary" @click="changePassword">更新密码</ZButton>
         </div>

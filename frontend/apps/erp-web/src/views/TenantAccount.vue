@@ -22,7 +22,7 @@ async function updatePassword(){
    <h2 class="mb-[14px] text-ztx-section-title font-semibold">修改密码</h2>
    <form class="flex flex-col gap-3" @submit.prevent="updatePassword">
     <ZFormField label="当前密码" field-id="old-password" required><ZInput id="old-password" v-model="oldPassword" type="password" autocomplete="current-password" required/></ZFormField>
-    <ZFormField label="新密码" field-id="new-password" required hint="至少 8 位，且同时包含字母和数字"><ZInput id="new-password" v-model="newPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="至少 8 位，且同时包含字母和数字"/></ZFormField>
+    <ZFormField label="新密码" field-id="new-password" required><ZInput id="new-password" v-model="newPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="至少 8 位，且同时包含字母和数字"/></ZFormField>
     <ZFormField label="确认新密码" field-id="confirm-password" required><ZInput id="confirm-password" v-model="confirmPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="再次输入新密码"/></ZFormField>
     <ZAlert v-if="message" tone="success">{{message}}</ZAlert><ZAlert v-if="error" tone="error" role="alert">{{error}}</ZAlert>
     <ZButton class="self-start" type="submit" :disabled="busy">{{busy?'正在保存…':'更新密码'}}</ZButton>
