@@ -24,8 +24,7 @@ Codec 支持 UUID、LocalDate、LocalDateTime、BigDecimal、Long、Boolean、JS
 
 ## 当前实现边界
 
-当前切片覆盖纯元数据 Document 的通用 CRUD、草稿/提交/撤销/作废、嵌套 JSON 明细、统一权限/事务/审计和动态表单。可插拔 Kotlin 业务文件与 Kotlin 专用实现注册机制尚未纳入此切片；复杂业务扩展模式需要后续实现和单独验收。
-
+当前切片覆盖纯元数据 Document 的通用 CRUD、草稿/提交/撤销/作废、嵌套 JSON 明细、统一权限/事务/审计、动态表单，以及通过服务端可信代码注册的 Kotlin 业务扩展。独立关系型明细表映射不属于本 Issue 的交付范围；当前明细按 JSONB 保存。
 
 ## Kotlin 业务扩展
 

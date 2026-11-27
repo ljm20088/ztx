@@ -119,3 +119,47 @@ class KotlinImplementationRegistryTest {
         assertEquals(behavior, registry.resolve(definition, "PurchaseOrder"))
     }
 }
+
+data class TypedPurchaseOrder(
+    val supplierId: UUID,
+    val orderDate: LocalDate,
+    val total: BigDecimal,
+    val lines: List<TypedPurchaseOrderLine>
+)
+
+data class TypedPurchaseOrderLine(
+    val itemCode: String,
+    val quantity: BigDecimal,
+    val deliveryDate: LocalDate?
+)
+
+class DocumentTypedCodecTest {
+    /** Given 元数据定义订单及嵌套明细，When 转换为 Kotlin data class，Then 顶层和明细均为强类型对象。 */
+    @Test
+    fun convertsNestedJsonToTypedKotlinObjects() {
+        val definition = JsonObject().put("fields", JsonArray()
+            .add(JsonObject().put("name", "supplierId").put("type", "uuid").put("required", true))
+            .add(JsonObject().put("name", "orderDate").put("type", "date").put("required", true))
+            .add(JsonObject().put("name", "total").put("type", "money").put("required", true))
+            .add(JsonObject().put("name", "lines").put("type", "table").put("required", true)
+                .put("childFields", JsonArray()
+                    .add(JsonObject().put("name", "itemCode").put("type", "string").put("required", true))
+                    .add(JsonObject().put("name", "quantity").put("type", "decimal").put("required", true))
+                    .add(JsonObject().put("name", "deliveryDate").put("type", "date")))))
+        val supplierId = UUID.fromString("00000000-0000-0000-0000-000000000001")
+        val input = JsonObject().put("supplierId", supplierId.toString())
+            .put("orderDate", "2026-11-27").put("total", "123456789.123456")
+            .put("lines", JsonArray().add(JsonObject()
+                .put("itemCode", "MAT-001").put("quantity", "2.500").put("deliveryDate", "2026-12-01")))
+
+        val result = DocumentValueCodec.decodeAs(definition, input, TypedPurchaseOrder::class)
+
+        assertEquals(supplierId, result.supplierId)
+        assertEquals(LocalDate.parse("2026-11-27"), result.orderDate)
+        assertEquals(BigDecimal("123456789.123456"), result.total)
+        assertEquals(1, result.lines.size)
+        assertEquals("MAT-001", result.lines.single().itemCode)
+        assertEquals(BigDecimal("2.500"), result.lines.single().quantity)
+        assertEquals(LocalDate.parse("2026-12-01"), result.lines.single().deliveryDate)
+    }
+}

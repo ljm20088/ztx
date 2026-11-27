@@ -7,6 +7,11 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.UUID
+import kotlin.reflect.KClass
+import kotlin.reflect.KType
+import kotlin.reflect.full.createType
+import kotlin.reflect.full.isSubtypeOf
+import kotlin.reflect.full.primaryConstructor
 
 /** 将 JSON 输入按 DocType 字段定义转换为稳定的 Kotlin 值；不执行元数据中的表达式或脚本。 */
 object DocumentValueCodec {
@@ -27,6 +32,78 @@ object DocumentValueCodec {
         val unknown = input.fieldNames() - known
         if (unknown.isNotEmpty()) throw IllegalArgumentException("包含未定义字段：${unknown.sorted().joinToString()}")
         return result
+    }
+
+    /**
+     * 将已按 DocType 元数据校验、规范化的 JSON 转为业务 Kotlin 类型。
+     * 支持 data class、嵌套 data class、List/Set 以及 UUID、日期时间和 BigDecimal 等精确类型。
+     */
+    fun <T : Any> decodeAs(definition: JsonObject, input: JsonObject, target: KClass<T>): T {
+        val normalized = decode(definition, input)
+        @Suppress("UNCHECKED_CAST")
+        return convert(normalized, target.createType()) as T
+    }
+
+    private fun convert(value: Any?, target: KType): Any? {
+        if (value == null) {
+            if (target.isMarkedNullable) return null
+            throw IllegalArgumentException("必填 Kotlin 属性缺少值：$target")
+        }
+        val classifier = target.classifier as? KClass<*>
+            ?: throw IllegalArgumentException("不支持的 Kotlin 类型：$target")
+        return when (classifier) {
+            String::class -> value as? String ?: value.toString()
+            UUID::class -> if (value is UUID) value else UUID.fromString(value.toString())
+            LocalDate::class -> if (value is LocalDate) value else LocalDate.parse(value.toString())
+            LocalDateTime::class -> if (value is LocalDateTime) value else LocalDateTime.parse(value.toString())
+            LocalTime::class -> if (value is LocalTime) value else LocalTime.parse(value.toString())
+            BigDecimal::class -> if (value is BigDecimal) value else BigDecimal(value.toString())
+            Int::class -> (value as? Number)?.toInt() ?: value.toString().toInt()
+            Long::class -> (value as? Number)?.toLong() ?: value.toString().toLong()
+            Short::class -> (value as? Number)?.toShort() ?: value.toString().toShort()
+            Double::class -> (value as? Number)?.toDouble() ?: value.toString().toDouble()
+            Float::class -> (value as? Number)?.toFloat() ?: value.toString().toFloat()
+            Boolean::class -> value as? Boolean
+                ?: throw IllegalArgumentException("布尔属性必须是 true 或 false")
+            JsonObject::class -> value as? JsonObject
+                ?: throw IllegalArgumentException("属性必须是 JSON 对象")
+            JsonArray::class -> value as? JsonArray
+                ?: throw IllegalArgumentException("属性必须是 JSON 数组")
+            List::class, Collection::class, MutableList::class, Set::class, MutableSet::class -> {
+                val items = when (value) {
+                    is JsonArray -> value.toList()
+                    is Collection<*> -> value.toList()
+                    else -> throw IllegalArgumentException("属性必须是集合")
+                }
+                val elementType = target.arguments.firstOrNull()?.type
+                    ?: throw IllegalArgumentException("集合属性缺少元素类型：$target")
+                val converted = items.map { convert(it, elementType) }
+                if (classifier == Set::class || classifier == MutableSet::class) converted.toSet() else converted
+            }
+            else -> {
+                val source = when (value) {
+                    is JsonObject -> value.map
+                    is Map<*, *> -> value
+                    else -> throw IllegalArgumentException("属性 $target 必须是对象")
+                }
+                val constructor = classifier.primaryConstructor
+                    ?: throw IllegalArgumentException("Kotlin 类型必须声明主构造函数：$target")
+                val arguments = mutableMapOf<kotlin.reflect.KParameter, Any?>()
+                constructor.parameters.forEach { parameter ->
+                    val name = parameter.name ?: throw IllegalArgumentException("Kotlin 构造参数必须命名：$target")
+                    if (source.containsKey(name)) {
+                        arguments[parameter] = convert(source[name], parameter.type)
+                    } else if (parameter.isOptional) {
+                        // 保留 Kotlin 默认参数。
+                    } else if (parameter.type.isMarkedNullable) {
+                        arguments[parameter] = null
+                    } else {
+                        throw IllegalArgumentException("缺少 Kotlin 属性：$name")
+                    }
+                }
+                constructor.callBy(arguments)
+            }
+        }
     }
 
     private fun normalize(name: String, type: String, value: Any, field: JsonObject): Any = try {
@@ -70,7 +147,7 @@ object DocumentValueCodec {
                 val actual = childValue ?: child.getValue("defaultValue")
                 if (actual != null) {
                     val converted = normalize("$name[${index + 1}].$childName", child.getString("type", ""), actual, child)
-                    normalized.put(childName, if (converted is UUID || converted is LocalDate || converted is LocalDateTime || converted is LocalTime) converted.toString() else converted)
+                    normalized.put(childName, converted)
                 }
             }
             val known = childFields.filterIsInstance<JsonObject>().mapNotNull { it.getString("name") }.toSet()

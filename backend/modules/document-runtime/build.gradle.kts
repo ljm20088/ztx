@@ -7,4 +7,5 @@ dependencies {
     api(project(":adapters:postgres"))
     api(project(":modules:iam"))
     implementation(libs.vertx.web)
+    implementation(kotlin("reflect"))
 }
