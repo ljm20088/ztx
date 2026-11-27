@@ -10,7 +10,6 @@ import java.util.UUID
 import kotlin.reflect.KClass
 import kotlin.reflect.KType
 import kotlin.reflect.full.createType
-import kotlin.reflect.full.isSubtypeOf
 import kotlin.reflect.full.primaryConstructor
 
 /** 将 JSON 输入按 DocType 字段定义转换为稳定的 Kotlin 值；不执行元数据中的表达式或脚本。 */
@@ -91,8 +90,9 @@ object DocumentValueCodec {
                 val arguments = mutableMapOf<kotlin.reflect.KParameter, Any?>()
                 constructor.parameters.forEach { parameter ->
                     val name = parameter.name ?: throw IllegalArgumentException("Kotlin 构造参数必须命名：$target")
-                    if (source.containsKey(name)) {
-                        arguments[parameter] = convert(source[name], parameter.type)
+                    val sourceName = source.keys.firstOrNull { it == name || snakeToCamel(it.toString()) == name }
+                    if (sourceName != null) {
+                        arguments[parameter] = convert(source[sourceName], parameter.type)
                     } else if (parameter.isOptional) {
                         // 保留 Kotlin 默认参数。
                     } else if (parameter.type.isMarkedNullable) {
@@ -105,6 +105,9 @@ object DocumentValueCodec {
             }
         }
     }
+
+    private fun snakeToCamel(value: String): String =
+        value.replace(Regex("_([a-z])")) { match -> match.groupValues[1].uppercase() }
 
     private fun normalize(name: String, type: String, value: Any, field: JsonObject): Any = try {
         when (type) {

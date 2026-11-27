@@ -138,19 +138,19 @@ class DocumentTypedCodecTest {
     @Test
     fun convertsNestedJsonToTypedKotlinObjects() {
         val definition = JsonObject().put("fields", JsonArray()
-            .add(JsonObject().put("name", "supplierId").put("type", "uuid").put("required", true))
-            .add(JsonObject().put("name", "orderDate").put("type", "date").put("required", true))
+            .add(JsonObject().put("name", "supplier_id").put("type", "uuid").put("required", true))
+            .add(JsonObject().put("name", "order_date").put("type", "date").put("required", true))
             .add(JsonObject().put("name", "total").put("type", "money").put("required", true))
             .add(JsonObject().put("name", "lines").put("type", "table").put("required", true)
                 .put("childFields", JsonArray()
-                    .add(JsonObject().put("name", "itemCode").put("type", "string").put("required", true))
+                    .add(JsonObject().put("name", "item_code").put("type", "string").put("required", true))
                     .add(JsonObject().put("name", "quantity").put("type", "decimal").put("required", true))
-                    .add(JsonObject().put("name", "deliveryDate").put("type", "date")))))
+                    .add(JsonObject().put("name", "delivery_date").put("type", "date")))))
         val supplierId = UUID.fromString("00000000-0000-0000-0000-000000000001")
-        val input = JsonObject().put("supplierId", supplierId.toString())
-            .put("orderDate", "2026-11-27").put("total", "123456789.123456")
+        val input = JsonObject().put("supplier_id", supplierId.toString())
+            .put("order_date", "2026-11-27").put("total", "123456789.123456")
             .put("lines", JsonArray().add(JsonObject()
-                .put("itemCode", "MAT-001").put("quantity", "2.500").put("deliveryDate", "2026-12-01")))
+                .put("item_code", "MAT-001").put("quantity", "2.500").put("delivery_date", "2026-12-01")))
 
         val result = DocumentValueCodec.decodeAs(definition, input, TypedPurchaseOrder::class)
 
