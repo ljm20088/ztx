@@ -118,9 +118,13 @@ async function save() {
       (documentId.value ? '/' + encodeURIComponent(documentId.value) : '')
     const result = await request<DocumentData>(path, documentId.value ? 'PUT' : 'POST', preparePayload())
     Object.assign(document, result)
+    savedSnapshot.value = currentSnapshot.value
     message.value = '单据已保存'
     if (!documentId.value && result.id) {
-      await router.replace('/developer/documents/' + encodeURIComponent(doctype.value) + '/' + encodeURIComponent(String(result.id)))
+      await router.replace({
+        path: '/developer/documents/' + encodeURIComponent(doctype.value) + '/' + encodeURIComponent(String(result.id)),
+        query: { saved: '1' },
+      })
     }
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '保存失败'

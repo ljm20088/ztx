@@ -424,7 +424,7 @@ test('表单未保存保护与工作区视图实例恢复', async ({ page }) => 
   await expect(page).toHaveURL(/\/workspace$/)
 
   // Then 工作区仍保留原表单 Tab，重新激活后表单实例仍在
-  await tabs.getByRole('button', { name: /元数据单据/ }).click()
+  await tabs.locator('button.workspace-tab').filter({ hasText: '元数据单据' }).click()
   await expect(page.locator('#doc-code')).toHaveValue('PO-EDITED')
 })
 
