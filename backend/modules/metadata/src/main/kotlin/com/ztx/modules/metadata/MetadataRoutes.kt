@@ -172,7 +172,7 @@ class MetadataRoutes {
     }
 
     private fun getLatest(context: RoutingContext) = withMetadataAdmin(context) { principal ->
-        principal.database.withTransaction { connection ->
+        principal.database.withTransaction<JsonObject> { connection ->
             connection.preparedQuery(
                 """SELECT id,doctype,version,status,definition_json,checksum,created_at,updated_at
                    FROM meta.document_definition WHERE scope='TENANT' AND doctype=$1
@@ -187,7 +187,7 @@ class MetadataRoutes {
     private fun getVersion(context: RoutingContext) = withMetadataAdmin(context) { principal ->
         val version = context.pathParam("version").toIntOrNull()
             ?: return@withMetadataAdmin fail(context, 400, "版本号无效")
-        principal.database.withTransaction { connection ->
+        principal.database.withTransaction<JsonObject> { connection ->
             connection.preparedQuery(
                 """SELECT id,doctype,version,status,definition_json,checksum,created_at,updated_at
                    FROM meta.document_definition WHERE scope='TENANT' AND doctype=$1 AND version=$2"""
