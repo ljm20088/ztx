@@ -46,7 +46,7 @@ const columns=computed(()=>{
     positions:['code','name','company_id','description','status'],
     roles:['module_key','code','name','description','status'],
     'group-master':['category','code','name','master_data','protected_fields','status'],
-    'group-master-usage':['id','master_item_id','company_name','category','code','master_name','status','local_data'],
+    'group-master-usage':['master_item_id','company_name','category','code','master_name','status','local_data'],
     'group-master-requests':['id','company_name','category','code','master_name','status','requested_at'],
     'position-roles':['position_name','module_key','role_code','role_name'],
     'employment-positions':['employment_id','position_name'],
