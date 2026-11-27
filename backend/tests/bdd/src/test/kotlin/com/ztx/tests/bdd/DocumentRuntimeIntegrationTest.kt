@@ -3,6 +3,7 @@ package com.ztx.tests.bdd
 import com.ztx.adapters.postgres.FlywayMigrator
 import com.ztx.adapters.postgres.PgDatabase
 import com.ztx.modules.document.Db
+import com.ztx.modules.document.DbProvider
 import com.ztx.modules.document.DocumentBehavior
 import com.ztx.modules.document.DocumentBehaviorContext
 import com.ztx.modules.document.DocumentBehaviorRegistry
@@ -187,8 +188,7 @@ class DocumentRuntimeIntegrationTest {
             assertEquals("PO-DB-003", dbUpdated.getString("code"))
             assertEquals(3, dbUpdated.version)
 
-            val scopedRead = database.withTransaction { connection ->
-                val db = Db(principal, connection)
+            val scopedRead = DbProvider().transaction(principal) { db ->
                 db.transaction { scoped ->
                     scoped.exists("DocumentProbe", UUID.fromString(documentId)).compose { exists ->
                         scoped.getAll("DocumentProbe", listOf(UUID.fromString(documentId))).map { documents ->

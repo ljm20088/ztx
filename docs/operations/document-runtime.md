@@ -29,7 +29,7 @@ Codec 支持 UUID、LocalDate、LocalDateTime、LocalTime、BigDecimal、Long、
 
 ## Kotlin 业务代码的数据访问门面
 
-DocumentBehaviorContext 提供租户作用域化的 context.db，业务代码不需要自行选择租户数据库或拼接数据访问前缀：
+普通业务执行上下文通过 DbProvider.transaction(principal) 获取租户作用域 Db；DocumentBehaviorContext 直接提供复用当前事务连接的 context.db。业务代码不需要自行选择租户数据库或拼接数据访问前缀：
 
 - db.new(doctype)：按元数据创建内存 Document，应用默认值；不写数据库。
 - db.get(doctype, id)：按当前租户和用户数据范围读取 Document，并执行字段读取权限。
@@ -38,7 +38,7 @@ DocumentBehaviorContext 提供租户作用域化的 context.db，业务代码不
 - db.getValue(doctype, id, field)：读取单个字段，并执行字段读取权限。
 - db.exists(doctype, id) / db.getAll(doctype, ids)：批量检查或读取，避免逐条 N+1 查询。
 - db.submit(document) / db.cancel(document) / db.void(document)：通过统一门面执行单据生命周期，并校验版本。
-- db.transaction { ... }：在当前绑定连接上执行事务块；业务 Hook 中不会创建嵌套事务。
+- db.transaction { ... }：在当前绑定连接上执行事务块；业务 Hook 中不会创建嵌套事务。DbProvider.transaction(principal) 负责建立外层事务和作用域 Db。
 
 这些操作复用 Hook 当前的 SqlConnection，与外层单据写入、业务规则和审计处于同一事务。DynamicDocument 支持下标读写和类型化 getter；内存赋值不会自动持久化，必须显式调用 db.update(document)。版本冲突禁止静默覆盖。
 

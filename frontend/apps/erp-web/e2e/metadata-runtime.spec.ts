@@ -55,7 +55,7 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   await page.getByRole('button', { name: '添加明细' }).click()
   await page.locator('tbody input').nth(0).fill('BRG-001')
   await page.locator('tbody input').nth(1).fill('2.5')
-  await page.getByRole('button', { name: '保存' }).click()
+  await page.getByRole('button', { name: '保存', exact: true }).click()
 
   // Then 单据保存成功，且可以执行提交生命周期动作
   await expect(page.getByText('单据已保存')).toBeVisible()
