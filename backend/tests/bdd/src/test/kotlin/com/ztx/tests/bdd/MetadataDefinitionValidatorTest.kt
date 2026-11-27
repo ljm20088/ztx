@@ -73,6 +73,17 @@ class MetadataDefinitionValidatorTest {
     }
 }
 
+class MetadataExtensionDefinitionValidatorTest {
+    private fun validDefinition() = JsonObject()
+        .put("doctype", "SampleItem")
+        .put("scope", "TENANT")
+        .put("table", JsonObject().put("schema", "org").put("name", "sample_item"))
+        .put("fields", JsonArray()
+            .add(JsonObject().put("name", "code").put("type", "string").put("required", true))
+            .add(JsonObject().put("name", "name").put("type", "string")))
+        .put("form", JsonObject().put("fields", JsonArray().add("code").add("name")))
+        .put("list", JsonObject().put("columns", JsonArray().add("code").add("name"))
+            .put("filters", JsonArray().add("code")).put("sort", JsonArray().add("name")))
 
     // Given DocType 声明合法的 Kotlin 扩展，When 校验元数据，Then 接受受控的扩展模式和完整类名。
     @Test
@@ -114,3 +125,4 @@ class MetadataDefinitionValidatorTest {
         definition.put("permissions", JsonObject().put("read", JsonArray().add("TENANT_ADMIN")))
         assertTrue(MetadataDefinitionValidator.validate(definition).isEmpty())
     }
+}

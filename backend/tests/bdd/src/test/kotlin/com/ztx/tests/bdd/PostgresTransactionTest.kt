@@ -58,7 +58,7 @@ class PostgresTransactionTest {
             override fun beforeCreate(context: DocumentBehaviorContext, document: JsonObject): Future<Void> =
                 context.connection.query("INSERT INTO transaction_probe(id) VALUES (1)").execute()
                     .mapEmpty()
-                    .compose { Future.failedFuture<Void>("扩展校验失败，验证事务回滚") }
+                    .compose<Void> { Future.failedFuture<Void>("扩展校验失败，验证事务回滚") }
         }
 
         try {
