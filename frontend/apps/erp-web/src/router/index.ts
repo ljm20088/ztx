@@ -9,6 +9,7 @@ import PlatformOperations from '../views/PlatformOperations.vue'
 import PlatformAudit from '../views/PlatformAudit.vue'
 import TenantAccount from '../views/TenantAccount.vue'
 import TenantOrganization from '../views/TenantOrganization.vue'
+import MetadataDesigner from '../views/MetadataDesigner.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -23,6 +24,7 @@ export const router = createRouter({
     { path: '/platform/operations', name: 'platform-operations', component: PlatformOperations, meta: { title: '运维管理', closable: true } },
     { path: '/platform/audit', name: 'platform-audit', component: PlatformAudit, meta: { title: '安全审计', closable: true } },
     { path: '/enterprise/:feature', name: 'tenant-organization', component: TenantOrganization, meta: { title: '企业与组织管理', closable: true } },
+    { path: '/developer/doctypes', name: 'metadata-designer', component: MetadataDesigner, meta: { title: 'DocType 元数据设计器', closable: true } },
     { path: '/:section/:feature', name: 'feature', component: PlaceholderView },
     { path: '/:pathMatch(.*)*', redirect: '/workspace' },
   ],
