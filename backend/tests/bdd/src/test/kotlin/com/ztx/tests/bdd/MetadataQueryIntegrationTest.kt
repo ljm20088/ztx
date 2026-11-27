@@ -54,9 +54,11 @@ class MetadataQueryIntegrationTest {
                 .add(JsonObject().put("name", "id").put("type", "uuid"))
                 .add(JsonObject().put("name", "code").put("type", "string")
                     .put("readRoles", JsonArray().add("TENANT_USER")))
-                .add(JsonObject().put("name", "company_id").put("type", "uuid")))
+                .add(JsonObject().put("name", "company_id").put("type", "uuid"))
+                .add(JsonObject().put("name", "secret").put("type", "string")
+                    .put("readRoles", JsonArray().add("TENANT_ADMIN"))))
             .put("list", JsonObject()
-                .put("columns", JsonArray().add("code"))
+                .put("columns", JsonArray().add("code").add("secret"))
                 .put("filters", JsonArray().add("code"))
                 .put("sort", JsonArray().add("code"))
                 .put("search", JsonArray().add("code")))
@@ -64,16 +66,23 @@ class MetadataQueryIntegrationTest {
 
         DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
             connection.createStatement().use { statement ->
-                statement.execute("CREATE TABLE org.query_probe (id uuid PRIMARY KEY, code text NOT NULL, company_id uuid NOT NULL)")
+                statement.execute("CREATE TABLE org.query_probe (id uuid PRIMARY KEY, code text NOT NULL, company_id uuid NOT NULL, secret text NOT NULL)")
             }
-            connection.prepareStatement("INSERT INTO org.query_probe(id, code, company_id) VALUES (?, ?, ?)").use { statement ->
+            connection.prepareStatement("INSERT INTO org.query_probe(id, code, company_id, secret) VALUES (?, ?, ?, ?)").use { statement ->
                 statement.setObject(1, UUID.randomUUID())
                 statement.setString(2, "AX-01")
                 statement.setObject(3, companyAllowed)
+                statement.setString(4, "secret-1")
                 statement.executeUpdate()
                 statement.setObject(1, UUID.randomUUID())
                 statement.setString(2, "AX-02")
                 statement.setObject(3, companyDenied)
+                statement.setString(4, "secret-denied")
+                statement.executeUpdate()
+                statement.setObject(1, UUID.randomUUID())
+                statement.setString(2, "AX-03")
+                statement.setObject(3, companyAllowed)
+                statement.setString(4, "secret-3")
                 statement.executeUpdate()
             }
             connection.prepareStatement(
@@ -116,17 +125,33 @@ class MetadataQueryIntegrationTest {
             val valid = client.send(
                 HttpRequest.newBuilder(URI.create(base)).header("content-type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(
-                        JsonObject().put("page", 1).put("pageSize", 20)
+                        JsonObject().put("page", 1).put("pageSize", 1)
                             .put("filter", JsonObject().put("field", "code").put("operator", "contains").put("value", "AX"))
+                            .put("sort", JsonArray().add(JsonObject().put("field", "code").put("direction", "asc")))
                             .encode()
                     )).build(),
                 HttpResponse.BodyHandlers.ofString()
             )
             assertEquals(200, valid.statusCode())
             val result = JsonObject(valid.body())
-            assertEquals(1L, result.getLong("total"))
+            assertEquals(2L, result.getLong("total"))
             assertEquals(1, result.getJsonArray("items").size())
             assertEquals("AX-01", result.getJsonArray("items").getJsonObject(0).getString("code"))
+            assertEquals(setOf("code"), result.getJsonArray("items").getJsonObject(0).fieldNames())
+
+            val secondPage = client.send(
+                HttpRequest.newBuilder(URI.create(base)).header("content-type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                        JsonObject().put("page", 2).put("pageSize", 1)
+                            .put("sort", JsonArray().add(JsonObject().put("field", "code").put("direction", "asc")))
+                            .encode()
+                    )).build(),
+                HttpResponse.BodyHandlers.ofString()
+            )
+            assertEquals(200, secondPage.statusCode())
+            val secondPageResult = JsonObject(secondPage.body())
+            assertEquals(2L, secondPageResult.getLong("total"))
+            assertEquals("AX-03", secondPageResult.getJsonArray("items").getJsonObject(0).getString("code"))
 
             val forbidden = client.send(
                 HttpRequest.newBuilder(URI.create(base)).header("content-type", "application/json")
