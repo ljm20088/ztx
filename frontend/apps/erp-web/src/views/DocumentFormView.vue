@@ -70,10 +70,10 @@ async function load() {
   }
 }
 
-function inputValue(value: unknown): string | number | boolean {
-  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? value : ''
+function inputValue(value: unknown): string {
+  return value == null ? '' : String(value)
 }
-function setValue(name: string, value: string | number | boolean) {
+function setValue(name: string, value: string) {
   document[name] = value
 }
 
