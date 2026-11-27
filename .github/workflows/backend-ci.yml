@@ -30,7 +30,7 @@ concurrency:
 jobs:
   backend:
     name: JDK 21 · Gradle 9.7 · Kotlin 2.4
-    runs-on: ${{ vars.ZTX_CI_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Checkout
