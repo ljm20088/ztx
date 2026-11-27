@@ -44,6 +44,13 @@ class DocumentRuntimeIntegrationTest {
         override val doctype = "DocumentProbe"
         override val mode = DocumentExtensionMode.METADATA_WITH_KOTLIN_FILE
 
+        override fun beforeUpdate(context: DocumentBehaviorContext, before: JsonObject, changes: JsonObject): Future<Void> {
+            if (changes.getString("code") == "BLOCK_UPDATE") {
+                return Future.failedFuture(IllegalArgumentException("业务规则不允许修改"))
+            }
+            return Future.succeededFuture()
+        }
+
         override fun beforeAction(
             context: DocumentBehaviorContext,
             before: JsonObject,
@@ -180,6 +187,30 @@ class DocumentRuntimeIntegrationTest {
             }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
             assertEquals(null, newDocument.id)
             assertEquals(0, newDocument.version)
+
+            // Given db.new 创建的内存 Document，When 显式 insert，Then 创建 Hook、写入与审计通过统一门面完成。
+            val facadeCreated = database.withTransaction { connection ->
+                val db = Db(principal, connection)
+                db.new("DocumentProbe").compose { draft ->
+                    draft["code"] = "PO-DB-INSERT"
+                    draft["company_id"] = companyId
+                    db.insert(draft)
+                }
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals("PO-DB-INSERT", facadeCreated.getString("code"))
+            assertEquals(1, facadeCreated.version)
+
+            // Given 统一 db.update 的业务 Hook 拒绝修改，When 尝试保存，Then 数据保持不变且事务回滚。
+            facadeCreated["code"] = "BLOCK_UPDATE"
+            val updateRejected = runCatching {
+                database.withTransaction { connection -> Db(principal, connection).update(facadeCreated) }
+                    .toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            }.exceptionOrNull()
+            assertTrue(updateRejected != null)
+            val afterRejected = database.withTransaction { connection ->
+                Db(principal, connection).get("DocumentProbe", facadeCreated.id!!)
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals("PO-DB-INSERT", afterRejected.getString("code"))
 
             loaded["code"] = "PO-DB-003"
             val dbUpdated = database.withTransaction { connection ->

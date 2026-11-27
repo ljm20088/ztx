@@ -94,3 +94,19 @@ class PurchaseOrderBehavior : DocumentBehavior {
 ```
 
 上例通过 `beforeAction` 在提交动作前校验供应商；Hook 失败会使状态迁移和审计记录一起回滚。
+
+## 统一 db 门面的显式创建与 Hook
+
+普通业务代码在当前可信租户上下文中取得 `Db` 后，先用 `db.new()` 创建内存 Document，设置字段，再显式调用 `db.insert()` 持久化；读取后修改则调用 `db.update()`。`new()` 和字段赋值都不会写数据库。`insert/update` 会复用当前事务连接执行字段/组织范围校验、权限校验、Document Hook 和审计；Hook 失败会使外层事务回滚。
+
+```kotlin
+db.new("PurchaseOrder").compose { document ->
+    document["supplier"] = supplierId
+    document["company_id"] = companyId
+    document["order_date"] = LocalDate.now()
+    db.insert(document)
+}.compose { saved ->
+    saved["status"] = "Confirmed"
+    db.update(saved)
+}
+```

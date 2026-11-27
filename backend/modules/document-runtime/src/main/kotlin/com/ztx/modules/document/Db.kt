@@ -18,11 +18,38 @@ class Db(
     private val connection: SqlConnection,
     private val routes: DocumentRuntimeRoutes = DocumentRuntimeRoutes()
 ) {
+    /** 创建尚未持久化的 Document；调用方设置字段后必须显式调用 insert。 */
     fun new(doctype: String): Future<DynamicDocument> =
         routes.loadDefinition(connection, doctype).map { definition ->
             routes.authorize(definition, principal, "create")
             DynamicDocument.new(doctype, definition)
         }
+
+    /** 显式插入新 Document；创建 Hook、物理写入和审计共用当前事务连接。 */
+    fun insert(document: DynamicDocument): Future<DynamicDocument> {
+        if (document.id != null) return Future.failedFuture("已持久化 Document 不能再次 insert")
+        val definition = document.metadata()
+        return try {
+            routes.authorize(definition, principal, "create")
+            val values = document.toJson()
+            routes.enforceCompanyScope(definition, values, principal, requireValue = true)
+            val behavior = routes.behaviors.resolve(definition, document.doctype)
+            val context = DocumentBehaviorContext(document.doctype, definition, principal, connection)
+            (behavior?.beforeCreate(context, values) ?: Future.succeededFuture()).compose {
+                routes.insert(connection, definition, values, principal).compose { row ->
+                    val id = UUID.fromString(row.getString("id"))
+                    val afterContext = context.copy(documentId = id, after = row)
+                    (behavior?.afterCreate(afterContext, row) ?: Future.succeededFuture()).compose {
+                        routes.audit(connection, principal, document.doctype, id, "CREATE", null, row).map {
+                            DynamicDocument.loaded(document.doctype, definition, routes.redact(definition, principal, row))
+                        }
+                    }
+                }
+            }
+        } catch (error: Throwable) {
+            Future.failedFuture(error)
+        }
+    }
 
     fun get(doctype: String, id: UUID): Future<DynamicDocument> =
         routes.loadDefinition(connection, doctype).compose { definition ->
@@ -57,9 +84,16 @@ class Db(
                 if (before.getInteger("docstatus", 0) != DocumentStatus.DRAFT.code) {
                     return@compose Future.failedFuture<DynamicDocument>("只有草稿单据可以修改")
                 }
-                routes.updateRow(connection, definition, id, normalized, principal, document.version).compose { after ->
-                    routes.audit(connection, principal, document.doctype, id, "UPDATE", before, after).map {
-                        DynamicDocument.loaded(document.doctype, definition, routes.redact(definition, principal, after))
+                val behavior = routes.behaviors.resolve(definition, document.doctype)
+                val context = DocumentBehaviorContext(document.doctype, definition, principal, connection, id, before)
+                (behavior?.beforeUpdate(context, before, normalized) ?: Future.succeededFuture()).compose {
+                    routes.updateRow(connection, definition, id, normalized, principal, document.version).compose { after ->
+                        val afterContext = context.copy(after = after)
+                        (behavior?.afterUpdate(afterContext, before, after) ?: Future.succeededFuture()).compose {
+                            routes.audit(connection, principal, document.doctype, id, "UPDATE", before, after).map {
+                                DynamicDocument.loaded(document.doctype, definition, routes.redact(definition, principal, after))
+                            }
+                        }
                     }
                 }
             }

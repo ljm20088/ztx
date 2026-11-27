@@ -196,7 +196,7 @@ class DocumentRuntimeRoutes(
         }.mapEmpty()
     }
 
-    private fun insert(
+    internal fun insert(
         connection: SqlConnection,
         definition: JsonObject,
         values: JsonObject,
