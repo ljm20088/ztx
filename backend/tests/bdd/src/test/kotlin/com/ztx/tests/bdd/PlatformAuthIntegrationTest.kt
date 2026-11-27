@@ -69,6 +69,13 @@ class PlatformAuthIntegrationTest {
             // Given：平台尚未初始化，且初始化不再依赖一次性口令
             assertEquals(false, service.initializationStatus().await())
 
+            // When：尚无管理员时执行受控密码重置
+            val missingAdminReset = service.resetPasswordFromServerCommand("ZtxRecovery456", "ztx-deployer").await()
+
+            // Then：拒绝重置且不创建管理员
+            assertFalse(missingAdminReset.success)
+            assertEquals(false, service.initializationStatus().await())
+
             // When：两个初始化请求并发提交不同账号
             val concurrentAttempts = listOf(
                 service.initialize("platform.admin", "ZtxAdmin123", "127.0.0.1", "bdd-test"),
@@ -222,8 +229,8 @@ class PlatformAuthIntegrationTest {
                         while (rows.next()) {
                             resetAudits += Triple(rows.getString("outcome"), rows.getString("operator"), rows.getString("target_username"))
                         }
-                        assertEquals(4, resetAudits.size)
-                        assertEquals(3, resetAudits.count { it.first == "FAILURE" })
+                        assertEquals(5, resetAudits.size)
+                        assertEquals(4, resetAudits.count { it.first == "FAILURE" })
                         assertEquals(1, resetAudits.count { it.first == "SUCCESS" })
                         assertTrue(resetAudits.all { it.second == "ztx-deployer" })
                         assertTrue(resetAudits.all { it.third == "platform.admin" })
