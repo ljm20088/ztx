@@ -10,6 +10,7 @@ type MetadataField = {
   required: boolean
   readOnly: boolean
   unique: boolean
+  loadOnDemand?: boolean
   target?: string
   options?: string[]
   childFields?: MetadataField[]
@@ -102,13 +103,13 @@ function createNew() {
 
 function addField() {
   definition.fields.push({
-    name: '', label: '', type: 'string', required: false, readOnly: false, unique: false,
+    name: '', label: '', type: 'string', required: false, readOnly: false, unique: false, loadOnDemand: false,
   })
 }
 
 function addChildField(field: MetadataField) {
   field.childFields ??= []
-  field.childFields.push({ name: '', label: '', type: 'string', required: false, readOnly: false, unique: false })
+  field.childFields.push({ name: '', label: '', type: 'string', required: false, readOnly: false, unique: false, loadOnDemand: false })
 }
 
 function removeField(index: number) {
@@ -262,7 +263,7 @@ onMounted(() => { void loadList().catch(cause => { error.value = cause instanceo
         <div class="overflow-x-auto rounded-ztx-sm border border-ztx-border">
           <table class="w-full min-w-[760px] text-left text-ztx-body">
             <thead class="bg-ztx-surface-soft text-ztx-caption text-ztx-muted">
-              <tr><th class="px-2 py-2">字段标识</th><th class="px-2 py-2">显示名称</th><th class="px-2 py-2">类型</th><th class="px-2 py-2">必填</th><th class="px-2 py-2">只读</th><th class="px-2 py-2">唯一</th><th class="px-2 py-2">操作</th></tr>
+              <tr><th class="px-2 py-2">字段标识</th><th class="px-2 py-2">显示名称</th><th class="px-2 py-2">类型</th><th class="px-2 py-2">必填</th><th class="px-2 py-2">只读</th><th class="px-2 py-2">唯一</th><th class="px-2 py-2">按需加载</th><th class="px-2 py-2">操作</th></tr>
             </thead>
             <tbody>
               <tr v-for="(field,index) in definition.fields" :key="index" class="border-t border-ztx-border">
@@ -276,10 +277,11 @@ onMounted(() => { void loadList().catch(cause => { error.value = cause instanceo
                 <td class="p-1.5 text-center"><input v-model="field.required" type="checkbox" aria-label="必填"></td>
                 <td class="p-1.5 text-center"><input v-model="field.readOnly" type="checkbox" aria-label="只读"></td>
                 <td class="p-1.5 text-center"><input v-model="field.unique" type="checkbox" aria-label="唯一"></td>
+                <td class="p-1.5 text-center"><input v-model="field.loadOnDemand" type="checkbox" aria-label="按需加载"></td>
                 <td class="p-1.5"><button type="button" class="text-ztx-danger hover:underline" @click="removeField(index)">删除</button></td>
               </tr>
               <tr v-for="field in definition.fields.filter(item => item.type === 'table')" :key="field.name + '-children'" class="bg-ztx-surface-soft">
-                <td colspan="7" class="px-3 py-2">
+                <td colspan="8" class="px-3 py-2">
                   <div class="flex flex-wrap items-center justify-between gap-2">
                     <span class="text-ztx-caption font-semibold text-ztx-muted">{{ field.label || field.name }} · 明细字段</span>
                     <button type="button" class="text-ztx-caption text-ztx-primary hover:underline" @click="addChildField(field)">添加子字段</button>
@@ -294,7 +296,7 @@ onMounted(() => { void loadList().catch(cause => { error.value = cause instanceo
                   </div>
                 </td>
               </tr>
-              <tr v-if="definition.fields.length===0"><td colspan="7" class="px-3 py-7 text-center text-ztx-caption text-ztx-muted">尚未添加字段</td></tr>
+              <tr v-if="definition.fields.length===0"><td colspan="8" class="px-3 py-7 text-center text-ztx-caption text-ztx-muted">尚未添加字段</td></tr>
             </tbody>
           </table>
         </div>

@@ -6,7 +6,7 @@ import { useWorkspaceStore } from '../stores/workspace'
 
 type Field = {
   name: string; label?: string; type: string; required?: boolean; readOnly?: boolean
-  defaultValue?: unknown; options?: string[]; childFields?: Field[]
+  defaultValue?: unknown; options?: string[]; childFields?: Field[]; loadOnDemand?: boolean
 }
 type Definition = { doctype: string; fields: Field[]; form?: { fields?: string[] } }
 type DocumentData = Record<string, unknown>
@@ -16,6 +16,7 @@ const workspace = useWorkspaceStore()
 const definition = ref<Definition | null>(null)
 const document = reactive<DocumentData>({})
 const jsonText = reactive<Record<string, string>>({})
+const loadedDeferredFields = ref<Set<string>>(new Set())
 const busy = ref(false)
 const error = ref('')
 const message = ref('')
@@ -62,8 +63,14 @@ async function request<T>(path: string, method = 'GET', payload?: unknown): Prom
 }
 
 function initializeDefaults() {
+  loadedDeferredFields.value.clear()
   for (const field of fields.value) {
+    if (documentId.value && field.loadOnDemand) {
+      delete document[field.name]
+      continue
+    }
     document[field.name] = field.defaultValue ?? (field.type === 'boolean' ? false : field.type === 'table' ? [] : '')
+    if (field.loadOnDemand) loadedDeferredFields.value.add(field.name)
     if (field.type === 'json') jsonText[field.name] = JSON.stringify(document[field.name] ?? {}, null, 2)
   }
 }
@@ -73,6 +80,7 @@ async function load() {
   busy.value = true
   error.value = ''
   try {
+    loadedDeferredFields.value.clear()
     const meta = await request<{ definition: Definition }>(
       '/api/v1/tenant/runtime/doctypes/' + encodeURIComponent(doctype.value),
     )
@@ -91,6 +99,27 @@ async function load() {
     savedSnapshot.value = currentSnapshot.value
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '加载单据失败'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function loadDeferredField(field: Field) {
+  if (!documentId.value || loadedDeferredFields.value.has(field.name)) return
+  const wasDirty = isDirty.value
+  busy.value = true
+  error.value = ''
+  try {
+    const result = await request<{ value: unknown }>(
+      '/api/v1/tenant/documents/' + encodeURIComponent(doctype.value) + '/' +
+      encodeURIComponent(documentId.value) + '/fields/' + encodeURIComponent(field.name),
+    )
+    document[field.name] = result.value
+    if (field.type === 'json') jsonText[field.name] = JSON.stringify(result.value ?? {}, null, 2)
+    loadedDeferredFields.value = new Set([...loadedDeferredFields.value, field.name])
+    if (!wasDirty) savedSnapshot.value = currentSnapshot.value
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '加载字段失败'
   } finally {
     busy.value = false
   }
@@ -116,6 +145,7 @@ function removeDetailRow(field: Field, index: number) {
 function preparePayload() {
   const payload: DocumentData = {}
   for (const field of fields.value) {
+    if (field.loadOnDemand && documentId.value && !loadedDeferredFields.value.has(field.name)) continue
     if (field.type === 'json') {
       try { payload[field.name] = JSON.parse(jsonText[field.name] || '{}') }
       catch { throw new Error('字段 ' + field.label + ' 的 JSON 格式不正确') }
@@ -193,6 +223,11 @@ onMounted(() => {
         </span>
       </div>
       <template v-for="field in fields" :key="field.name">
+        <div v-if="field.loadOnDemand && documentId && !loadedDeferredFields.has(field.name)" class="col-span-2 flex items-center justify-between gap-3 rounded-ztx-sm border border-ztx-border border-dashed bg-ztx-surface-raised px-3 py-3 max-[760px]:col-span-1">
+          <span class="text-ztx-caption text-ztx-muted">{{ field.label || field.name }} · 大字段尚未加载</span>
+          <ZButton size="sm" variant="secondary" :disabled="busy" @click="loadDeferredField(field)">按需加载</ZButton>
+        </div>
+        <template v-else>
         <ZFormField v-if="field.type !== 'table' && field.type !== 'boolean' && field.type !== 'json' && field.type !== 'text' && field.type !== 'select'"
           :label="field.label || field.name" :field-id="'doc-' + field.name" :required="field.required">
           <ZInput :id="'doc-' + field.name" :model-value="inputValue(document[field.name])"
@@ -243,6 +278,7 @@ onMounted(() => {
             </table>
           </div>
         </div>
+        </template>
       </template>
     </div>
 

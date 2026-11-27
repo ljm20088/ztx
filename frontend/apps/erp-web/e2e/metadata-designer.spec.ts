@@ -36,7 +36,9 @@ test('租户管理员可以在 DocType 设计器创建并校验元数据草稿',
   await page.getByRole('button', { name: '添加字段' }).click()
   await page.locator('tbody input').nth(0).fill('code')
   await page.locator('tbody input').nth(1).fill('编码')
+  await page.getByLabel('按需加载').check()
   await page.getByRole('button', { name: '保存草稿' }).click()
+  expect(savedDefinition?.fields[0]?.loadOnDemand).toBe(true)
 
   // Then 草稿出现在定义列表中，并可以执行校验
   await expect(page.getByText('草稿已保存')).toBeVisible()

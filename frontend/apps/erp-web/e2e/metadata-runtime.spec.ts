@@ -11,12 +11,13 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
       { name: 'supplier_name', label: '供应商', type: 'string', required: true },
       { name: 'order_date', label: '订单日期', type: 'date', required: true },
       { name: 'start_time', label: '开始时间', type: 'time', required: true },
+      { name: 'payload', label: '附件内容', type: 'json', loadOnDemand: true },
       { name: 'lines', label: '订单明细', type: 'table', childFields: [
         { name: 'item_code', label: '物料编码', type: 'string', required: true },
         { name: 'quantity', label: '数量', type: 'decimal', required: true },
       ] },
     ],
-    form: { fields: ['supplier_name', 'order_date', 'start_time', 'lines'] },
+    form: { fields: ['supplier_name', 'order_date', 'start_time', 'payload', 'lines'] },
     list: { columns: ['supplier_name', 'order_date'], filters: ['supplier_name'], sort: ['order_date'], search: ['supplier_name'] },
     permissions: { read: ['TENANT_ADMIN'], create: ['TENANT_ADMIN'], update: ['TENANT_ADMIN'], submit: ['TENANT_ADMIN'] },
   }
@@ -38,6 +39,10 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
       body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000099', version: 1, supplier_name: '华东轴承', order_date: '2026-11-27', start_time: '08:30:00', lines: [], docstatus: 0 }),
     })
   })
+  await page.route('**/api/v1/tenant/documents/PurchaseOrder/00000000-0000-0000-0000-000000000099/fields/payload', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ field: 'payload', value: { content: 'large-document-body' } }),
+  }))
   await page.route('**/api/v1/tenant/documents/PurchaseOrder/00000000-0000-0000-0000-000000000099', route => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000099', version: 1, supplier_name: '华东轴承', order_date: '2026-11-27', lines: [], docstatus: 0 }),
@@ -53,12 +58,26 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   await expect(page.getByText('共 21 条')).toBeVisible()
   if (testInfo.project.name === 'chromium') await page.screenshot({ path: 'artifacts/frontend-visual-captures/metadata-list-desktop.png', fullPage: true })
 
+  // Given 用户调整排序并切换到第二页，When 打开记录再返回，Then 排序和分页状态保持。
+  await page.getByRole('button', { name: '排序' }).click()
+  await page.getByLabel('顺序').selectOption('desc')
+  await page.getByRole('button', { name: '应用排序' }).click()
+  await page.getByRole('button', { name: '下一页' }).click()
+  await expect(page.getByText(/第 2 页/)).toBeVisible()
+
   // When 用户双击列表记录或用键盘 Enter 激活行，Then 打开独立编辑表单 Tab。
   await page.getByRole('row').filter({ hasText: '华东轴承' }).dblclick()
   await expect(page.getByLabel('供应商')).toHaveValue('华东轴承')
+  // Given 表单响应未携带延迟字段，When 用户显式请求加载，Then 只读取该字段且不会被误判为未保存修改。
+  await expect(page.getByRole('button', { name: '按需加载' })).toBeVisible()
+  await page.getByRole('button', { name: '按需加载' }).click()
+  await expect(page.locator('#doc-payload')).toHaveValue(/large-document-body/)
+  await expect(page.getByLabel('未保存修改')).toHaveCount(0)
   const workspaceTabs = page.getByRole('navigation', { name: '工作区标签' })
   await workspaceTabs.locator('button.workspace-tab').filter({ hasText: '元数据列表' }).click()
   await expect(page.getByText('共 21 条')).toBeVisible()
+  await expect(page.getByText(/第 2 页/)).toBeVisible()
+  await expect(page.getByLabel('顺序')).toHaveValue('desc')
 
   await page.getByRole('button', { name: '筛选' }).click()
   await page.getByPlaceholder('搜索列表字段').fill('华东轴承')

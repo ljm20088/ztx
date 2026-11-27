@@ -441,6 +441,17 @@ test('表单未保存保护与工作区视图实例恢复', async ({ page }) => 
   // Then 用户已确认放弃修改，重新激活表单时显示数据库中的原值
   await tabs.locator('button.workspace-tab').filter({ hasText: '元数据单据' }).click()
   await expect(page.locator('#doc-code')).toHaveValue('PO-001')
+
+  // And 修改后关闭当前表单 Tab，取消时保留页面与修改；确认时才真正关闭。
+  await page.locator('#doc-code').fill('PO-CLOSE-EDIT')
+  page.once('dialog', dialog => dialog.dismiss())
+  await tabs.getByLabel('关闭 元数据单据').click()
+  await expect(page).toHaveURL('/developer/documents/PurchaseOrder/' + documentId)
+  await expect(page.locator('#doc-code')).toHaveValue('PO-CLOSE-EDIT')
+  page.once('dialog', dialog => dialog.accept())
+  await tabs.getByLabel('关闭 元数据单据').click()
+  await expect(page).toHaveURL(/\/workspace$/)
+  await expect(tabs.locator('button.workspace-tab').filter({ hasText: '元数据单据' })).toHaveCount(0)
 })
 
 test('报表使用独立的参数与结果视图', async ({ page }, testInfo) => {
