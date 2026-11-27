@@ -101,7 +101,16 @@ test('平台管理员可以查看平台安全审计记录', async ({ page }) => 
   }))
   await page.route('**/api/v1/platform/audit', route => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify([{ id: 'event-1', eventType: 'LOGIN', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' }]),
+    body: JSON.stringify([
+      { id: 'event-1', eventType: 'LOGIN', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-2', eventType: 'ADMIN_INITIALIZED', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-3', eventType: 'MFA_LOGIN', outcome: 'FAILURE', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-4', eventType: 'LOGOUT', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-5', eventType: 'PASSWORD_CHANGED', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-6', eventType: 'MFA_ENROLLMENT_STARTED', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-7', eventType: 'MFA_ENABLED', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-8', eventType: 'ADMIN_PASSWORD_RESET', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+    ]),
   }))
 
   // When 平台管理员打开安全审计
@@ -109,6 +118,14 @@ test('平台管理员可以查看平台安全审计记录', async ({ page }) => 
 
   // Then 可以查看平台安全事件及其操作结果
   await expect(page.getByRole('heading', { name: '安全审计' })).toBeVisible()
-  await expect(page.getByText('LOGIN')).toBeVisible()
-  await expect(page.getByText('成功')).toBeVisible()
+  await expect(page.getByRole('cell', { name: '登录', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '平台管理员初始化', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '动态验证码登录', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '退出登录', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '修改密码', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '开始绑定多重身份验证', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '启用多重身份验证', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '重置平台管理员密码', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'LOGIN', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('cell', { name: '成功', exact: true })).toHaveCount(8)
 })
