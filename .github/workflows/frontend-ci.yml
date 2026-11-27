@@ -6,25 +6,20 @@ on:
     paths:
       - "frontend/**"
       - ".github/workflows/frontend-ci.yml"
-  push:
-    branches: [main]
-    paths:
-      - "frontend/**"
-      - ".github/workflows/frontend-ci.yml"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: frontend-ci-${{ github.workflow }}-${{ github.ref }}
+  group: frontend-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   frontend:
     name: Node 26 · pnpm 12 · frontend checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
+    runs-on: ${{ vars.ZTX_CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,38 +34,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 26.13.1
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
-      - name: Verify toolchain
+      - name: Verify toolchain and committed lockfile
         run: |
           node --version
           pnpm --version
           test "$(node --version)" = "v26.13.1"
           test "$(pnpm --version)" = "12.18.0"
-
-      - name: Generate lockfile for first CI run only
-        if: hashFiles('frontend/pnpm-lock.yaml') == ''
-        working-directory: frontend
-        run: pnpm install --lockfile-only
-
-      - name: Commit generated lockfile to PR branch
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HEAD_BRANCH: ${{ github.head_ref }}
-        run: |
-          if git ls-files --error-unmatch frontend/pnpm-lock.yaml >/dev/null 2>&1; then
-            echo "pnpm-lock.yaml is already committed."
-            exit 0
-          fi
-          cp frontend/pnpm-lock.yaml /tmp/ztx-pnpm-lock.yaml
-          git fetch origin "$HEAD_BRANCH"
-          git checkout -B "$HEAD_BRANCH" "origin/$HEAD_BRANCH"
-          cp /tmp/ztx-pnpm-lock.yaml frontend/pnpm-lock.yaml
-          git add frontend/pnpm-lock.yaml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore(frontend): add pnpm lockfile"
-          git push "https://x-access-token:$GITHUB_TOKEN@github.com/$GITHUB_REPOSITORY.git" "HEAD:$HEAD_BRANCH"
+          test -f frontend/pnpm-lock.yaml
+          git ls-files --error-unmatch frontend/pnpm-lock.yaml >/dev/null
 
       - name: Install dependencies
         working-directory: frontend
@@ -92,22 +66,13 @@ jobs:
         working-directory: frontend
         run: pnpm build
 
-      - name: Install Playwright browser
+      - name: Install Playwright Chromium
         working-directory: frontend
-        run: pnpm --filter @ztx/erp-web exec playwright install --with-deps chromium
+        run: pnpm --filter @ztx/erp-web exec playwright install chromium
 
       - name: Browser E2E tests
         working-directory: frontend
         run: pnpm test:e2e
-
-      - name: Upload generated lockfile
-        if: always() && hashFiles('frontend/pnpm-lock.yaml') != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-pnpm-lockfile
-          path: frontend/pnpm-lock.yaml
-          if-no-files-found: ignore
-          retention-days: 7
 
       - name: Upload Playwright report and visual captures
         if: always()
