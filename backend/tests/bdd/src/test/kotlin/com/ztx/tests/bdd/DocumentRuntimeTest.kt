@@ -163,3 +163,21 @@ class DocumentTypedCodecTest {
         assertEquals(LocalDate.parse("2026-12-01"), result.lines.single().deliveryDate)
     }
 }
+
+
+class ServiceLoadedDocumentBehavior : com.ztx.modules.document.DocumentBehavior {
+    override val doctype = "ServiceLoadedProbe"
+    override val mode = com.ztx.modules.document.DocumentExtensionMode.KOTLIN_IMPLEMENTATION
+}
+
+class DocumentBehaviorServiceLoaderTest {
+    /** Given Kotlin 扩展通过 ServiceLoader 服务描述文件注册，When 启动注册表，Then 可按 DocType 和实现类解析扩展。 */
+    @Test
+    fun loadsRegisteredProviderFromServiceDescriptor() {
+        val registry = com.ztx.modules.document.DocumentBehaviorRegistry.load()
+        val definition = JsonObject().put("extension", JsonObject()
+            .put("mode", "KOTLIN_IMPLEMENTATION")
+            .put("implementation", ServiceLoadedDocumentBehavior::class.qualifiedName))
+        assertEquals("ServiceLoadedProbe", registry.resolve(definition, "ServiceLoadedProbe")?.doctype)
+    }
+}
