@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ZBell, ZChevronRight, ZCommand, ZMaximize2, ZUserRound, ZShieldCheck, ZX, ZIconButton, ZButton, ZAlert } from '@ztx/ui'
-import { menuModules, findFeature } from './navigation/menu'
+import { menuModules, platformMenuModules, findFeature } from './navigation/menu'
 import { useWorkspaceStore } from './stores/workspace'
 const route=useRoute(),router=useRouter(),workspace=useWorkspaceStore()
 const isAuthRoute=computed(()=>route.path==='/'||route.path==='/tenant/login'||route.path==='/platform/login')
@@ -15,18 +15,25 @@ const collapsedMenuRef=ref<HTMLElement|null>(null),collapsedMenuTop=ref(10)
 let closeTimer:ReturnType<typeof setTimeout>|undefined
 let accountCloseTimer:ReturnType<typeof setTimeout>|undefined
 let openedByHover=false
-const activeModule=computed(()=>menuModules.find(item=>item.id===activeModuleId.value)??menuModules[0]!)
+const activeMenuModules=computed(()=>isPlatformWorkspace.value?platformMenuModules:menuModules)
+const activeModule=computed(()=>activeMenuModules.value.find(item=>item.id===activeModuleId.value)??activeMenuModules.value[0]!)
 const activeCategory=computed(()=>activeModule.value.categories.find(item=>item.id===openCategoryId.value))
 watch(navCollapsed,value=>localStorage.setItem('ztx-nav-collapsed',String(value)))
 watch(()=>route.fullPath,path=>{
  if(path==='/'||path==='/tenant/login'||path==='/platform/login')return
- if(path.startsWith('/platform/')) {
-  accountMenuOpen.value=false
-  void refreshAccount()
-  return
- }
+ const platform=path.startsWith('/platform/')
+ workspace.setMode(platform?'platform':'tenant')
+ const modules=platform?platformMenuModules:menuModules
+ activeModuleId.value=modules[0]?.id??''
+ openCategoryId.value=modules[0]?.categories[0]?.id??null
  const feature=findFeature(path)
- workspace.openTab({path,title:feature?.label??String(route.meta.title??'功能页面'),closable:path!='/workspace'})
+ workspace.openTab({
+  path,
+  title:feature?.label??String(route.meta.title??'功能页面'),
+  closable:route.meta.closable!==false,
+ })
+ flyoutOpen.value=false
+ collapsedMenuOpen.value=false
  accountMenuOpen.value=false
  void refreshAccount()
 },{immediate:true})
@@ -48,13 +55,13 @@ function onAccountMenuPointerLeave(event:PointerEvent){
 function selectModule(id:string){
  if(navCollapsed.value&&activeModuleId.value===id){collapsedMenuOpen.value=!collapsedMenuOpen.value;return}
  activeModuleId.value=id
- openCategoryId.value=menuModules.find(item=>item.id===id)?.categories[0]?.id??null
+ openCategoryId.value=activeMenuModules.value.find(item=>item.id===id)?.categories[0]?.id??null
  flyoutOpen.value=false;openedByHover=false;clearCloseTimer();collapsedMenuOpen.value=navCollapsed.value
 }
 function onModulePointerEnter(id:string){
  if(!navCollapsed.value||isTouch.value)return
  clearCloseTimer();activeModuleId.value=id
- openCategoryId.value=menuModules.find(item=>item.id===id)?.categories[0]?.id??null
+ openCategoryId.value=activeMenuModules.value.find(item=>item.id===id)?.categories[0]?.id??null
  flyoutOpen.value=false;openedByHover=false;collapsedMenuOpen.value=true
  void nextTick(()=>{
   const trigger=moduleButtons.get(id)?.getBoundingClientRect(),root=navRoot.value,menuElement=collapsedMenuRef.value
@@ -132,35 +139,9 @@ onMounted(()=>{isTouch.value=window.matchMedia('(pointer: coarse)').matches;wind
 onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEventListener('keydown',onGlobalKeydown)})
 </script>
 <template>
-  <div v-if="isPlatformWorkspace" class="min-h-screen bg-ztx-page font-sans text-ztx-text">
-    <header class="flex h-12 items-center justify-between border-b border-ztx-border bg-ztx-surface px-5">
-      <div class="flex items-center gap-3">
-        <span class="grid size-7 place-items-center rounded-md bg-ztx-primary text-white"><ZCommand :size="17" /></span>
-        <strong class="text-[14px] tracking-[.1em]">ZTX</strong>
-        <span class="border-l border-ztx-border pl-3 text-ztx-body text-ztx-muted">平台管理</span>
-      </div>
-      <div class="flex items-center gap-3 text-ztx-body">
-        <span class="text-ztx-muted">{{ account?.username ?? '平台管理员' }}</span>
-        <ZButton variant="ghost" size="sm" @click="logout"><ZX :size="14" /> 退出登录</ZButton>
-      </div>
-    </header>
-    <div class="flex min-h-[calc(100vh-48px)]">
-      <aside class="w-[210px] shrink-0 border-r border-ztx-border bg-ztx-surface p-3">
-        <nav class="flex flex-col gap-1" aria-label="平台管理导航">
-          <RouterLink to="/platform/admin" class="rounded-md px-3 py-2.5 text-ztx-body no-underline" :class="route.path==='/platform/admin'?'bg-ztx-surface-warm font-semibold text-ztx-primary-strong':'text-ztx-text-secondary hover:bg-ztx-surface-soft'">平台概览</RouterLink>
-          <RouterLink to="/platform/tenants" class="rounded-md px-3 py-2.5 text-ztx-body no-underline" :class="route.path==='/platform/tenants'?'bg-ztx-surface-warm font-semibold text-ztx-primary-strong':'text-ztx-text-secondary hover:bg-ztx-surface-soft'">租户管理</RouterLink>
-          <RouterLink to="/platform/operations" class="rounded-md px-3 py-2.5 text-ztx-body no-underline" :class="route.path==='/platform/operations'?'bg-ztx-surface-warm font-semibold text-ztx-primary-strong':'text-ztx-text-secondary hover:bg-ztx-surface-soft'">运维管理</RouterLink>
-          <RouterLink to="/platform/audit" class="rounded-md px-3 py-2.5 text-ztx-body no-underline" :class="route.path==='/platform/audit'?'bg-ztx-surface-warm font-semibold text-ztx-primary-strong':'text-ztx-text-secondary hover:bg-ztx-surface-soft'">安全审计</RouterLink>
-        </nav>
-      </aside>
-      <main class="min-w-0 flex-1 px-6 py-5 max-[720px]:px-3">
-        <RouterView />
-      </main>
-    </div>
-  </div>
-  <div v-else-if="!isAuthRoute" class="ztx-shell min-h-screen bg-ztx-page font-sans text-ztx-text">
+  <div v-if="!isAuthRoute" class="ztx-shell min-h-screen bg-ztx-page font-sans text-ztx-text">
     <header class="workspace-header sticky top-0 z-30 flex h-11 min-h-11 items-center gap-3 border-b border-ztx-border bg-ztx-surface pr-3.5">
-      <div class="brand-lockup flex h-ztx-topbar w-ztx-sidebar basis-ztx-sidebar shrink-0 items-center gap-2 border-r border-ztx-border px-4 max-[720px]:w-ztx-sidebar-mobile max-[720px]:basis-ztx-sidebar-mobile" :class="{ 'is-nav-collapsed': navCollapsed, '!w-ztx-sidebar-collapsed !basis-ztx-sidebar-collapsed justify-center px-0 max-[720px]:!w-ztx-sidebar-collapsed-mobile max-[720px]:!basis-ztx-sidebar-collapsed-mobile': navCollapsed }" aria-label="ZTX 企业工作区">
+      <div class="brand-lockup flex h-ztx-topbar w-ztx-sidebar basis-ztx-sidebar shrink-0 items-center gap-2 border-r border-ztx-border px-4 max-[720px]:w-ztx-sidebar-mobile max-[720px]:basis-ztx-sidebar-mobile" :class="{ 'is-nav-collapsed': navCollapsed, '!w-ztx-sidebar-collapsed !basis-ztx-sidebar-collapsed justify-center px-0 max-[720px]:!w-ztx-sidebar-collapsed-mobile max-[720px]:!basis-ztx-sidebar-collapsed-mobile': navCollapsed }" :aria-label="isPlatformWorkspace ? 'ZTX 平台管理工作区' : 'ZTX 企业工作区'">
         <div class="brand-mark grid size-[26px] place-items-center rounded-[6px] bg-ztx-primary text-ztx-on-primary">
           <ZCommand :size="18" :stroke-width="2.2" />
         </div>
@@ -243,7 +224,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         @pointerleave="onMenuPointerLeave"
       >
         <nav class="sidebar-navigation min-h-0 flex-1 overflow-y-auto px-[9px] pb-[14px] pt-[10px]" :class="{ 'px-[7px]': navCollapsed }" aria-label="一级菜单">
-          <div v-for="module in menuModules" :key="module.id" class="module-group mb-[3px] flex flex-col" @pointerleave="navCollapsed && onMenuPointerLeave($event)">
+          <div v-for="module in activeMenuModules" :key="module.id" class="module-group mb-[3px] flex flex-col" @pointerleave="navCollapsed && onMenuPointerLeave($event)">
             <button
               class="module-entry flex min-h-11 w-full items-center justify-start gap-3 rounded-[7px] px-3 text-ztx-section-title text-ztx-text hover:bg-ztx-surface-soft"
               :aria-label="module.label"
@@ -355,7 +336,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
         <RouterView />
         <footer class="workspace-footer mt-auto flex justify-between gap-3 py-[15px] pb-3 text-ztx-caption text-ztx-muted max-[720px]:flex-col max-[720px]:items-start">
           <span>© 2026 ZTX · 制造业低代码 ERP 平台</span>
-          <span class="flex items-center gap-[7px]">平台工作区 <i class="size-[5px] rounded-full bg-ztx-success-indicator" /> 安全连接</span>
+          <span class="flex items-center gap-[7px]">{{ isPlatformWorkspace ? '平台工作区' : '企业工作区' }} <i class="size-[5px] rounded-full bg-ztx-success-indicator" /> 安全连接</span>
         </footer>
       </main>
     </div>
