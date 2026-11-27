@@ -26,6 +26,14 @@ private val logger = LoggerFactory.getLogger("com.ztx.server")
 
 fun main(args: Array<String>) {
     val config = AppConfig.load(args)
+    val command = args.firstOrNull { it.startsWith("--ztx.command=") }?.substringAfter('=')
+    if (command != null) {
+        if (command != "platform-admin-reset") {
+            System.err.println("未知 ZTX 命令：$command")
+            exitProcess(2)
+        }
+        exitProcess(PlatformAdminResetCommand.execute(config))
+    }
     val moduleOrder = ModuleRegistry()
         .register(PostgresModule())
         .register(IamModule())
