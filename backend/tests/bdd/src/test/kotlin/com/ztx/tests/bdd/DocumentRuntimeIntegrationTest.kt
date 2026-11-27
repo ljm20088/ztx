@@ -48,7 +48,7 @@ class DocumentRuntimeIntegrationTest {
             action: String
         ): Future<Void> {
             if (action == "submit" && before.getString("code") == "BLOCK") {
-                return Future.failedFuture("业务规则不允许提交")
+                return Future.failedFuture<Void>(IllegalArgumentException("业务规则不允许提交"))
             }
             return Future.succeededFuture()
         }
