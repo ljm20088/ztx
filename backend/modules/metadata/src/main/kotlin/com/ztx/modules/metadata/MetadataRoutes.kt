@@ -178,7 +178,8 @@ class MetadataRoutes {
                    FROM meta.document_definition WHERE scope='TENANT' AND doctype=$1
                    ORDER BY version DESC LIMIT 1"""
             ).execute(Tuple.of(context.pathParam("doctype"))).map { rows -> (rows.firstOrNull()?.toJson() as? JsonObject) ?: JsonObject() }
-        }.onSuccess { row ->
+        }.onSuccess { raw ->
+            val row = raw as JsonObject
             if (!row.containsKey("id")) fail(context, 404, "DocType 不存在")
             else send(context, row.put("definition", row.getJsonObject("definition_json")).remove("definition_json"))
         }.onFailure { fail(context, 503, "读取元数据定义失败") }
@@ -192,7 +193,8 @@ class MetadataRoutes {
                 """SELECT id,doctype,version,status,definition_json,checksum,created_at,updated_at
                    FROM meta.document_definition WHERE scope='TENANT' AND doctype=$1 AND version=$2"""
             ).execute(Tuple.of(context.pathParam("doctype"), version)).map { rows -> rows.firstOrNull()?.toJson() ?: JsonObject() }
-        }.onSuccess { row ->
+        }.onSuccess { raw ->
+            val row = raw as JsonObject
             if (!row.containsKey("id")) fail(context, 404, "元数据版本不存在")
             else send(context, row.put("definition", row.getJsonObject("definition_json")).remove("definition_json"))
         }.onFailure { fail(context, 503, "读取元数据版本失败") }
