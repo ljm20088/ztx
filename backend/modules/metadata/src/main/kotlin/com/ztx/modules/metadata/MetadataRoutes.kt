@@ -17,7 +17,7 @@ import java.util.UUID
  * 租户元数据管理 API。租户身份来自全局认证守卫，不接受请求体中的租户或数据库标识。
  * 平台级元数据不通过租户数据库 API 暴露；租户接口始终限定 scope=TENANT。
  */
-class MetadataRoutes {
+class MetadataRoutes(private val schemaMigrations: SchemaMigrationService = SchemaMigrationService()) {
     fun register(router: Router) {
         router.route("/api/v1/tenant/metadata/*").handler(BodyHandler.create().setBodyLimit(512 * 1024))
         router.get("/api/v1/tenant/metadata/doctypes").handler(::list)
@@ -127,21 +127,30 @@ class MetadataRoutes {
                     val status = if (diagnostics.isEmpty()) "VALIDATED" else "DRAFT"
                     val id = row.getUUID("id")
                     val version = row.getInteger("version")
-                    connection.preparedQuery(
-                        """UPDATE meta.document_definition SET status=$2,updated_by=$3,updated_at=clock_timestamp()
-                           WHERE id=$1 AND scope='TENANT'"""
-                    ).execute(Tuple.of(id, status, principal.userId)).compose {
-                        writeHistory(connection, id, doctype, version,
-                            if (diagnostics.isEmpty()) "VALIDATE" else "VALIDATION_FAILED",
-                            definition, JsonArray(diagnostics.map { it.toJson() }), principal.userId)
-                    }.map {
-                        JsonObject().put("doctype", doctype).put("version", version).put("status", status)
-                            .put("valid", diagnostics.isEmpty()).put("diagnostics", JsonArray(diagnostics.map { it.toJson() }))
+                    // Given 元数据校验通过，When 发布该版本，Then 先完成受控物理 Schema Migration，再激活定义。
+                    val migration = if (diagnostics.isEmpty()) {
+                        schemaMigrations.migrate(principal.database, doctype, version, definition, principal.userId).mapEmpty()
+                    } else Future.succeededFuture()
+                    migration.compose {
+                        connection.preparedQuery(
+                            """UPDATE meta.document_definition SET status=$2,updated_by=$3,updated_at=clock_timestamp()
+                               WHERE id=$1 AND scope='TENANT'"""
+                        ).execute(Tuple.of(id, status, principal.userId)).compose {
+                            writeHistory(connection, id, doctype, version,
+                                if (diagnostics.isEmpty()) "PUBLISH" else "VALIDATION_FAILED",
+                                definition, JsonArray(diagnostics.map { it.toJson() }), principal.userId)
+                        }.map {
+                            JsonObject().put("doctype", doctype).put("version", version).put("status", status)
+                                .put("valid", diagnostics.isEmpty()).put("diagnostics", JsonArray(diagnostics.map { it.toJson() }))
+                        }
                     }
                 }
             }
         }.onSuccess { send(context, it) }
-            .onFailure { fail(context, 404, "DocType 不存在或校验无法完成") }
+            .onFailure { error ->
+                val code = if (error is SchemaMigrationConflictException) 409 else 400
+                fail(context, code, error.message ?: "DocType 不存在或 Schema Migration 无法完成")
+            }
     }
 
     private fun copy(context: RoutingContext) = withMetadataAdmin(context) { principal ->

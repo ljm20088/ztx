@@ -79,6 +79,16 @@ class MetadataManagementIntegrationTest {
             )
             assertEquals(200, validate.statusCode())
             assertTrue(JsonObject(validate.body()).getBoolean("valid"))
+            // Given 元数据校验成功，When 设计器激活该定义，Then 真实物理表和统一运行期迁移历史必须先成功创建。
+            val publishedSchema = database.withTransaction { connection ->
+                connection.preparedQuery(
+                    """SELECT
+                       EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='org' AND table_name='metadata_test_item') AS table_exists,
+                       EXISTS (SELECT 1 FROM meta.schema_migration WHERE source='RUNTIME' AND doctype='MetadataTestItem' AND version='1' AND status='SUCCEEDED') AS migration_succeeded"""
+                ).execute().map { rows -> rows.first().getBoolean("table_exists") to rows.first().getBoolean("migration_succeeded") }
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertTrue(publishedSchema.first)
+            assertTrue(publishedSchema.second)
             val history = client.send(
                 HttpRequest.newBuilder(URI.create("$base/api/v1/tenant/metadata/doctypes/MetadataTestItem/history")).GET().build(),
                 HttpResponse.BodyHandlers.ofString()

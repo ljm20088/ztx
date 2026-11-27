@@ -18,7 +18,7 @@ class FlywayMigrator(private val config: DatabaseConfig) {
     }
 
     /** 正式部署只检查，不擅自执行待迁移脚本。 */
-    fun validateCurrent() {
+    fun validateCurrent() = withMigrationLock {
         val flyway = configuredFlyway()
         flyway.validate()
         val pending = flyway.info().pending()
