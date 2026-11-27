@@ -70,6 +70,16 @@ ssh -L 18080:127.0.0.1:8080 <部署用户>@<服务器地址>
 
 平台管理员首次初始化不要求邮箱或 MFA。MFA 为可选能力；以后主动启用 MFA 时，才需要在 `application.yaml` 的 `security.mfa-encryption-key` 配置至少 32 字节随机密钥；可使用 `openssl rand -base64 32` 生成。密钥配置后必须长期备份，不能随意更换。详细步骤见[《平台管理员初始化与运维操作手册》](docs/operations/平台管理员初始化与运维操作手册.md)。
 
+### 平台管理员密码遗失
+
+由服务器部署管理人员在服务器交互式终端执行受控重置命令：
+
+```bash
+./ztx platform-admin-reset --ztx.profile=prod --ztx.config=/etc/ztx/application.yaml
+```
+
+命令通过终端无回显方式输入并确认新密码，不接受密码参数或环境变量；只重置已存在的唯一平台管理员，撤销其全部会话并保留 MFA。成功、失败和取消操作均记录平台安全审计。命令不会创建管理员、重新开放初始化或自动执行数据库迁移。配置路径应替换为实际部署文件；详细操作和安全边界见[《平台管理员初始化与运维操作手册》](docs/operations/平台管理员初始化与运维操作手册.md)。
+
 ## 配置约定
 
 后端以 `application.yaml` 为唯一默认配置入口，支持 `application-{profile}.yaml`。默认不激活 Profile；指定 `--ztx.profile=dev`、系统属性 `-Dztx.profile=dev` 或环境变量 `ZTX_PROFILE=dev` 后，加载对应 Profile 文件。Profile 名称必须对应仓库内存在的配置文件，拼写错误会在启动时直接报错。加载顺序为：
