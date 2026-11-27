@@ -25,6 +25,7 @@ type Definition = {
 type Diagnostic = { code: string; path: string; message: string }
 type DefinitionRow = { doctype: string; version: number; status: string }
 
+const fieldTypes: FieldType[] = ['string','text','uuid','date','datetime','decimal','integer','boolean','reference','select','money','json']
 const rows = ref<DefinitionRow[]>([])
 const selectedDoctype = ref('')
 const version = ref<number|null>(null)
@@ -263,7 +264,7 @@ onMounted(() => { void loadList().catch(cause => { error.value = cause instanceo
                 <td class="p-1.5"><input v-model="field.label" class="w-full rounded border border-ztx-border bg-ztx-surface px-2 py-1.5" placeholder="字段名称"></td>
                 <td class="p-1.5">
                   <select v-model="field.type" class="w-full rounded border border-ztx-border bg-ztx-surface px-2 py-1.5">
-                    <option v-for="type in ['string','text','uuid','date','datetime','decimal','integer','boolean','reference','select','money','json']" :key="type" :value="type">{{ type }}</option>
+                    <option v-for="type in fieldTypes" :key="type" :value="type">{{ type }}</option>
                   </select>
                 </td>
                 <td class="p-1.5 text-center"><input v-model="field.required" type="checkbox" aria-label="必填"></td>

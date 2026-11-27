@@ -201,7 +201,7 @@ class MetadataRoutes {
     private fun history(context: RoutingContext) = withMetadataAdmin(context) { principal ->
         principal.database.withTransaction { connection ->
             connection.preparedQuery(
-                """SELECT id,version,action,diagnostics,actor_id,changed_at
+                """SELECT id,version,action,definition_json,diagnostics,actor_id,changed_at
                    FROM meta.document_definition_history WHERE scope='TENANT' AND doctype=$1
                    ORDER BY changed_at DESC LIMIT 200"""
             ).execute(Tuple.of(context.pathParam("doctype"))).map { rows -> JsonArray(rows.map { it.toJson() }) }

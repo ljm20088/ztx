@@ -36,7 +36,7 @@ object MetadataDefinitionValidator {
         } else {
             val schema = table.getString("schema", "")
             val name = table.getString("name", "")
-            if (!identifierPattern.matches(schema) || schema in setOf("pg_catalog", "information_schema")) {
+            if (!identifierPattern.matches(schema) || schema in setOf("pg_catalog", "information_schema", "platform", "iam", "meta", "audit")) {
                 errors += MetadataDiagnostic("INVALID_SCHEMA", "table.schema", "Schema 标识不合法或不允许使用")
             }
             if (!identifierPattern.matches(name)) errors += MetadataDiagnostic("INVALID_TABLE", "table.name", "表名必须使用小写蛇形标识")
