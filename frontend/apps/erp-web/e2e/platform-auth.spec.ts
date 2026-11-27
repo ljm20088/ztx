@@ -57,7 +57,7 @@ test('首次启动自动显示初始化表单并创建管理员后直接登录',
   await expect(page.getByText('platform.admin').first()).toBeVisible()
 })
 
-test('平台管理员只看到独立的平台管理导航', async ({ page }) => {
+test('平台管理员使用统一工作台外壳和独立平台菜单', async ({ page }) => {
   await page.route('**/api/v1/platform/auth/me', route => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000001', username: 'platform.admin', mfaEnabled: false }),
@@ -78,8 +78,13 @@ test('平台管理员只看到独立的平台管理导航', async ({ page }) => 
   // When 平台管理员进入平台管理工作区
   await page.goto('/platform/operations')
 
-  // Then 页面使用独立导航，不出现企业业务菜单
-  await expect(page.getByRole('navigation', { name: '平台管理导航' })).toBeVisible()
+  // Then 页面使用统一工作台外壳，但只显示平台管理菜单
+  await expect(page.locator('.workspace-header')).toBeVisible()
+  await expect(page.getByRole('navigation', { name: '工作区标签' })).toBeVisible()
+  await expect(page.getByRole('complementary', { name: '一级菜单' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '全屏' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '通知' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '平台管理', exact: true })).toBeVisible()
   await expect(page.getByText('运维管理', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('采购管理')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: '运维管理' })).toBeVisible()
@@ -96,7 +101,16 @@ test('平台管理员可以查看平台安全审计记录', async ({ page }) => 
   }))
   await page.route('**/api/v1/platform/audit', route => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify([{ id: 'event-1', eventType: 'LOGIN', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' }]),
+    body: JSON.stringify([
+      { id: 'event-1', eventType: 'LOGIN', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-2', eventType: 'ADMIN_INITIALIZED', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-3', eventType: 'MFA_LOGIN', outcome: 'FAILURE', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-4', eventType: 'LOGOUT', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-5', eventType: 'PASSWORD_CHANGED', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-6', eventType: 'MFA_ENROLLMENT_STARTED', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-7', eventType: 'MFA_ENABLED', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+      { id: 'event-8', eventType: 'ADMIN_PASSWORD_RESET', outcome: 'SUCCESS', sourceIp: '127.0.0.1', adminUsername: 'platform.admin', occurredAt: '2026-11-27T00:00:00Z' },
+    ]),
   }))
 
   // When 平台管理员打开安全审计
@@ -104,6 +118,15 @@ test('平台管理员可以查看平台安全审计记录', async ({ page }) => 
 
   // Then 可以查看平台安全事件及其操作结果
   await expect(page.getByRole('heading', { name: '安全审计' })).toBeVisible()
-  await expect(page.getByText('LOGIN')).toBeVisible()
-  await expect(page.getByText('成功')).toBeVisible()
+  await expect(page.getByRole('cell', { name: '登录', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '平台管理员初始化', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '动态验证码登录', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '退出登录', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '修改密码', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '开始绑定多重身份验证', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '启用多重身份验证', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '重置平台管理员密码', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'LOGIN', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('cell', { name: '成功', exact: true })).toHaveCount(7)
+  await expect(page.getByRole('cell', { name: '失败', exact: true })).toHaveCount(1)
 })

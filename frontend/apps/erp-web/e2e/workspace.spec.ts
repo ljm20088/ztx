@@ -234,7 +234,7 @@ test('折叠导航下悬停菜单跟随一级图标，鼠标离开后关闭', as
   await expect(featureMenu).toBeHidden()
 })
 
-test('平台管理员工作区直接提供独立导航和账户安全', async ({ page }) => {
+test('平台管理员工作区复用统一外壳并提供平台账户安全', async ({ page }) => {
   // Given：当前浏览器持有有效的平台管理员会话
   await page.route('**/api/v1/platform/auth/me', route => route.fulfill({
     status: 200,
@@ -244,10 +244,16 @@ test('平台管理员工作区直接提供独立导航和账户安全', async ({
   await page.goto('/platform/admin')
 
   // Then：平台管理员进入独立平台工作区，账户安全内容直接可见
-  await expect(page.getByRole('navigation', { name: '平台管理导航' })).toBeVisible()
+  await expect(page.locator('.workspace-header')).toBeVisible()
+  await expect(page.getByRole('navigation', { name: '工作区标签' })).toBeVisible()
+  await expect(page.getByRole('complementary', { name: '一级菜单' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '平台管理', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '全屏' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '通知' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '平台概览' })).toBeVisible()
   await expect(page.locator('#password-settings')).toBeVisible()
   await expect(page.getByRole('button', { name: '更新密码' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: '工作区标签' }).getByText('平台概览')).toBeVisible()
   await expect(page.getByText('采购管理')).toHaveCount(0)
 
   // Then 平台概览标题使用页面标题令牌
@@ -267,8 +273,9 @@ test('平台管理员可从独立平台工作区安全退出', async ({ page }) 
   await page.route('**/api/v1/platform/auth/logout', route => route.fulfill({ status: 204 }))
   await page.goto('/platform/admin')
 
-  // When：点击平台工作区的退出登录
-  await page.getByRole('button', { name: '退出登录' }).click()
+  // When：打开统一账户菜单并点击退出登录
+  await page.getByRole('button', { name: '用户账户菜单' }).click()
+  await page.getByRole('menuitem', { name: '退出登录' }).click()
 
   // Then：调用注销接口后返回平台登录页
   await expect(page).toHaveURL(/\/platform\/login$/)
