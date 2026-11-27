@@ -18,3 +18,5 @@ export {
   UserRound as ZUserRound, X as ZX,
 } from 'lucide-vue-next'
 export { default as ZDataGrid } from './components/ZDataGrid.vue'
+
+export type { ColumnDef } from '@tanstack/vue-table'

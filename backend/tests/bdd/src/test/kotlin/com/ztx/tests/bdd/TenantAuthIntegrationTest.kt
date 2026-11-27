@@ -5,6 +5,7 @@ import com.ztx.adapters.postgres.PgDatabase
 import com.ztx.modules.iam.PlatformAdmin
 import com.ztx.modules.iam.TenantAuthRoutes
 import com.ztx.modules.iam.TenantAuthService
+import com.ztx.modules.iam.TenantOrganizationRoutes
 import com.ztx.modules.iam.TenantDatabaseRegistry
 import com.ztx.modules.iam.TenantLifecycleService
 import com.ztx.modules.iam.TenantPrincipal
@@ -12,6 +13,7 @@ import com.ztx.modules.iam.TENANT_CONTEXT_KEY
 import com.ztx.platform.common.DatabaseConfig
 import io.vertx.core.Vertx
 import io.vertx.ext.web.Router
+import io.vertx.ext.web.handler.BodyHandler
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -81,6 +83,30 @@ class TenantAuthIntegrationTest {
             // When：两个租户的同名管理员分别登录
             val loginA = auth.login("tenant_a", "shared.admin", "TenantPass123", null, "bdd").await()
             val loginB = auth.login("tenant_b", "shared.admin", "TenantPass123", null, "bdd").await()
+
+            // When：租户管理员通过管理 API 创建一个独立于员工档案的业务用户
+            val userRouter=Router.router(vertx)
+            TenantAuthRoutes(auth,lifecycle,false).registerGuard(userRouter)
+            userRouter.route("/api/v1/tenant/*").handler(BodyHandler.create())
+            TenantOrganizationRoutes().register(userRouter)
+            val userServer=vertx.createHttpServer().requestHandler(userRouter).listen(0,"127.0.0.1").await()
+            val createUserRequest=HttpRequest.newBuilder(
+                URI.create("http://127.0.0.1:${userServer.actualPort()}/api/v1/tenant/organization/users")
+            ).header("Cookie","ztx_tenant_session=tenant_a.${loginA.sessionToken}")
+                .header("content-type","application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(io.vertx.core.json.JsonObject()
+                    .put("username","business.user").put("displayName","业务用户")
+                    .put("password","BusinessPass123").encode())).build()
+            val createUserResponse=HttpClient.newHttpClient().send(createUserRequest,HttpResponse.BodyHandlers.ofString())
+            assertEquals(201,createUserResponse.statusCode())
+
+            // Then：独立业务用户可以使用自己的账号密码登录并获得 TENANT_USER 身份
+            val businessLogin=auth.login("tenant_a","business.user","BusinessPass123",null,"bdd").await()
+            assertEquals("TENANT_USER",businessLogin.principal.role)
+            assertEquals("USER",businessLogin.principal.subjectType)
+            assertNotNull(auth.authenticate("tenant_a",businessLogin.sessionToken).await())
+            auth.logout("tenant_a",businessLogin.sessionToken).await()
+            userServer.close().await()
 
             // Then：会话令牌、用户身份和数据库路由均独立，A 的令牌不能在 B 使用
             assertNotEquals(loginA.sessionToken, loginB.sessionToken)

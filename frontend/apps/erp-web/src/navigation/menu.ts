@@ -145,11 +145,18 @@ export const menuModules:MenuModule[] = [
         feature('companies','企业信息','/enterprise/companies','维护当前租户企业信息'),
         feature('books','账套管理','/enterprise/books','维护企业账套与启用范围'),
         feature('departments','组织架构','/enterprise/departments','维护部门、工厂与组织层级'),
-        feature('employees','员工档案','/enterprise/employees','维护员工与任职关系'),
+        feature('employees','员工档案','/enterprise/employees','维护独立员工档案'),
+        feature('users','用户账号','/enterprise/users','维护独立登录用户账号'),
+        feature('employments','员工任职','/enterprise/employments','维护员工在企业、账套和组织中的任职历史'),
       ]},
       {id:'permissions',label:'用户与权限',features:[
         feature('positions','岗位管理','/enterprise/positions','维护岗位与模块角色组合'),
         feature('roles','角色权限','/enterprise/roles','维护功能、数据和字段权限'),
+      ]},
+      {id:'group-data',label:'集团基础档案',features:[
+        feature('group-master','集团档案','/enterprise/group-master','维护集团统一基础档案与保护字段'),
+        feature('group-master-usage','企业集团档案','/enterprise/group-master-usage','维护企业启用的集团档案及本地补充'),
+        feature('group-master-requests','集团档案审批','/enterprise/group-master-requests','集团管理员审批企业启用申请'),
       ]},
       {id:'configuration',label:'系统配置',features:[
         feature('appearance','界面偏好','/system/appearance','调整主题与界面密度'),
