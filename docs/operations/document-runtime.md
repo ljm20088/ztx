@@ -20,7 +20,7 @@ Document 当前运行时映射到元数据声明的租户业务表。物理表�
 
 ## 类型转换
 
-Codec 支持 UUID、LocalDate、LocalDateTime、BigDecimal、Long、Boolean、JSON 对象/数组及嵌套 table 明细。金额/小数使用 BigDecimal，输入应使用十进制字符串避免 JavaScript 浮点精度损失。字段缺失、类型错误和未知字段会返回稳定的字段错误。
+Codec 支持 UUID、LocalDate、LocalDateTime、LocalTime、BigDecimal、Long、Boolean、JSON 对象/数组及嵌套 table 明细。除 `decode` 返回规范化 JSON 外，业务 Kotlin 文件可调用 `DocumentValueCodec.decodeAs(definition, input, PurchaseOrder::class)`，将 JSON 转换为 Kotlin data class、嵌套 data class 和 `List<T>`/`Set<T>`；元数据蛇形字段名（如 `supplier_id`）会映射到 Kotlin 属性名（如 `supplierId`）。金额/小数使用 BigDecimal，输入应使用十进制字符串避免 JavaScript 浮点精度损失。字段缺失、类型错误和未知字段会返回稳定的字段错误。
 
 ## 当前实现边界
 
