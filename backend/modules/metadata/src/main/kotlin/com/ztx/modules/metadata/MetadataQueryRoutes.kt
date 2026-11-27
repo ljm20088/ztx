@@ -3,7 +3,6 @@ package com.ztx.modules.metadata
 import com.ztx.modules.iam.TENANT_CONTEXT_KEY
 import com.ztx.modules.iam.TenantPrincipal
 import io.vertx.core.Future
-import io.vertx.core.Future
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router
