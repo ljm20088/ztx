@@ -232,7 +232,11 @@ test('折叠导航下悬停菜单跟随一级图标，鼠标离开后关闭', as
 
   // When 悬停二级分类，再移动到三级功能菜单
   const category = page.getByRole('button', { name: '低代码开发', exact: true })
-  await category.hover()
+  await expect(category).toBeVisible()
+  // Given 折叠菜单已打开且二级项已经渲染，When 指针移入二级项中心，Then 触发真实 pointerenter 而不触发自动滚动导致的 DOM 重挂载竞态。
+  const categoryBox = await category.boundingBox()
+  if (!categoryBox) throw new Error('二级菜单项未取得可见边界')
+  await page.mouse.move(categoryBox.x + categoryBox.width / 2, categoryBox.y + categoryBox.height / 2)
   const featureMenu = page.locator('.feature-flyout')
   await expect(featureMenu).toBeVisible()
   await expect(featureMenu.locator('.flyout-heading')).toHaveCount(0)
