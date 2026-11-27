@@ -273,8 +273,9 @@ test('平台管理员可从独立平台工作区安全退出', async ({ page }) 
   await page.route('**/api/v1/platform/auth/logout', route => route.fulfill({ status: 204 }))
   await page.goto('/platform/admin')
 
-  // When：点击平台工作区的退出登录
-  await page.getByRole('button', { name: '退出登录' }).click()
+  // When：打开统一账户菜单并点击退出登录
+  await page.getByRole('button', { name: '用户账户菜单' }).click()
+  await page.getByRole('menuitem', { name: '退出登录' }).click()
 
   // Then：调用注销接口后返回平台登录页
   await expect(page).toHaveURL(/\/platform\/login$/)
