@@ -308,7 +308,8 @@ case "${1:-help}" in
   dev) dev ;;
   start) start ;;
   stop) stop ;;
-  status) status ;;\n  platform-admin-reset) platform_admin_reset "$@" ;;
+  status) status ;;
+  platform-admin-reset) platform_admin_reset "$@" ;;
   help|-h|--help) usage ;;
   *)
     echo "未知命令：$1" >&2
