@@ -72,3 +72,33 @@ class MetadataDefinitionValidatorTest {
         assertTrue(MetadataDefinitionValidator.validate(definition).any { it.code == "REFERENCE_NOT_FOUND" })
     }
 }
+
+
+    // Given DocType 声明合法的 Kotlin 扩展，When 校验元数据，Then 接受受控的扩展模式和完整类名。
+    @Test
+    fun acceptsRegisteredKotlinExtensionDeclaration() {
+        val definition = validDefinition().put("extension", JsonObject()
+            .put("mode", "METADATA_WITH_KOTLIN_FILE")
+            .put("implementation", "com.example.purchase.PurchaseOrderBehavior"))
+        assertTrue(MetadataDefinitionValidator.validate(definition).isEmpty())
+    }
+
+    // Given DocType 声明不受支持的扩展模式或不完整类名，When 校验元数据，Then 拒绝该声明。
+    @Test
+    fun rejectsInvalidKotlinExtensionDeclaration() {
+        val definition = validDefinition().put("extension", JsonObject()
+            .put("mode", "DYNAMIC_SCRIPT")
+            .put("implementation", "PurchaseOrderBehavior"))
+        val codes = MetadataDefinitionValidator.validate(definition).map { it.code }
+        assertTrue("INVALID_EXTENSION_MODE" in codes)
+        assertTrue("INVALID_EXTENSION_IMPLEMENTATION" in codes)
+    }
+
+    // Given 单据生命周期权限声明作废动作，When 校验元数据，Then 允许 void 权限配置。
+    @Test
+    fun acceptsVoidPermissionAction() {
+        val definition = validDefinition().put("permissions", JsonObject()
+            .put("read", JsonArray().add("reader"))
+            .put("void", JsonArray().add("manager")))
+        assertTrue(MetadataDefinitionValidator.validate(definition).isEmpty())
+    }

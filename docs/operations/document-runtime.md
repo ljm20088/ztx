@@ -38,3 +38,42 @@ Document Runtime 支持三种执行模式：
 元数据通过 `extension.mode` 和 `extension.implementation` 指定模式及实现类全名。实现必须由服务端构建并部署到 classpath，并通过 Java `ServiceLoader` 注册（资源文件：`META-INF/services/com.ztx.modules.document.DocumentBehavior`，每行一个实现类全名）。服务启动时构建注册表；运行时只接受 DocType、模式和实现类名三者完全匹配的实现。
 
 **安全边界：** 不在运行时编译、加载或执行租户提交的 Kotlin 源码；Kotlin 扩展属于可信部署代码，必须经过代码审查和正常发布。扩展 Hook 接收当前事务的 `SqlConnection`，与单据写入、状态迁移和审计共用同一事务。Hook 抛出异常或返回失败 Future 时，整个事务回滚。
+
+
+### Kotlin 扩展示例
+
+业务模块中的单个 Kotlin 文件可以直接实现 Hook，不需要为常规单据机械拆分多层类：
+
+```kotlin
+class PurchaseOrderBehavior : DocumentBehavior {
+    override val doctype = "PurchaseOrder"
+    override val mode = DocumentExtensionMode.METADATA_WITH_KOTLIN_FILE
+
+    override fun beforeSubmit(
+        context: DocumentBehaviorContext,
+        document: JsonObject
+    ): Future<Void> {
+        // 在当前事务中执行必要的业务校验；失败时阻止提交并回滚。
+        return context.connection.preparedQuery(
+            "SELECT 1 WHERE EXISTS (SELECT 1 FROM pur.supplier WHERE id = $1)"
+        ).execute(Tuple.of(document.getValue("supplier_id")))
+            .compose { rows ->
+                if (rows.size() == 1) Future.succeededFuture()
+                else Future.failedFuture("供应商不存在或不可用")
+            }
+    }
+}
+```
+
+将实现类全名加入 `META-INF/services/com.ztx.modules.document.DocumentBehavior`，并在 DocType 元数据中声明：
+
+```json
+{
+  "extension": {
+    "mode": "METADATA_WITH_KOTLIN_FILE",
+    "implementation": "com.example.purchase.PurchaseOrderBehavior"
+  }
+}
+```
+
+上例中的 `beforeSubmit` 是业务示意；当前运行时 Hook 名称以 `beforeAction(context, before, action)` 为准，提交动作通过 `action == "submit"` 分支处理。

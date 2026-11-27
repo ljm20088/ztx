@@ -75,7 +75,7 @@ class DocumentBehaviorRegistry(implementations: Iterable<DocumentBehavior>) {
 
     init {
         val indexed = implementations.toList()
-        require(indexed.all { it.doctype.matches(Regex("[a-z][a-z0-9_]{0,62}")) }) {
+        require(indexed.all { it.doctype.matches(Regex("[A-Za-z][A-Za-z0-9_]{0,119}")) }) {
             "Document 扩展必须声明合法 DocType"
         }
         require(indexed.map { it.doctype }.distinct().size == indexed.size) {
@@ -101,7 +101,9 @@ class DocumentBehaviorRegistry(implementations: Iterable<DocumentBehavior>) {
     }
 
     companion object {
-        fun load(classLoader: ClassLoader = Thread.currentThread().contextClassLoader): DocumentBehaviorRegistry =
-            DocumentBehaviorRegistry(ServiceLoader.load(DocumentBehavior::class.java, classLoader).toList())
+        fun load(): DocumentBehaviorRegistry {
+            val classLoader = Thread.currentThread().contextClassLoader ?: DocumentBehavior::class.java.classLoader
+            return DocumentBehaviorRegistry(ServiceLoader.load(DocumentBehavior::class.java, classLoader).toList())
+        }
     }
 }

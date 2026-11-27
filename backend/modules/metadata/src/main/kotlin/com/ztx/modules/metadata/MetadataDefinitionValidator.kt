@@ -110,6 +110,17 @@ object MetadataDefinitionValidator {
             validateFieldList(list.getJsonArray("search"), "list.search", fieldNames, errors)
         }
 
+        definition.getJsonObject("extension")?.let { extension ->
+            val mode = extension.getString("mode", "")
+            if (mode !in setOf("METADATA_WITH_KOTLIN_FILE", "KOTLIN_IMPLEMENTATION")) {
+                errors += MetadataDiagnostic("INVALID_EXTENSION_MODE", "extension.mode", "Document 扩展模式不受支持")
+            }
+            val implementation = extension.getString("implementation", "")
+            if (!Regex("[A-Za-z_][A-Za-z0-9_]*(\\\\.[A-Za-z_][A-Za-z0-9_]*)+").matches(implementation)) {
+                errors += MetadataDiagnostic("INVALID_EXTENSION_IMPLEMENTATION", "extension.implementation", "Kotlin 实现必须使用完整类名")
+            }
+        }
+
         definition.getJsonObject("permissions")?.let { permissions ->
             permissions.fieldNames().forEach { action ->
                 if (action !in setOf("read", "create", "update", "delete", "submit", "cancel", "void")) {
