@@ -49,14 +49,16 @@ class PurchaseOrderBehavior : DocumentBehavior {
     override val doctype = "PurchaseOrder"
     override val mode = DocumentExtensionMode.METADATA_WITH_KOTLIN_FILE
 
-    override fun beforeSubmit(
+    override fun beforeAction(
         context: DocumentBehaviorContext,
-        document: JsonObject
+        before: JsonObject,
+        action: String
     ): Future<Void> {
+        if (action != "submit") return Future.succeededFuture()
         // 在当前事务中执行必要的业务校验；失败时阻止提交并回滚。
         return context.connection.preparedQuery(
             "SELECT 1 WHERE EXISTS (SELECT 1 FROM pur.supplier WHERE id = $1)"
-        ).execute(Tuple.of(document.getValue("supplier_id")))
+        ).execute(Tuple.of(before.getValue("supplier_id")))
             .compose { rows ->
                 if (rows.size() == 1) Future.succeededFuture()
                 else Future.failedFuture("供应商不存在或不可用")
@@ -76,4 +78,4 @@ class PurchaseOrderBehavior : DocumentBehavior {
 }
 ```
 
-上例中的 `beforeSubmit` 是业务示意；当前运行时 Hook 名称以 `beforeAction(context, before, action)` 为准，提交动作通过 `action == "submit"` 分支处理。
+上例通过 `beforeAction` 在提交动作前校验供应商；Hook 失败会使状态迁移和审计记录一起回滚。

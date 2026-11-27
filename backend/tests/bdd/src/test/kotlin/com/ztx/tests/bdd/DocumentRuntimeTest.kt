@@ -60,7 +60,7 @@ class DocumentRuntimeTest {
 
 class DocumentBehaviorRegistryTest {
     private class PurchaseOrderBehavior : com.ztx.modules.document.DocumentBehavior {
-        override val doctype = "pur_purchase_order"
+        override val doctype = "PurchaseOrder"
         override val mode = com.ztx.modules.document.DocumentExtensionMode.METADATA_WITH_KOTLIN_FILE
     }
 
@@ -72,7 +72,7 @@ class DocumentBehaviorRegistryTest {
         val definition = JsonObject().put("extension", JsonObject()
             .put("mode", "METADATA_WITH_KOTLIN_FILE")
             .put("implementation", PurchaseOrderBehavior::class.qualifiedName))
-        assertEquals(behavior, registry.resolve(definition, "pur_purchase_order"))
+        assertEquals(behavior, registry.resolve(definition, "PurchaseOrder"))
     }
 
     /** Given DocType 声明的扩展模式与已注册实现不同，When 解析扩展，Then 拒绝执行不匹配实现。 */
@@ -83,7 +83,7 @@ class DocumentBehaviorRegistryTest {
             .put("mode", "KOTLIN_IMPLEMENTATION")
             .put("implementation", PurchaseOrderBehavior::class.qualifiedName))
         assertThrows(IllegalArgumentException::class.java) {
-            registry.resolve(definition, "pur_purchase_order")
+            registry.resolve(definition, "PurchaseOrder")
         }
     }
 
@@ -95,5 +95,24 @@ class DocumentBehaviorRegistryTest {
                 listOf(PurchaseOrderBehavior(), PurchaseOrderBehavior())
             )
         }
+    }
+}
+
+
+class KotlinImplementationRegistryTest {
+    private class SpecializedPurchaseOrder : com.ztx.modules.document.DocumentBehavior {
+        override val doctype = "PurchaseOrder"
+        override val mode = com.ztx.modules.document.DocumentExtensionMode.KOTLIN_IMPLEMENTATION
+    }
+
+    /** Given DocType 采用 Kotlin 专用实现模式，When 解析已注册类，Then 允许使用 PascalCase DocType 标识。 */
+    @Test
+    fun resolvesDedicatedKotlinImplementation() {
+        val behavior = SpecializedPurchaseOrder()
+        val registry = com.ztx.modules.document.DocumentBehaviorRegistry(listOf(behavior))
+        val definition = JsonObject().put("extension", JsonObject()
+            .put("mode", "KOTLIN_IMPLEMENTATION")
+            .put("implementation", SpecializedPurchaseOrder::class.qualifiedName))
+        assertEquals(behavior, registry.resolve(definition, "PurchaseOrder"))
     }
 }
