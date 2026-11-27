@@ -145,7 +145,7 @@ class TenantLifecycleService(
                         require(!hasAdmin) { "租户管理员已初始化" }
                         val encoded = AuthSupport.hashPassword(password)
                         connection.prepareStatement(
-                            "INSERT INTO iam.tenant_admin(id, username, password_hash) VALUES (?, ?, ?)"
+                            "INSERT INTO iam.tenant_admin(id, username, password_hash, is_group_admin) VALUES (?, ?, ?, TRUE)"
                         ).use { statement ->
                             statement.setObject(1, UUID.randomUUID())
                             statement.setString(2, normalizedUsername)

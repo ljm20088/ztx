@@ -145,7 +145,11 @@ export const menuModules:MenuModule[] = [
         feature('companies','企业信息','/enterprise/companies','维护当前租户企业信息'),
         feature('books','账套管理','/enterprise/books','维护企业账套与启用范围'),
         feature('departments','组织架构','/enterprise/departments','维护部门、工厂与组织层级'),
-        feature('employees','员工档案','/enterprise/employees','维护员工与任职关系'),
+        feature('employees','员工档案','/enterprise/employees','维护员工基础信息'),
+        feature('users','用户账号','/enterprise/users','维护独立用户账号'),
+        feature('employments','员工任职','/enterprise/employments','维护企业任职期限、组织范围与岗位'),
+        feature('group-master','集团基础档案','/enterprise/group-master','维护集团统一档案与企业启用范围'),
+        feature('group-master-usage','企业集团档案','/enterprise/group-master-usage','查看企业已启用的集团档案及本地补充'),
       ]},
       {id:'permissions',label:'用户与权限',features:[
         feature('positions','岗位管理','/enterprise/positions','维护岗位与模块角色组合'),

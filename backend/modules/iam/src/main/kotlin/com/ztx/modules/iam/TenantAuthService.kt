@@ -14,7 +14,8 @@ data class TenantPrincipal(
     val userId: UUID,
     val username: String,
     val role: String,
-    val database: PgDatabase
+    val database: PgDatabase,
+    val isGroupAdmin: Boolean = false
 )
 
 data class TenantLogin(val sessionToken: String, val principal: TenantPrincipal)
@@ -45,7 +46,7 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                         AuthSupport.audit(connection, AuthScope.TENANT, null, "LOGIN", "DENIED", ip).map { TenantLoginOutcome(null) }
                     } else {
                         connection.preparedQuery(
-                            """SELECT id::text AS id, username, password_hash
+                            """SELECT id::text AS id, username, password_hash, is_group_admin
                                FROM iam.tenant_admin
                                WHERE lower(username) = lower($1) AND disabled_at IS NULL"""
                         ).execute(Tuple.of(normalizedUsername)).compose { rows ->
@@ -77,7 +78,7 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                                     TenantLoginOutcome(TenantLogin(token, TenantPrincipal(
                                         tenantDatabase.tenant.id, tenantDatabase.tenant.code,
                                         tenantDatabase.tenant.databaseName, userId, adminRow.getString("username"),
-                                        "TENANT_ADMIN", tenantDatabase.database
+                                        "TENANT_ADMIN", tenantDatabase.database, adminRow.getBoolean("is_group_admin")
                                     )))
                                 }
                             }
@@ -95,7 +96,7 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
         databases.resolve(tenantCode).compose { tenantDatabase ->
             tenantDatabase.database.withTransaction { connection ->
                 connection.preparedQuery(
-                    """SELECT admin.id::text AS id, admin.username
+                    """SELECT admin.id::text AS id, admin.username, admin.is_group_admin
                        FROM iam.tenant_admin_session session
                        JOIN iam.tenant_admin admin ON admin.id = session.admin_id
                        WHERE session.token_hash = $1 AND session.revoked_at IS NULL
@@ -105,7 +106,8 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                         TenantPrincipal(
                             tenantDatabase.tenant.id, tenantDatabase.tenant.code,
                             tenantDatabase.tenant.databaseName, UUID.fromString(row.getString("id")),
-                            row.getString("username"), "TENANT_ADMIN", tenantDatabase.database
+                            row.getString("username"), "TENANT_ADMIN", tenantDatabase.database,
+                            row.getBoolean("is_group_admin")
                         )
                     })
                 }

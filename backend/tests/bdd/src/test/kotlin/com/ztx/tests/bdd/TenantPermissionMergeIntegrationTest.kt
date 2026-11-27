@@ -1,0 +1,117 @@
+package com.ztx.tests.bdd
+
+import com.ztx.adapters.postgres.FlywayMigrator
+import com.ztx.adapters.postgres.PgDatabase
+import com.ztx.modules.iam.TenantOrganizationRoutes
+import com.ztx.modules.iam.TenantPrincipal
+import com.ztx.modules.iam.TENANT_CONTEXT_KEY
+import com.ztx.platform.common.DatabaseConfig
+import io.vertx.core.Vertx
+import io.vertx.core.json.JsonObject
+import io.vertx.ext.web.Router
+import io.vertx.ext.web.handler.BodyHandler
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.junit.jupiter.Container
+import org.testcontainers.junit.jupiter.Testcontainers
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.nio.file.Path
+import java.sql.DriverManager
+import java.util.UUID
+import java.util.concurrent.TimeUnit
+
+@Testcontainers(disabledWithoutDocker = true)
+class TenantPermissionMergeIntegrationTest {
+    companion object {
+        @Container
+        @JvmStatic
+        val postgres=PostgreSQLContainer<Nothing>("postgres:18.6")
+    }
+
+    // 场景：同一任职的多个岗位组合多个模块角色，显式拒绝优先且数据范围不能超出任职组织
+    @Test
+    fun shouldMergePositionRolesWithDenyPriorityAndEmploymentScopeLimit() {
+        // Given：租户数据库已迁移，员工在企业工厂任职并担任两个岗位
+        val projectDir=Path.of(System.getProperty("ztx.projectDir"))
+        val config=DatabaseConfig(host=postgres.host,port=postgres.firstMappedPort,
+            database=postgres.databaseName,user=postgres.username,password=postgres.password,poolSize=4,
+            migrationLocations="filesystem:${projectDir.resolve("database/tenant-migrations")}")
+        FlywayMigrator(config).migrate()
+        val adminId=UUID.randomUUID();val tenantId=UUID.randomUUID();val companyId=UUID.randomUUID()
+        val unitId=UUID.randomUUID();val employeeId=UUID.randomUUID();val employmentId=UUID.randomUUID()
+        val positionA=UUID.randomUUID();val positionB=UUID.randomUUID()
+        val roleA=UUID.randomUUID();val roleB=UUID.randomUUID()
+        DriverManager.getConnection(config.jdbcUrl,config.user,config.password).use { connection ->
+            connection.prepareStatement("INSERT INTO iam.tenant_admin(id,username,password_hash,is_group_admin) VALUES (?,?,'unused',TRUE)").use { s ->
+                s.setObject(1,adminId);s.setString(2,"test.admin");s.executeUpdate()
+            }
+            connection.prepareStatement("INSERT INTO org.company(id,code,name) VALUES (?,?,'测试企业')").use { s ->
+                s.setObject(1,companyId);s.setString(2,"testco");s.executeUpdate()
+            }
+            connection.prepareStatement("""INSERT INTO org.organization_unit(id,company_id,code,name,unit_type)
+                VALUES (?,?,?,'装配工厂','FACTORY')""").use { s ->
+                s.setObject(1,unitId);s.setObject(2,companyId);s.setString(3,"FACTORY-1");s.executeUpdate()
+            }
+            connection.prepareStatement("INSERT INTO hr.employee(id,employee_no,name) VALUES (?,?,?)").use { s ->
+                s.setObject(1,employeeId);s.setString(2,"EMP-1");s.setString(3,"测试员工");s.executeUpdate()
+            }
+            connection.prepareStatement("""INSERT INTO hr.employment(id,employee_id,company_id,organization_unit_id,starts_on)
+                VALUES (?,?,?,?,CURRENT_DATE)""").use { s ->
+                s.setObject(1,employmentId);s.setObject(2,employeeId);s.setObject(3,companyId);s.setObject(4,unitId);s.executeUpdate()
+            }
+            connection.prepareStatement("INSERT INTO iam.job_position(id,company_id,code,name) VALUES (?,?,?,'岗位 A'),(?,?,?,'岗位 B')").use { s ->
+                s.setObject(1,positionA);s.setObject(2,companyId);s.setString(3,"PA")
+                s.setObject(4,positionB);s.setObject(5,companyId);s.setString(6,"PB");s.executeUpdate()
+            }
+            connection.prepareStatement("INSERT INTO hr.employment_position(employment_id,position_id) VALUES (?,?),(?,?)").use { s ->
+                s.setObject(1,employmentId);s.setObject(2,positionA);s.setObject(3,employmentId);s.setObject(4,positionB);s.executeUpdate()
+            }
+            connection.prepareStatement("INSERT INTO iam.module_role(id,module_key,code,name) VALUES (?, 'purchase','approver','采购审批'),(?, 'purchase','auditor','采购审计')").use { s ->
+                s.setObject(1,roleA);s.setObject(2,roleB);s.executeUpdate()
+            }
+            connection.prepareStatement("INSERT INTO iam.position_module_role(position_id,role_id) VALUES (?,?),(?,?)").use { s ->
+                s.setObject(1,positionA);s.setObject(2,roleA);s.setObject(3,positionB);s.setObject(4,roleB);s.executeUpdate()
+            }
+            connection.prepareStatement("""INSERT INTO iam.role_permission(id,role_id,permission_key,effect,data_scope,field_permissions)
+                VALUES (?,?,'purchase.order.approve','ALLOW','ALL','{"amount":"EDITABLE","supplier":"VISIBLE"}'::jsonb),
+                       (?,?,'purchase.order.approve','DENY','COMPANY','{"amount":"READ_ONLY","supplier":"MASKED"}'::jsonb)""").use { s ->
+                s.setObject(1,UUID.randomUUID());s.setObject(2,roleA);s.setObject(3,UUID.randomUUID());s.setObject(4,roleB);s.executeUpdate()
+            }
+        }
+
+        val vertx=Vertx.vertx()
+        val database=PgDatabase(vertx,config)
+        val principal=TenantPrincipal(tenantId,"testtenant",config.database,adminId,"test.admin","TENANT_ADMIN",database,true)
+        val router=Router.router(vertx)
+        router.route("/api/v1/tenant/*").handler(BodyHandler.create().setBodyLimit(16*1024))
+        router.route("/api/v1/tenant/*").handler { context -> context.put(TENANT_CONTEXT_KEY,principal);context.next() }
+        TenantOrganizationRoutes().register(router)
+        val server=vertx.createHttpServer().requestHandler(router).listen(0,"127.0.0.1")
+            .toCompletionStage().toCompletableFuture().get(10,TimeUnit.SECONDS)
+
+        try {
+            // When：读取该任职的最终权限
+            val request=HttpRequest.newBuilder(URI("http://127.0.0.1:${server.actualPort()}/api/v1/tenant/organization/employments/$employmentId/effective-permissions")).GET().build()
+            val response=HttpClient.newHttpClient().send(request,HttpResponse.BodyHandlers.ofString())
+            // Then：两个岗位权限合并，DENY 覆盖 ALLOW，数据范围裁剪为组织子树，字段按更严格规则合并
+            assertEquals(200,response.statusCode())
+            val permission=JsonObject(response.body()).getJsonObject("permissions").getJsonObject("purchase.order.approve")
+            assertFalse(permission.getBoolean("allowed"))
+            assertEquals("DENY",permission.getString("effect"))
+            assertEquals("SUBTREE",permission.getString("dataScope"))
+            val fields=permission.getJsonObject("fieldPermissions")
+            assertEquals("READ_ONLY",fields.getString("amount"))
+            assertEquals("MASKED",fields.getString("supplier"))
+        } finally {
+            server.close().toCompletionStage().toCompletableFuture().get(10,TimeUnit.SECONDS)
+            database.close()
+            vertx.close().toCompletionStage().toCompletableFuture().get(10,TimeUnit.SECONDS)
+        }
+    }
+}
