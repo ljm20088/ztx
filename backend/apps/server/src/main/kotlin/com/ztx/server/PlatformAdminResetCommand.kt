@@ -14,8 +14,8 @@ import java.util.concurrent.TimeUnit
  * 仅在服务器交互式终端执行的平台管理员密码恢复命令。
  * 密码由 Console.readPassword 无回显读取，不接受命令行参数或环境变量传入。
  */
-internal object PlatformAdminResetCommand {
-    fun execute(config: AppConfig): Int {
+object PlatformAdminResetCommand {
+    fun execute(config: AppConfig, console: Console? = System.console()): Int {
         val vertx = Vertx.vertx()
         val database = PgDatabase(vertx, config.database)
         val operator = System.getProperty("user.name")?.takeIf(String::isNotBlank) ?: "unknown"
@@ -26,7 +26,6 @@ internal object PlatformAdminResetCommand {
             FlywayMigrator(config.database).validateCurrent()
             database.ping().await()
 
-            val console = System.console()
             if (console == null) {
                 service.recordPasswordResetCommandFailure(operator, "INTERACTIVE_TERMINAL_REQUIRED").await()
                 System.err.println("密码重置必须在服务器交互式终端执行；请直接登录服务器后重试。")
