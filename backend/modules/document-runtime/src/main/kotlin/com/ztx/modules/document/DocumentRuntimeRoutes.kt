@@ -215,7 +215,7 @@ class DocumentRuntimeRoutes {
             val name = field.getString("name") ?: return@mapNotNull null
             if (name in setOf("id", "docstatus", "created_at", "updated_at") || field.getBoolean("readOnly", false)) return@mapNotNull null
             val writeRoles = field.getJsonArray("writeRoles")
-            if (writeRoles != null && writeRoles.isNotEmpty && writeRoles.none { it == principal.role || it == "TENANT_ADMIN" }) {
+            if (writeRoles != null && !writeRoles.isEmpty && writeRoles.none { it == principal.role || it == "TENANT_ADMIN" }) {
                 return@mapNotNull null
             }
             val value = values.getValue(name) ?: return@mapNotNull null

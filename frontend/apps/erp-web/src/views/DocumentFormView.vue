@@ -8,7 +8,7 @@ type Field = {
   defaultValue?: unknown; options?: string[]; childFields?: Field[]
 }
 type Definition = { doctype: string; fields: Field[]; form?: { fields?: string[] } }
-type DocumentData = Record<string, any>
+type DocumentData = Record<string, unknown>
 const route = useRoute()
 const router = useRouter()
 const definition = ref<Definition | null>(null)
@@ -73,10 +73,12 @@ async function load() {
 function addDetailRow(field: Field) {
   const row: DocumentData = {}
   for (const child of field.childFields ?? []) row[child.name] = child.defaultValue ?? ''
-  document[field.name].push(row)
+  const rows = document[field.name]
+  if (Array.isArray(rows)) rows.push(row)
 }
 function removeDetailRow(field: Field, index: number) {
-  document[field.name].splice(index, 1)
+  const rows = document[field.name]
+  if (Array.isArray(rows)) rows.splice(index, 1)
 }
 function preparePayload() {
   const payload: DocumentData = {}
