@@ -5,12 +5,14 @@ import com.ztx.adapters.postgres.PgDatabase
 import com.ztx.adapters.postgres.PostgresOutboxStore
 import com.ztx.server.BackgroundTaskWorker
 import com.ztx.server.PlatformAdminResetCommand
+import com.ztx.modules.iam.PlatformAuthRoutes
 import com.ztx.modules.iam.PlatformAuthService
 import com.ztx.platform.common.AppConfig
 import com.ztx.platform.common.DatabaseConfig
 import com.ztx.platform.common.RuntimeRole
 import io.vertx.core.Future
 import io.vertx.core.Vertx
+import io.vertx.ext.web.Router
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -22,6 +24,7 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.nio.ByteBuffer
+import java.net.Socket
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.sql.DriverManager
@@ -58,6 +61,43 @@ class PlatformAuthIntegrationTest {
         var worker: BackgroundTaskWorker? = null
 
         try {
+            // Given：平台初始化 HTTP 路由在本机回环地址监听
+            val authRouter = Router.router(vertx)
+            PlatformAuthRoutes(service, secureCookies = false).register(authRouter)
+            val authServer = vertx.createHttpServer().requestHandler(authRouter).listen(0, "127.0.0.1").await()
+            try {
+                // When：从真实回环连接读取首次初始化状态
+                val localStatus = rawHttpRequest(
+                    authServer.actualPort(), "GET", "/api/v1/platform/auth/status",
+                    "127.0.0.1:${authServer.actualPort()}"
+                )
+
+                // Then：本机请求可读取状态，并获知当前允许初始化
+                assertTrue(localStatus.startsWith("HTTP/1.1 200"))
+                assertTrue(localStatus.contains("\"canInitialize\":true"))
+
+                // When：通过伪造的代理转发头提交初始化请求
+                val forwardedRequest = rawHttpRequest(
+                    authServer.actualPort(), "POST", "/api/v1/platform/auth/initialize",
+                    "127.0.0.1:${authServer.actualPort()}", "X-Forwarded-For: 127.0.0.1"
+                )
+
+                // Then：服务端拒绝该请求，且没有创建管理员
+                assertTrue(forwardedRequest.startsWith("HTTP/1.1 403"))
+                assertFalse(service.initializationStatus().await())
+
+                // When：回环 TCP 连接使用伪造的公网 Host
+                val spoofedHostRequest = rawHttpRequest(
+                    authServer.actualPort(), "POST", "/api/v1/platform/auth/initialize", "ztx.example.com"
+                )
+
+                // Then：服务端仍拒绝初始化
+                assertTrue(spoofedHostRequest.startsWith("HTTP/1.1 403"))
+                assertFalse(service.initializationStatus().await())
+            } finally {
+                authServer.close().await()
+            }
+
             // Given：Worker 以独立进程身份启动并持续上报心跳
             val workerInstance = BackgroundTaskWorker(vertx, database, PostgresOutboxStore(database), "bdd-worker")
             worker = workerInstance
@@ -286,6 +326,36 @@ class PlatformAuthIntegrationTest {
             worker?.close()
             database.close()
             vertx.close().toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS)
+        }
+    }
+
+    private fun rawHttpRequest(
+        port: Int,
+        method: String,
+        path: String,
+        host: String,
+        extraHeader: String? = null
+    ): String {
+        val body = if (method == "POST") """{"username":"platform.admin","password":"ZtxAdmin123"}""" else ""
+        val bodyBytes = body.toByteArray(Charsets.UTF_8)
+        return Socket("127.0.0.1", port).use { socket ->
+            socket.soTimeout = 5_000
+            val output = socket.getOutputStream().bufferedWriter(Charsets.UTF_8)
+            output.write("$method $path HTTP/1.1\r\n")
+            output.write("Host: $host\r\n")
+            output.write("Connection: close\r\n")
+            if (method == "POST") {
+                output.write("Content-Type: application/json\r\n")
+                output.write("Content-Length: ${bodyBytes.size}\r\n")
+            }
+            if (extraHeader != null) output.write("$extraHeader\r\n")
+            output.write("\r\n")
+            output.flush()
+            if (bodyBytes.isNotEmpty()) {
+                socket.getOutputStream().write(bodyBytes)
+                socket.getOutputStream().flush()
+            }
+            socket.getInputStream().bufferedReader(Charsets.UTF_8).readText()
         }
     }
 
