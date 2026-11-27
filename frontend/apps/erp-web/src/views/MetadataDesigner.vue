@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ZAlert, ZButton, ZFormField, ZInput } from '@ztx/ui'
 
-type FieldType = 'string'|'text'|'uuid'|'date'|'datetime'|'decimal'|'integer'|'boolean'|'reference'|'select'|'money'|'json'
+type FieldType = 'string'|'text'|'uuid'|'date'|'datetime'|'decimal'|'integer'|'boolean'|'reference'|'select'|'money'|'json'|'table'
 type MetadataField = {
   name: string
   label: string
@@ -12,6 +12,7 @@ type MetadataField = {
   unique: boolean
   target?: string
   options?: string[]
+  childFields?: MetadataField[]
 }
 type Definition = {
   doctype: string
@@ -25,7 +26,7 @@ type Definition = {
 type Diagnostic = { code: string; path: string; message: string }
 type DefinitionRow = { doctype: string; version: number; status: string }
 
-const fieldTypes: FieldType[] = ['string','text','uuid','date','datetime','decimal','integer','boolean','reference','select','money','json']
+const fieldTypes: FieldType[] = ['string','text','uuid','date','datetime','decimal','integer','boolean','reference','select','money','json','table']
 const rows = ref<DefinitionRow[]>([])
 const selectedDoctype = ref('')
 const version = ref<number|null>(null)
@@ -103,6 +104,11 @@ function addField() {
   definition.fields.push({
     name: '', label: '', type: 'string', required: false, readOnly: false, unique: false,
   })
+}
+
+function addChildField(field: MetadataField) {
+  field.childFields ??= []
+  field.childFields.push({ name: '', label: '', type: 'string', required: false, readOnly: false, unique: false })
 }
 
 function removeField(index: number) {
@@ -271,6 +277,22 @@ onMounted(() => { void loadList().catch(cause => { error.value = cause instanceo
                 <td class="p-1.5 text-center"><input v-model="field.readOnly" type="checkbox" aria-label="只读"></td>
                 <td class="p-1.5 text-center"><input v-model="field.unique" type="checkbox" aria-label="唯一"></td>
                 <td class="p-1.5"><button type="button" class="text-ztx-danger hover:underline" @click="removeField(index)">删除</button></td>
+              </tr>
+              <tr v-for="field in definition.fields.filter(item => item.type === 'table')" :key="field.name + '-children'" class="bg-ztx-surface-soft">
+                <td colspan="7" class="px-3 py-2">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span class="text-ztx-caption font-semibold text-ztx-muted">{{ field.label || field.name }} · 明细字段</span>
+                    <button type="button" class="text-ztx-caption text-ztx-primary hover:underline" @click="addChildField(field)">添加子字段</button>
+                  </div>
+                  <div v-for="(child,index) in field.childFields ?? []" :key="index" class="mt-2 grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
+                    <input v-model="child.name" class="min-w-0 rounded border border-ztx-border bg-ztx-surface px-2 py-1.5 text-ztx-caption" placeholder="子字段标识">
+                    <input v-model="child.label" class="min-w-0 rounded border border-ztx-border bg-ztx-surface px-2 py-1.5 text-ztx-caption" placeholder="显示名称">
+                    <select v-model="child.type" class="min-w-0 rounded border border-ztx-border bg-ztx-surface px-2 py-1.5 text-ztx-caption">
+                      <option v-for="type in fieldTypes.filter(item => item !== 'table')" :key="type" :value="type">{{ type }}</option>
+                    </select>
+                    <button type="button" class="text-ztx-danger" @click="field.childFields?.splice(index,1)">删除</button>
+                  </div>
+                </td>
               </tr>
               <tr v-if="definition.fields.length===0"><td colspan="7" class="px-3 py-7 text-center text-ztx-caption text-ztx-muted">尚未添加字段</td></tr>
             </tbody>

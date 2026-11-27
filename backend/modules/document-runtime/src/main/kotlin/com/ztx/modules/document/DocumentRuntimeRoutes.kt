@@ -18,6 +18,7 @@ class DocumentRuntimeRoutes {
 
     fun register(router: Router) {
         router.route("/api/v1/tenant/documents/*").handler(BodyHandler.create().setBodyLimit(1024 * 1024))
+        router.get("/api/v1/tenant/runtime/doctypes/:doctype").handler(::runtimeDefinition)
         router.post("/api/v1/tenant/documents/:doctype").handler(::create)
         router.get("/api/v1/tenant/documents/:doctype/:id").handler(::read)
         router.put("/api/v1/tenant/documents/:doctype/:id").handler(::update)
@@ -30,7 +31,7 @@ class DocumentRuntimeRoutes {
             val values = DocumentValueCodec.decode(definition, body(context))
             enforceCompanyScope(definition, values, principal, requireValue = true)
             principal.database.withTransaction { connection ->
-                insert(connection, definition, values).compose { row ->
+                insert(connection, definition, values, principal).compose { row ->
                     audit(connection, principal, context.pathParam("doctype"), row.getUUID("id"),
                         "CREATE", null, row).map { row }
                 }
@@ -93,6 +94,17 @@ class DocumentRuntimeRoutes {
         }.onFailure { fail(context, status(it), it.message ?: "读取元数据失败") }
     }
 
+    private fun runtimeDefinition(context: RoutingContext) = withPrincipal(context) { principal ->
+        loadDefinition(principal, context.pathParam("doctype")).onSuccess { definition ->
+            try {
+                authorize(definition, principal, "read")
+                send(context, JsonObject().put("doctype", context.pathParam("doctype")).put("definition", definition))
+            } catch (error: Throwable) {
+                fail(context, status(error), error.message ?: "无权读取 DocType")
+            }
+        }.onFailure { fail(context, status(it), it.message ?: "读取运行时元数据失败") }
+    }
+
     private fun loadDefinition(principal: TenantPrincipal, doctype: String): Future<JsonObject> =
         principal.database.withTransaction { connection ->
             connection.preparedQuery(
@@ -105,9 +117,9 @@ class DocumentRuntimeRoutes {
             }
         }
 
-    private fun insert(connection: SqlConnection, definition: JsonObject, values: JsonObject): Future<JsonObject> {
+    private fun insert(connection: SqlConnection, definition: JsonObject, values: JsonObject, principal: TenantPrincipal): Future<JsonObject> {
         val id = UUID.randomUUID()
-        val entries = writableEntries(definition, values)
+        val entries = writableEntries(definition, values, principal)
         val columns = mutableListOf("\"id\"", "\"docstatus\"")
         val parameters = mutableListOf<Any?>(id, DocumentStatus.DRAFT.code)
         val placeholders = mutableListOf("$1", "$2")
@@ -129,7 +141,7 @@ class DocumentRuntimeRoutes {
         values: JsonObject,
         principal: TenantPrincipal
     ): Future<JsonObject> {
-        val entries = writableEntries(definition, values)
+        val entries = writableEntries(definition, values, principal)
         if (entries.isEmpty()) return Future.failedFuture("没有可更新字段")
         val parameters = mutableListOf<Any?>()
         val assignments = entries.map { (name, value, json) ->
@@ -162,12 +174,20 @@ class DocumentRuntimeRoutes {
     }
 
     private fun scopeWhere(definition: JsonObject, principal: TenantPrincipal, parameters: MutableList<Any?>): String {
-        val fields = definition.getJsonArray("fields") ?: JsonArray()
-        val hasCompany = fields.filterIsInstance<JsonObject>().any { it.getString("name") == "company_id" }
-        if (!hasCompany) return ""
-        if (principal.companyIds.isEmpty()) return " AND FALSE"
-        parameters.add(principal.companyIds.toTypedArray())
-        return " AND \"company_id\" = ANY(${'$'}${parameters.size}::uuid[])"
+        val names = (definition.getJsonArray("fields") ?: JsonArray()).filterIsInstance<JsonObject>()
+            .mapNotNull { it.getString("name") }.toSet()
+        val conditions = mutableListOf<String>()
+        fun addScope(field: String, ids: Set<UUID>) {
+            if (field !in names) return
+            if (ids.isEmpty()) conditions += "FALSE" else {
+                parameters.add(ids.toTypedArray())
+                conditions += "\"$field\" = ANY(${'$'}${parameters.size}::uuid[])"
+            }
+        }
+        addScope("company_id", principal.companyIds)
+        addScope("book_id", principal.bookIds)
+        addScope("organization_unit_id", principal.organizationUnitIds)
+        return conditions.takeIf { it.isNotEmpty() }?.joinToString(" AND ", prefix = " AND ") ?: ""
     }
 
     private fun enforceCompanyScope(
@@ -176,19 +196,28 @@ class DocumentRuntimeRoutes {
         principal: TenantPrincipal,
         requireValue: Boolean
     ) {
-        val hasCompany = (definition.getJsonArray("fields") ?: JsonArray()).filterIsInstance<JsonObject>()
-            .any { it.getString("name") == "company_id" }
-        if (!hasCompany) return
-        val company = values.getValue("company_id")?.let { UUID.fromString(it.toString()) }
-        if (company == null && requireValue) throw IllegalArgumentException("必须指定所属企业")
-        if (company != null && company !in principal.companyIds) throw IllegalArgumentException("无权访问指定企业的数据")
+        val names = (definition.getJsonArray("fields") ?: JsonArray()).filterIsInstance<JsonObject>()
+            .mapNotNull { it.getString("name") }.toSet()
+        if ("company_id" in names) {
+            val company = values.getValue("company_id")?.let { UUID.fromString(it.toString()) }
+            if (company == null && requireValue) throw IllegalArgumentException("必须指定所属企业")
+            if (company != null && company !in principal.companyIds) throw IllegalArgumentException("无权访问指定企业的数据")
+        }
+        val book = values.getValue("book_id")?.let { UUID.fromString(it.toString()) }
+        if (book != null && book !in principal.bookIds) throw IllegalArgumentException("无权访问指定账套的数据")
+        val organization = values.getValue("organization_unit_id")?.let { UUID.fromString(it.toString()) }
+        if (organization != null && organization !in principal.organizationUnitIds) throw IllegalArgumentException("无权访问指定组织的数据")
     }
 
-    private fun writableEntries(definition: JsonObject, values: JsonObject): List<Triple<String, Any, Boolean>> {
+    private fun writableEntries(definition: JsonObject, values: JsonObject, principal: TenantPrincipal): List<Triple<String, Any, Boolean>> {
         val fields = definition.getJsonArray("fields") ?: JsonArray()
         return fields.filterIsInstance<JsonObject>().mapNotNull { field ->
             val name = field.getString("name") ?: return@mapNotNull null
             if (name in setOf("id", "docstatus", "created_at", "updated_at") || field.getBoolean("readOnly", false)) return@mapNotNull null
+            val writeRoles = field.getJsonArray("writeRoles")
+            if (writeRoles != null && writeRoles.isNotEmpty && writeRoles.none { it == principal.role || it == "TENANT_ADMIN" }) {
+                return@mapNotNull null
+            }
             val value = values.getValue(name) ?: return@mapNotNull null
             val type = field.getString("type")
             Triple(name, value, type == "json" || type == "table")

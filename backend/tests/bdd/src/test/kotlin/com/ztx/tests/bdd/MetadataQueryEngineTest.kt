@@ -32,7 +32,9 @@ class MetadataQueryEngineTest {
             JsonObject().put("filter", JsonObject().put("field", "supplier_name")
                 .put("operator", "contains").put("value", "' OR 1=1 --")),
             "TENANT_ADMIN",
-            setOf(companyId)
+            setOf(companyId),
+            emptySet(),
+            emptySet()
         )
         assertFalse(compiled.selectSql.contains("OR 1=1"))
         assertEquals("' OR 1=1 --", compiled.countParameters.first())
@@ -48,7 +50,9 @@ class MetadataQueryEngineTest {
                 JsonObject().put("filter", JsonObject().put("field", "password_hash")
                     .put("operator", "eq").put("value", "secret")),
                 "TENANT_ADMIN",
-                setOf(companyId)
+                setOf(companyId),
+                emptySet(),
+                emptySet()
             )
         }
         assertEquals(true, error.message!!.contains("字段不可筛选"))
@@ -63,7 +67,9 @@ class MetadataQueryEngineTest {
                 JsonObject().put("sort", JsonArray().add(JsonObject()
                     .put("field", "supplier_name; DROP TABLE purchase_order").put("direction", "asc"))),
                 "TENANT_ADMIN",
-                setOf(companyId)
+                setOf(companyId),
+                emptySet(),
+                emptySet()
             )
         }
         assertEquals(true, error.message!!.contains("不允许按字段排序"))
@@ -72,7 +78,7 @@ class MetadataQueryEngineTest {
     /** Given 用户没有企业数据范围，When 编译查询，Then 查询条件强制为空集。 */
     @Test
     fun emptyCompanyScopeReturnsNoRows() {
-        val compiled = MetadataQueryEngine.compile(definition, JsonObject(), "TENANT_USER", emptySet())
+        val compiled = MetadataQueryEngine.compile(definition, JsonObject(), "TENANT_USER", emptySet(), emptySet(), emptySet())
         assertEquals(true, compiled.countSql.contains("FALSE"))
     }
 }

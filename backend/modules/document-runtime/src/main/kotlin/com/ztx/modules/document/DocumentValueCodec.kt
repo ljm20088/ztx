@@ -66,8 +66,10 @@ object DocumentValueCodec {
                     invalid("$name[${index + 1}].$childName", "为必填项")
                 }
                 val actual = childValue ?: child.getValue("defaultValue")
-                if (actual != null) normalized.put(childName, normalize("$name[${index + 1}].$childName",
-                    child.getString("type", ""), actual, child))
+                if (actual != null) {
+                    val converted = normalize("$name[${index + 1}].$childName", child.getString("type", ""), actual, child)
+                    normalized.put(childName, if (converted is UUID || converted is LocalDate || converted is LocalDateTime) converted.toString() else converted)
+                }
             }
             val known = childFields.filterIsInstance<JsonObject>().mapNotNull { it.getString("name") }.toSet()
             val unknown = row.fieldNames() - known

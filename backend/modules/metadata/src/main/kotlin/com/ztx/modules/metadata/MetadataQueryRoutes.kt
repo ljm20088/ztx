@@ -37,7 +37,7 @@ class MetadataQueryRoutes {
                 if (permissions != null && permissions.isNotEmpty && permissions.none {
                     it == principal.role || it == "TENANT_ADMIN"
                 }) return@compose Future.failedFuture<JsonObject>("无权读取此 DocType")
-                val compiled = MetadataQueryEngine.compile(definition, request, principal.role, principal.companyIds)
+                val compiled = MetadataQueryEngine.compile(definition, request, principal.role, principal.companyIds, principal.bookIds, principal.organizationUnitIds)
                 connection.preparedQuery(compiled.countSql).execute(Tuple.from(compiled.countParameters))
                     .compose { countRows ->
                         val total = countRows.first().getLong("total")
@@ -55,7 +55,12 @@ class MetadataQueryRoutes {
                 .putHeader("content-type", "application/json; charset=utf-8").end(result.encode())
         }.onFailure { error ->
             val message = error.message ?: "列表查询失败"
-            val status = if (message.startsWith("无权")) 403 else if (error is IllegalArgumentException) 400 else 404
+            val status = when {
+                message.startsWith("无权") -> 403
+                error is IllegalArgumentException -> 400
+                message.contains("DocType 不存在") -> 404
+                else -> 500
+            }
             fail(context, status, message)
         }
     }

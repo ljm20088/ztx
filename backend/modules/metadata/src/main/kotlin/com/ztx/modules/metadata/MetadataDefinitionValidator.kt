@@ -94,6 +94,12 @@ object MetadataDefinitionValidator {
             if (field.getBoolean("required", false) && field.getBoolean("readOnly", false) && !field.containsKey("defaultValue")) {
                 errors += MetadataDiagnostic("READ_ONLY_REQUIRED_WITHOUT_DEFAULT", path, "只读必填字段必须提供默认值")
             }
+            listOf("readRoles", "writeRoles").forEach { roleKey ->
+                val roles = field.getJsonArray(roleKey)
+                if (roles != null && roles.any { it !is String || !identifierPattern.matches(it) }) {
+                    errors += MetadataDiagnostic("INVALID_FIELD_ROLE", "$path.$roleKey", "字段角色标识格式不正确")
+                }
+            }
         }
 
         validateFieldList(definition.getJsonObject("form")?.getJsonArray("fields"), "form.fields", fieldNames, errors)

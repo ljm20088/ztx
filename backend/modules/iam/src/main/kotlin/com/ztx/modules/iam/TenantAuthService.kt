@@ -16,7 +16,9 @@ data class TenantPrincipal(
     val database: PgDatabase,
     val isGroupAdmin: Boolean = false,
     val subjectType: String = "ADMIN",
-    val companyIds: Set<UUID> = emptySet()
+    val companyIds: Set<UUID> = emptySet(),
+    val bookIds: Set<UUID> = emptySet(),
+    val organizationUnitIds: Set<UUID> = emptySet()
 )
 
 data class TenantLogin(val sessionToken: String, val principal: TenantPrincipal)
@@ -121,8 +123,40 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                             tenantDatabase.database,row.getBoolean("is_group_admin"),row.getString("subject_type"))
                     })
                 }
+            }.compose { lookup ->
+                val principal = lookup.principal ?: return@compose Future.succeededFuture(null)
+                tenantDatabase.database.withTransaction { connection ->
+                    if (principal.subjectType == "ADMIN") {
+                        connection.preparedQuery("SELECT id FROM org.company WHERE status='ACTIVE'").execute()
+                            .compose { companies ->
+                                connection.preparedQuery("SELECT id FROM org.book WHERE status='ACTIVE'").execute()
+                                    .compose { books ->
+                                        connection.preparedQuery("SELECT id FROM org.organization_unit WHERE status='ACTIVE'").execute()
+                                            .map { units ->
+                                                principal.copy(
+                                                    companyIds = companies.map { it.getUUID("id") }.toSet(),
+                                                    bookIds = books.map { it.getUUID("id") }.toSet(),
+                                                    organizationUnitIds = units.map { it.getUUID("id") }.toSet()
+                                                )
+                                            }
+                                    }
+                            }
+                    } else {
+                        connection.preparedQuery(
+                            """SELECT DISTINCT company_id,book_id,organization_unit_id FROM hr.employment
+                               WHERE user_id=$1 AND status='ACTIVE' AND starts_on<=CURRENT_DATE
+                                 AND (ends_on IS NULL OR ends_on>=CURRENT_DATE)"""
+                        ).execute(Tuple.of(principal.userId)).map { employments ->
+                            principal.copy(
+                                companyIds = employments.map { it.getUUID("company_id") }.toSet(),
+                                bookIds = employments.mapNotNull { it.getUUID("book_id") }.toSet(),
+                                organizationUnitIds = employments.mapNotNull { it.getUUID("organization_unit_id") }.toSet()
+                            )
+                        }
+                    }
+                }
             }
-        }.map { it.principal }.recover { Future.succeededFuture(null) }
+        }.recover { Future.succeededFuture(null) }
 
     fun logout(tenantCode:String,rawToken:String,ip:String?=null):Future<Void> =
         databases.resolve(tenantCode).compose { tenantDatabase ->
