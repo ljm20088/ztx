@@ -177,7 +177,7 @@ class MetadataRoutes {
                 """SELECT id,doctype,version,status,definition_json,checksum,created_at,updated_at
                    FROM meta.document_definition WHERE scope='TENANT' AND doctype=$1
                    ORDER BY version DESC LIMIT 1"""
-            ).execute(Tuple.of(context.pathParam("doctype"))).map { rows -> rows.firstOrNull()?.toJson() ?: JsonObject() }
+            ).execute(Tuple.of(context.pathParam("doctype"))).map { rows -> (rows.firstOrNull()?.toJson() as? JsonObject) ?: JsonObject() }
         }.onSuccess { row ->
             if (!row.containsKey("id")) fail(context, 404, "DocType 不存在")
             else send(context, row.put("definition", row.getJsonObject("definition_json")).remove("definition_json"))
