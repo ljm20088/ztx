@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalTime
 import java.util.UUID
 
 class DocumentRuntimeTest {
@@ -18,15 +19,17 @@ class DocumentRuntimeTest {
         val definition = JsonObject().put("fields", JsonArray()
             .add(JsonObject().put("name", "supplier_id").put("type", "uuid"))
             .add(JsonObject().put("name", "order_date").put("type", "date"))
+            .add(JsonObject().put("name", "start_time").put("type", "time"))
             .add(JsonObject().put("name", "total").put("type", "money"))
             .add(JsonObject().put("name", "lines").put("type", "table").put("childFields", JsonArray()
                 .add(JsonObject().put("name", "quantity").put("type", "decimal").put("required", true)))))
         val input = JsonObject().put("supplier_id", "00000000-0000-0000-0000-000000000001")
-            .put("order_date", "2026-11-27").put("total", "123456789.123456")
+            .put("order_date", "2026-11-27").put("start_time", "08:30:15").put("total", "123456789.123456")
             .put("lines", JsonArray().add(JsonObject().put("quantity", "2.500")))
         val result = DocumentValueCodec.decode(definition, input)
         assertEquals(UUID.fromString("00000000-0000-0000-0000-000000000001"), result.getValue("supplier_id"))
         assertEquals(LocalDate.parse("2026-11-27"), result.getValue("order_date"))
+        assertEquals(LocalTime.parse("08:30:15"), result.getValue("start_time"))
         assertEquals(BigDecimal("123456789.123456"), result.getValue("total"))
         assertEquals(BigDecimal("2.500"), result.getJsonArray("lines").getJsonObject(0).getValue("quantity"))
     }

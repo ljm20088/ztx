@@ -5,6 +5,7 @@ import io.vertx.core.json.JsonObject
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.util.UUID
 
 /** 将 JSON 输入按 DocType 字段定义转换为稳定的 Kotlin 值；不执行元数据中的表达式或脚本。 */
@@ -34,6 +35,7 @@ object DocumentValueCodec {
             "uuid", "reference" -> UUID.fromString(value.toString())
             "date" -> LocalDate.parse(value.toString())
             "datetime" -> LocalDateTime.parse(value.toString())
+            "time" -> LocalTime.parse(value.toString())
             "decimal", "money" -> BigDecimal(value.toString())
             "integer" -> when (value) {
                 is Number -> value.toLong()
@@ -68,7 +70,7 @@ object DocumentValueCodec {
                 val actual = childValue ?: child.getValue("defaultValue")
                 if (actual != null) {
                     val converted = normalize("$name[${index + 1}].$childName", child.getString("type", ""), actual, child)
-                    normalized.put(childName, if (converted is UUID || converted is LocalDate || converted is LocalDateTime) converted.toString() else converted)
+                    normalized.put(childName, if (converted is UUID || converted is LocalDate || converted is LocalDateTime || converted is LocalTime) converted.toString() else converted)
                 }
             }
             val known = childFields.filterIsInstance<JsonObject>().mapNotNull { it.getString("name") }.toSet()

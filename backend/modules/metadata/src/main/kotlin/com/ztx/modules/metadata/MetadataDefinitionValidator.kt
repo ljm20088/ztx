@@ -16,7 +16,7 @@ object MetadataDefinitionValidator {
     private val doctypePattern = Regex("[A-Za-z][A-Za-z0-9_]{0,119}")
     private val identifierPattern = Regex("[a-z][a-z0-9_]{0,62}")
     private val rolePattern = Regex("(?i)[a-z][a-z0-9_]{0,62}")
-    private val supportedTypes = setOf("string", "text", "uuid", "date", "datetime", "decimal", "integer", "boolean", "reference", "select", "money", "json", "table")
+    private val supportedTypes = setOf("string", "text", "uuid", "date", "datetime", "time", "decimal", "integer", "boolean", "reference", "select", "money", "json", "table")
     private val dangerousContent = Regex("(?i)<\\s*/?\\s*(script|iframe|object|embed)\\b|javascript\\s*:|on(error|load|click)\\s*=")
 
     fun validate(definition: JsonObject, knownDefinitions: Map<String, JsonObject> = emptyMap()): List<MetadataDiagnostic> {
@@ -178,7 +178,7 @@ object MetadataDefinitionValidator {
     }
 
     private fun validDefault(type: String, value: Any?): Boolean = when (type) {
-        "string", "text", "uuid", "date", "datetime", "reference", "select" -> value is String
+        "string", "text", "uuid", "date", "datetime", "time", "reference", "select" -> value is String
         "decimal", "money" -> value is Number || value is String
         "integer" -> value is Int || value is Long
         "boolean" -> value is Boolean
