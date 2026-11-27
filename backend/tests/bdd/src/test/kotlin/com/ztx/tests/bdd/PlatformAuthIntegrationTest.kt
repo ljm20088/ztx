@@ -341,15 +341,15 @@ class PlatformAuthIntegrationTest {
         return Socket("127.0.0.1", port).use { socket ->
             socket.soTimeout = 5_000
             val output = socket.getOutputStream().bufferedWriter(Charsets.UTF_8)
-            output.write("$method $path HTTP/1.1\\r\\n")
-            output.write("Host: $host\\r\\n")
-            output.write("Connection: close\\r\\n")
+            output.write("$method $path HTTP/1.1\r\n")
+            output.write("Host: $host\r\n")
+            output.write("Connection: close\r\n")
             if (method == "POST") {
-                output.write("Content-Type: application/json\\r\\n")
-                output.write("Content-Length: ${bodyBytes.size}\\r\\n")
+                output.write("Content-Type: application/json\r\n")
+                output.write("Content-Length: ${bodyBytes.size}\r\n")
             }
-            if (extraHeader != null) output.write("$extraHeader\\r\\n")
-            output.write("\\r\\n")
+            if (extraHeader != null) output.write("$extraHeader\r\n")
+            output.write("\r\n")
             output.flush()
             if (bodyBytes.isNotEmpty()) {
                 socket.getOutputStream().write(bodyBytes)
