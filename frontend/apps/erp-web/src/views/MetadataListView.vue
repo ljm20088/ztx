@@ -149,7 +149,7 @@ onMounted(() => { void load() })
       <ZButton size="sm" :disabled="busy" @click="searchNow">应用排序</ZButton>
     </div>
 
-    <ZDataGrid :data="rows" :columns="columns" :page-size="200" :searchable="false" :show-pagination="false" @selection-change="selectedCount = $event" />
+    <ZDataGrid :data="rows" :columns="columns" :page-size="200" :searchable="false" :show-pagination="false" :show-summary="false" @selection-change="selectedCount = $event" />
 
     <footer class="flex items-center justify-between gap-3 text-ztx-caption text-ztx-muted">
       <span aria-live="polite">共 {{ total }} 条 · 已选 {{ selectedCount }} 条 · 第 {{ page }} 页 · 每页 {{ pageSize }} 条</span>

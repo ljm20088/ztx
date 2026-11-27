@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="TData extends Record<string, unknown>">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   FlexRender,
   functionalUpdate,
@@ -20,11 +20,13 @@ const props = withDefaults(defineProps<{
   searchable?: boolean
   searchPlaceholder?: string
   showPagination?: boolean
+  showSummary?: boolean
 }>(), {
   pageSize: 20,
   searchable: true,
   searchPlaceholder: '搜索当前列表',
   showPagination: true,
+  showSummary: true,
 })
 
 const emit = defineEmits<{ 'selection-change': [count: number] }>()
@@ -54,6 +56,9 @@ const table = useVueTable({
   initialState: { pagination: { pageSize: props.pageSize } },
 })
 
+const filteredCount = computed(() => table.getFilteredRowModel().rows.length)
+const selectedCount = computed(() => table.getSelectedRowModel().rows.length)
+
 watch(() => props.data, () => {
   rowSelection.value = {}
   emit('selection-change', 0)
@@ -69,8 +74,8 @@ function togglePage(event: Event) {
 
 <template>
   <section class="flex min-w-0 flex-col gap-3 text-ztx-body text-ztx-text">
-    <div v-if="searchable" class="flex flex-wrap items-center justify-between gap-2">
-      <label class="flex min-w-48 items-center gap-2 rounded-ztx-sm border border-ztx-border bg-ztx-surface px-2.5 py-1.5 text-ztx-muted focus-within:border-ztx-primary">
+    <div v-if="searchable || showSummary" class="flex flex-wrap items-center justify-between gap-2">
+      <label v-if="searchable" class="flex min-w-48 items-center gap-2 rounded-ztx-sm border border-ztx-border bg-ztx-surface px-2.5 py-1.5 text-ztx-muted focus-within:border-ztx-primary">
         <span class="sr-only">搜索列表</span>
         <input
           :value="globalFilter"
@@ -79,6 +84,10 @@ function togglePage(event: Event) {
           @input="table.setGlobalFilter(($event.target as HTMLInputElement).value)"
         >
       </label>
+      <div v-if="showSummary" class="ml-auto flex items-center gap-3 text-ztx-caption text-ztx-muted" aria-live="polite">
+        <span>共 {{ filteredCount }} 条</span>
+        <span>已选 {{ selectedCount }} 条</span>
+      </div>
     </div>
 
     <div class="min-w-0 overflow-x-auto rounded-ztx-md border border-ztx-border bg-ztx-surface">
