@@ -94,7 +94,7 @@ class DocumentRuntimeIntegrationTest {
             connection.createStatement().use { statement ->
                 statement.execute(
                     """CREATE TABLE org.document_probe (
-                       id uuid PRIMARY KEY, docstatus integer NOT NULL DEFAULT 0,
+                       id uuid PRIMARY KEY, docstatus integer NOT NULL DEFAULT 0, version integer NOT NULL DEFAULT 1,
                        created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
                        updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
                        code text NOT NULL, company_id uuid NOT NULL)"""
@@ -142,13 +142,25 @@ class DocumentRuntimeIntegrationTest {
             assertEquals(201, created.statusCode())
             val createdBody = JsonObject(created.body())
             val documentId = createdBody.getString("id")
+            val originalVersion = createdBody.getInteger("version")
             assertEquals(0, createdBody.getInteger("docstatus"))
+            assertEquals(1, originalVersion)
 
-            val updated = sendJson(client, "$base/$documentId", "PUT", JsonObject().put("code", "PO-002"))
+            val updated = sendJson(client, "$base/$documentId", "PUT",
+                JsonObject().put("version", originalVersion).put("code", "PO-002"))
             assertEquals(200, updated.statusCode())
-            assertEquals("PO-002", JsonObject(updated.body()).getString("code"))
+            val updatedBody = JsonObject(updated.body())
+            assertEquals("PO-002", updatedBody.getString("code"))
+            assertEquals(2, updatedBody.getInteger("version"))
 
-            val submitted = sendJson(client, "$base/$documentId/actions/submit", "POST", JsonObject())
+            // Given 两个会话读取同一版本，When 后提交的会话尝试保存旧版本，Then 明确冲突且不覆盖先保存的数据。
+            val staleUpdate = sendJson(client, "$base/$documentId", "PUT",
+                JsonObject().put("version", originalVersion).put("code", "STALE"))
+            assertEquals(409, staleUpdate.statusCode())
+            assertTrue(JsonObject(staleUpdate.body()).getJsonObject("error").getString("message").contains("其他用户修改"))
+
+            val submitted = sendJson(client, "$base/$documentId/actions/submit", "POST",
+                JsonObject().put("version", updatedBody.getInteger("version")))
             assertEquals(200, submitted.statusCode())
             assertEquals(1, JsonObject(submitted.body()).getInteger("docstatus"))
 
@@ -156,7 +168,8 @@ class DocumentRuntimeIntegrationTest {
                 JsonObject().put("code", "BLOCK").put("company_id", companyId.toString()))
             assertEquals(201, blocked.statusCode())
             val blockedId = JsonObject(blocked.body()).getString("id")
-            val rejected = sendJson(client, "$base/$blockedId/actions/submit", "POST", JsonObject())
+            val rejected = sendJson(client, "$base/$blockedId/actions/submit", "POST",
+                JsonObject().put("version", JsonObject(blocked.body()).getInteger("version")))
             assertEquals(400, rejected.statusCode())
             assertTrue(JsonObject(rejected.body()).getJsonObject("error").getString("message").contains("不允许提交"))
 

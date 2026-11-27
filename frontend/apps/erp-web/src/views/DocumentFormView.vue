@@ -103,6 +103,7 @@ function preparePayload() {
       catch { throw new Error('字段 ' + field.label + ' 的 JSON 格式不正确') }
     } else if (!field.readOnly) payload[field.name] = document[field.name]
   }
+  if (documentId.value && Number.isInteger(document.version)) payload.version = document.version
   return payload
 }
 
@@ -134,9 +135,10 @@ async function runAction(action: 'submit' | 'cancel' | 'void') {
     const result = await request<DocumentData>(
       '/api/v1/tenant/documents/' + encodeURIComponent(doctype.value) + '/' +
       encodeURIComponent(documentId.value) + '/actions/' + action,
-      'POST', {},
+      'POST', { version: document.version },
     )
     Object.assign(document, result)
+    savedSnapshot.value = currentSnapshot.value
     message.value = action === 'submit' ? '单据已提交' : action === 'cancel' ? '单据已撤销' : '单据已作废'
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '单据动作执行失败'

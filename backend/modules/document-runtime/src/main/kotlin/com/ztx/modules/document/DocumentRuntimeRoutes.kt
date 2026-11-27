@@ -12,6 +12,8 @@ import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 import java.util.UUID
 
+class DocumentVersionConflictException : RuntimeException("单据已被其他用户修改，请刷新后重新编辑")
+
 /** Document 通用 CRUD 与生命周期；权限、持久化和审计在同一租户数据库事务中执行。 */
 class DocumentRuntimeRoutes(
     private val behaviors: DocumentBehaviorRegistry = DocumentBehaviorRegistry.load()
@@ -68,19 +70,26 @@ class DocumentRuntimeRoutes(
         loadDefinition(principal, context.pathParam("doctype")).compose { definition ->
             authorize(definition, principal, "update")
             val id = UUID.fromString(context.pathParam("id"))
-            val values = DocumentValueCodec.decode(definition, body(context))
+            val request = body(context)
+            val expectedVersion = request.getInteger("version")
+                ?: return@compose Future.failedFuture<JsonObject>("保存单据必须提供版本号")
+            request.remove("version")
+            val values = DocumentValueCodec.decode(definition, request)
             enforceCompanyScope(definition, values, principal, requireValue = false)
             val doctype = context.pathParam("doctype")
             val behavior = behaviors.resolve(definition, doctype)
             principal.database.withTransaction { connection ->
                 selectOne(connection, definition, id, principal, lock = true).compose { before ->
+                    if (before.getInteger("version", 1) != expectedVersion) {
+                        return@compose Future.failedFuture<JsonObject>(DocumentVersionConflictException())
+                    }
                     if (before.getInteger("docstatus", 0) != DocumentStatus.DRAFT.code) {
                         return@compose Future.failedFuture<JsonObject>("只有草稿单据可以修改")
                     }
                     val hookContext = DocumentBehaviorContext(doctype, definition, principal, connection, id, before)
                     (behavior?.beforeUpdate(hookContext, before, values) ?: Future.succeededFuture())
                         .compose {
-                            updateRow(connection, definition, id, values, principal).compose { after ->
+                            updateRow(connection, definition, id, values, principal, expectedVersion).compose { after ->
                                 val afterContext = hookContext.copy(after = after)
                                 (behavior?.afterUpdate(afterContext, before, after) ?: Future.succeededFuture())
                                     .compose {
@@ -101,15 +110,21 @@ class DocumentRuntimeRoutes(
             val doctype = context.pathParam("doctype")
             val behavior = behaviors.resolve(definition, doctype)
             val id = UUID.fromString(context.pathParam("id"))
+            val expectedVersion = body(context).getInteger("version")
+                ?: return@compose Future.failedFuture<JsonObject>("执行单据动作必须提供版本号")
             principal.database.withTransaction { connection ->
                 selectOne(connection, definition, id, principal, lock = true).compose { before ->
+                    if (before.getInteger("version", 1) != expectedVersion) {
+                        return@compose Future.failedFuture<JsonObject>(DocumentVersionConflictException())
+                    }
                     val hookContext = DocumentBehaviorContext(doctype, definition, principal, connection, id, before, action = action)
                     (behavior?.beforeAction(hookContext, before, action) ?: Future.succeededFuture())
                         .compose {
                             val next = DocumentLifecycle.transition(before.getInteger("docstatus", 0), action)
                             val sql = "UPDATE " + tableSql(definition) +
-                                " SET \"docstatus\"=$1,\"updated_at\"=clock_timestamp() WHERE \"id\"=$2 AND \"docstatus\"=$3 RETURNING *"
-                            connection.preparedQuery(sql).execute(Tuple.of(next, id, before.getInteger("docstatus", 0)))
+                                " SET \"docstatus\"=$1,\"version\"=\"version\"+1,\"updated_at\"=clock_timestamp()" +
+                                " WHERE \"id\"=$2 AND \"docstatus\"=$3 AND \"version\"=$4 RETURNING *"
+                            connection.preparedQuery(sql).execute(Tuple.of(next, id, before.getInteger("docstatus", 0), expectedVersion))
                                 .compose { rows ->
                                     val after = rows.firstOrNull()?.toJson()
                                         ?: return@compose Future.failedFuture<JsonObject>("单据状态已变化，请刷新后重试")
@@ -177,9 +192,9 @@ class DocumentRuntimeRoutes(
     ): Future<JsonObject> {
         val id = UUID.randomUUID()
         val entries = writableEntries(definition, values, principal)
-        val columns = mutableListOf("\"id\"", "\"docstatus\"")
-        val parameters = mutableListOf<Any?>(id, DocumentStatus.DRAFT.code)
-        val placeholders = mutableListOf("$1", "$2")
+        val columns = mutableListOf("\"id\"", "\"docstatus\"", "\"version\"")
+        val parameters = mutableListOf<Any?>(id, DocumentStatus.DRAFT.code, 1)
+        val placeholders = mutableListOf("$1", "$2", "$3")
         entries.forEach { (name, value, json) ->
             columns += "\"$name\""
             parameters += if (json) encodeJson(value) else value
@@ -198,7 +213,8 @@ class DocumentRuntimeRoutes(
         definition: JsonObject,
         id: UUID,
         values: JsonObject,
-        principal: TenantPrincipal
+        principal: TenantPrincipal,
+        expectedVersion: Int
     ): Future<JsonObject> {
         val entries = writableEntries(definition, values, principal)
         if (entries.isEmpty()) return Future.failedFuture("没有可更新字段")
@@ -208,14 +224,17 @@ class DocumentRuntimeRoutes(
             val marker = "$" + parameters.size
             "\"$name\"=" + marker + if (json) "::jsonb" else ""
         }.toMutableList()
+        assignments += "\"version\"=\"version\"+1"
         assignments += "\"updated_at\"=clock_timestamp()"
         parameters += id
         val idIndex = parameters.size
+        parameters += expectedVersion
+        val versionIndex = parameters.size
         val where = scopeWhere(definition, principal, parameters)
         val sql = "UPDATE " + tableSql(definition) + " SET " + assignments.joinToString(",") +
-            " WHERE \"id\"=$" + idIndex + " AND \"docstatus\"=0" + where + " RETURNING *"
+            " WHERE \"id\"=$" + idIndex + " AND \"version\"=$" + versionIndex + " AND \"docstatus\"=0" + where + " RETURNING *"
         return connection.preparedQuery(sql).execute(Tuple.from(parameters)).map { rows ->
-            rows.firstOrNull()?.toJson() ?: throw IllegalArgumentException("单据不存在、无权访问或已不处于草稿状态")
+            rows.firstOrNull()?.toJson() ?: throw DocumentVersionConflictException()
         }
     }
 
@@ -326,7 +345,7 @@ class DocumentRuntimeRoutes(
         val allowed = fields.filterIsInstance<JsonObject>().filter { field ->
             val roles = field.getJsonArray("readRoles")
             roles == null || roles.isEmpty || roles.any { it == principal.role || it == "TENANT_ADMIN" }
-        }.mapNotNull { it.getString("name") }.toSet() + setOf("id", "docstatus", "created_at", "updated_at")
+        }.mapNotNull { it.getString("name") }.toSet() + setOf("id", "docstatus", "version", "created_at", "updated_at")
         return JsonObject().also { output ->
             row.fieldNames().filter { it in allowed }.forEach { output.put(it, row.getValue(it)) }
         }
@@ -365,6 +384,7 @@ class DocumentRuntimeRoutes(
 
     private fun status(error: Throwable): Int = when {
         error.message?.contains("无权") == true -> 403
+        error is DocumentVersionConflictException -> 409
         error is IllegalArgumentException -> 400
         else -> 500
     }
