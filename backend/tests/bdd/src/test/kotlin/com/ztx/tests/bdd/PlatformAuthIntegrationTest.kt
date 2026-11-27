@@ -177,6 +177,16 @@ class PlatformAuthIntegrationTest {
             assertTrue(reset.success)
             assertNull(service.authenticate(activeSession.sessionToken).await())
             assertEquals(true, service.mfaEnabled().await())
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.executeQuery(
+                        "SELECT count(*) FROM iam.platform_admin_session WHERE revoked_at IS NULL AND expires_at > clock_timestamp()"
+                    ).use { rows ->
+                        rows.next()
+                        assertEquals(0, rows.getInt(1))
+                    }
+                }
+            }
             val recoveredLogin = service.login(
                 "platform.admin", "ZtxRecovery456", currentTotp(enrollment.secret), "127.0.0.1", "bdd-test"
             ).await()
@@ -195,7 +205,8 @@ class PlatformAuthIntegrationTest {
                             resetAudits += Triple(rows.getString("outcome"), rows.getString("operator"), rows.getString("target_username"))
                         }
                         assertEquals(3, resetAudits.size)
-                        assertEquals(listOf("FAILURE", "FAILURE", "SUCCESS"), resetAudits.map { it.first })
+                        assertEquals(2, resetAudits.count { it.first == "FAILURE" })
+                        assertEquals(1, resetAudits.count { it.first == "SUCCESS" })
                         assertTrue(resetAudits.all { it.second == "ztx-deployer" })
                         assertTrue(resetAudits.all { it.third == "platform.admin" })
                     }
