@@ -183,7 +183,7 @@ class Db(
  * 不持有全局租户状态；每次调用都绑定调用者提供的可信 TenantPrincipal。
  */
 class DbProvider(private val routes: DocumentRuntimeRoutes = DocumentRuntimeRoutes()) {
-    fun <T> transaction(principal: TenantPrincipal, block: (Db) -> Future<T>): Future<T> =
+    fun <T : Any> transaction(principal: TenantPrincipal, block: (Db) -> Future<T>): Future<T> =
         principal.database.withTransaction<T> { connection ->
             try {
                 block(Db(principal, connection, routes))
