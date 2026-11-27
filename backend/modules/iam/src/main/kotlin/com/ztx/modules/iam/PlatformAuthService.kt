@@ -20,6 +20,7 @@ import javax.crypto.spec.SecretKeySpec
 data class PlatformAdmin(val id: UUID, val username: String, val mfaEnabled: Boolean)
 data class PlatformLogin(val sessionToken: String, val admin: PlatformAdmin)
 data class MfaEnrollment(val secret: String, val otpauthUri: String)
+data class PlatformPasswordResetResult(val success: Boolean, val reason: String)
 private data class LoginOutcome(val login: PlatformLogin?)
 private data class AdminLookup(val admin: PlatformAdmin?)
 
@@ -265,6 +266,96 @@ class PlatformAuthService(
         }.compose { enabled ->
             if (enabled) Future.succeededFuture() else Future.failedFuture("动态验证码不正确")
         }
+
+    /**
+     * 服务器部署人员通过独立命令重置唯一平台管理员密码。
+     * MFA 字段保持原样；同一事务中撤销全部会话并写入包含本机操作者的审计记录。
+     */
+    fun resetPasswordFromServerCommand(password: String, operator: String): Future<PlatformPasswordResetResult> =
+        database.withTransaction { connection ->
+            connection.preparedQuery(
+                """SELECT id::text AS id, username, password_hash
+                   FROM iam.platform_admin
+                   FOR UPDATE"""
+            ).execute().compose { rows ->
+                val admin = rows.firstOrNull()
+                val adminId = if (rows.size() == 1) UUID.fromString(requireNotNull(admin).getString("id")) else null
+                val details = JsonObject()
+                    .put("operator", operator.take(128))
+                    .put("mechanism", "server-command")
+                    .put("targetAdminCount", rows.size())
+                if (adminId != null) details.put("targetUsername", admin!!.getString("username"))
+
+                val failureReason = when {
+                    rows.size != 1 -> "UNIQUE_PLATFORM_ADMIN_REQUIRED"
+                    password.length < 8 || !password.any(Char::isLetter) || !password.any(Char::isDigit) ->
+                        "PASSWORD_POLICY_REJECTED"
+                    AuthSupport.verifyPassword(password, requireNotNull(admin).getString("password_hash")) ->
+                        "PASSWORD_UNCHANGED"
+                    else -> null
+                }
+                if (failureReason != null) {
+                    details.put("reason", failureReason)
+                    writePasswordResetAudit(connection, adminId, "FAILURE", details)
+                        .map(PlatformPasswordResetResult(false, failureReason))
+                } else {
+                    val target = requireNotNull(admin)
+                    val targetId = requireNotNull(adminId)
+                    val passwordHash = AuthSupport.hashPassword(password, PBKDF2_ITERATIONS)
+                    connection.preparedQuery(
+                        """UPDATE iam.platform_admin
+                           SET password_hash = $2, updated_at = clock_timestamp()
+                           WHERE id = $1"""
+                    ).execute(Tuple.of(targetId, passwordHash)).compose {
+                        connection.preparedQuery(
+                            """UPDATE iam.platform_admin_session
+                               SET revoked_at = clock_timestamp()
+                               WHERE admin_id = $1 AND revoked_at IS NULL"""
+                        ).execute(Tuple.of(targetId))
+                    }.compose { revoked ->
+                        details.put("revokedSessionCount", revoked.rowCount())
+                        connection.preparedQuery("DELETE FROM iam.platform_login_attempt").execute().compose {
+                            writePasswordResetAudit(connection, targetId, "SUCCESS", details)
+                        }
+                    }.map(PlatformPasswordResetResult(true, "SUCCESS"))
+                }
+            }
+        }
+
+    /** 交互式命令取消或输入确认不一致时也留下失败审计，不暴露目标账号是否存在。 */
+    fun recordPasswordResetCommandFailure(
+        operator: String,
+        reason: String
+    ): Future<PlatformPasswordResetResult> =
+        database.withTransaction { connection ->
+            connection.preparedQuery(
+                """SELECT id::text AS id, username
+                   FROM iam.platform_admin
+                   FOR UPDATE"""
+            ).execute().compose { rows ->
+                val admin = rows.firstOrNull()
+                val adminId = if (rows.size == 1) UUID.fromString(requireNotNull(admin).getString("id")) else null
+                val details = JsonObject()
+                    .put("operator", operator.take(128))
+                    .put("mechanism", "server-command")
+                    .put("targetAdminCount", rows.size)
+                    .put("reason", reason)
+                if (adminId != null) details.put("targetUsername", admin!!.getString("username"))
+                writePasswordResetAudit(connection, adminId, "FAILURE", details)
+                    .map(PlatformPasswordResetResult(false, reason))
+            }
+        }
+
+    private fun writePasswordResetAudit(
+        connection: SqlConnection,
+        adminId: UUID?,
+        outcome: String,
+        details: JsonObject
+    ): Future<Void> = connection.preparedQuery(
+        """INSERT INTO audit.platform_security_event
+           (id, admin_id, event_type, outcome, source_ip, details)
+           VALUES ($1, $2, 'ADMIN_PASSWORD_RESET', $3, NULL, $4::jsonb)"""
+    ).execute(Tuple.of(UUID.randomUUID(), adminId, outcome, details.encode())).mapEmpty()
 
     private fun encrypt(value: String): String {
         val nonce = AuthSupport.randomBytes(12)
