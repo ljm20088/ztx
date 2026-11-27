@@ -133,3 +133,58 @@ test('平台管理员可以查看平台安全审计记录', async ({ page }) => 
   await expect(page.getByRole('cell', { name: '成功', exact: true })).toHaveCount(8)
   await expect(page.getByRole('cell', { name: '失败', exact: true })).toHaveCount(1)
 })
+
+
+test('平台管理员会话不能用于访问企业业务工作区', async ({ page }) => {
+  // Given：浏览器只有平台登录入口和平台会话
+  await page.route('**/api/v1/platform/auth/status', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ initialized: true, canInitialize: false, mfaEnabled: false }),
+  }))
+  await page.goto('/platform/login')
+  await page.context().addCookies([{
+    name: 'ztx_platform_session',
+    value: 'platform-only-session',
+    url: new URL(page.url()).origin,
+    path: '/api/v1/platform',
+    httpOnly: true,
+    sameSite: 'Strict',
+  }])
+  await page.route('**/api/v1/tenant/auth/me', route => route.fulfill({
+    status: 401, contentType: 'application/json',
+    body: JSON.stringify({ error: { code: 'TENANT_AUTH_REQUIRED', message: '租户登录已失效' } }),
+  }))
+
+  // When：平台会话尝试打开企业工作区
+  await page.goto('/workspace')
+
+  // Then：平台会话不能替代企业身份，必须进入企业登录入口
+  await expect(page).toHaveURL(/\\/tenant\\/login$/)
+})
+
+test('企业用户会话不能用于访问平台管理工作区', async ({ page }) => {
+  // Given：浏览器只有企业登录入口和企业会话
+  await page.goto('/tenant/login')
+  await page.context().addCookies([{
+    name: 'ztx_tenant_session',
+    value: 'demo.tenant-only-session-token',
+    url: new URL(page.url()).origin,
+    path: '/api/v1/tenant',
+    httpOnly: true,
+    sameSite: 'Strict',
+  }])
+  await page.route('**/api/v1/platform/auth/me', route => route.fulfill({
+    status: 401, contentType: 'application/json',
+    body: JSON.stringify({ error: { code: 'PLATFORM_AUTH_REQUIRED', message: '平台登录已失效' } }),
+  }))
+  await page.route('**/api/v1/platform/auth/status', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ initialized: true, canInitialize: false, mfaEnabled: false }),
+  }))
+
+  // When：企业会话尝试打开平台管理工作区
+  await page.goto('/platform/admin')
+
+  // Then：企业会话不能替代平台身份，必须进入平台登录入口
+  await expect(page).toHaveURL(/\\/platform\\/login$/)
+})
