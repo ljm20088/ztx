@@ -9,6 +9,7 @@ import com.ztx.platform.common.DatabaseConfig
 import io.vertx.core.Future
 import io.vertx.core.Vertx
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -124,6 +125,11 @@ class PlatformAuthIntegrationTest {
                 "platform.admin", "ZtxAdmin123", currentTotp(enrollment.secret), "127.0.0.1", "bdd-test"
             ).await()
 
+            // Given：同一管理员另有一个仍然有效的平台会话
+            val activeSession = service.login(
+                "platform.admin", "ZtxAdmin123", currentTotp(enrollment.secret), "127.0.0.1", "bdd-test"
+            ).await()
+
             // Then：会话在有效期内可认证；超过有效期后服务端拒绝该会话
             assertNotNull(service.authenticate(mfaLogin.sessionToken).await())
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
@@ -149,6 +155,51 @@ class PlatformAuthIntegrationTest {
             assertFailureContaining("账号、密码或动态验证码不正确") {
                 service.login("platform.admin", "ZtxAdmin123", currentTotp(enrollment.secret),
                     "127.0.0.1", "bdd-test").await()
+            }
+
+            // Given：部署人员通过服务器交互式命令执行恢复，先提交一次确认不一致的失败尝试
+            val mismatch = service.recordPasswordResetCommandFailure(
+                "ztx-deployer", "PASSWORD_CONFIRMATION_MISMATCH"
+            ).await()
+            assertFalse(mismatch.success)
+
+            // When：部署人员提交不符合策略的新密码
+            val rejectedPassword = service.resetPasswordFromServerCommand("weak", "ztx-deployer").await()
+
+            // Then：密码保持不变，会话不被撤销，失败操作留下审计
+            assertFalse(rejectedPassword.success)
+            assertNotNull(service.authenticate(activeSession.sessionToken).await())
+
+            // When：部署人员提交符合策略的新密码
+            val reset = service.resetPasswordFromServerCommand("ZtxRecovery456", "ztx-deployer").await()
+
+            // Then：只重置现有管理员密码，撤销全部会话，并保留已启用的 MFA
+            assertTrue(reset.success)
+            assertNull(service.authenticate(activeSession.sessionToken).await())
+            assertEquals(true, service.mfaEnabled().await())
+            val recoveredLogin = service.login(
+                "platform.admin", "ZtxRecovery456", currentTotp(enrollment.secret), "127.0.0.1", "bdd-test"
+            ).await()
+            assertEquals(admin.id, recoveredLogin.admin.id)
+
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.prepareStatement(
+                    """SELECT outcome, details->>'operator' AS operator, details->>'targetUsername' AS target_username
+                       FROM audit.platform_security_event
+                       WHERE event_type = 'ADMIN_PASSWORD_RESET'
+                       ORDER BY occurred_at"""
+                ).use { statement ->
+                    statement.executeQuery().use { rows ->
+                        val resetAudits = mutableListOf<Triple<String, String?, String?>>()
+                        while (rows.next()) {
+                            resetAudits += Triple(rows.getString("outcome"), rows.getString("operator"), rows.getString("target_username"))
+                        }
+                        assertEquals(3, resetAudits.size)
+                        assertEquals(listOf("FAILURE", "FAILURE", "SUCCESS"), resetAudits.map { it.first })
+                        assertTrue(resetAudits.all { it.second == "ztx-deployer" })
+                        assertTrue(resetAudits.all { it.third == "platform.admin" })
+                    }
+                }
             }
 
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
