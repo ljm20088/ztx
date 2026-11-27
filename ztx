@@ -296,11 +296,12 @@ platform_admin_reset() {
   shift
   local executable="$ROOT_DIR/backend/apps/server/build/install/server/bin/server"
   echo "构建/更新 Server 命令发行包..."
-  "$ROOT_DIR/gradlew" --no-daemon :apps:server:installDist
+  (cd "$ROOT_DIR" && "$ROOT_DIR/gradlew" --no-daemon :apps:server:installDist)
   [[ -x "$executable" ]] || {
     echo "未找到 Server 发布程序：$executable" >&2
     exit 1
   }
+  cd "$ROOT_DIR"
   exec "$executable" "$@" --ztx.command=platform-admin-reset
 }
 
