@@ -19,6 +19,9 @@ const sortField = ref('')
 const sortDirection = ref<'asc' | 'desc'>('asc')
 const busy = ref(false)
 const error = ref('')
+const selectedCount = ref(0)
+const filtersOpen = ref(false)
+const sortOpen = ref(false)
 const doctype = computed(() => String(route.params.doctype ?? ''))
 
 const visibleFields = computed(() => {
@@ -93,21 +96,20 @@ onMounted(() => { void load() })
 <template>
   <section class="mx-auto flex w-full max-w-[1440px] flex-col gap-3 text-ztx-text">
     <header class="flex flex-wrap items-center justify-between gap-2">
-      <div>
-        <h1 class="m-0 text-ztx-page-title">{{ doctype }} 列表</h1>
-        <p class="mt-1 text-ztx-caption text-ztx-muted">由 DocType 列表元数据驱动，服务端执行筛选、排序与分页。</p>
-      </div>
-      <div class="flex gap-2">
-        <ZButton variant="secondary" :disabled="busy" @click="load">刷新</ZButton>
+      <span class="text-ztx-caption font-semibold text-ztx-text">{{ doctype }}</span>
+      <div class="ml-auto flex flex-wrap items-center gap-1.5">
+        <ZButton variant="secondary" size="sm" :disabled="busy" @click="filtersOpen = !filtersOpen">筛选</ZButton>
+        <ZButton variant="secondary" size="sm" :disabled="busy" @click="sortOpen = !sortOpen">排序</ZButton>
+        <ZButton variant="secondary" size="sm" :disabled="busy" @click="load">刷新</ZButton>
         <RouterLink :to="'/developer/documents/' + encodeURIComponent(doctype)">
-          <ZButton>新建</ZButton>
+          <ZButton size="sm">新建</ZButton>
         </RouterLink>
       </div>
     </header>
 
     <p v-if="error" class="rounded-ztx-sm border border-ztx-danger/30 bg-ztx-danger/5 px-3 py-2 text-ztx-caption text-ztx-danger" role="alert">{{ error }}</p>
 
-    <div class="flex flex-wrap items-end gap-2 rounded-ztx-md border border-ztx-border bg-ztx-surface p-3">
+    <div v-if="filtersOpen" class="flex flex-wrap items-end gap-2 rounded-ztx-md border border-ztx-border bg-ztx-surface p-3">
       <label class="min-w-48 flex-1 text-ztx-caption text-ztx-muted">
         搜索
         <input v-model="search" class="mt-1 w-full rounded-ztx-sm border border-ztx-border bg-ztx-surface px-2.5 py-2 text-ztx-body text-ztx-text" placeholder="搜索列表字段" @keyup.enter="searchNow">
@@ -125,6 +127,10 @@ onMounted(() => { void load() })
         筛选值
         <input v-model="filterValue" class="mt-1 w-full rounded-ztx-sm border border-ztx-border bg-ztx-surface px-2.5 py-2 text-ztx-body text-ztx-text" @keyup.enter="searchNow">
       </label>
+      <ZButton size="sm" :disabled="busy" @click="searchNow">应用筛选</ZButton>
+    </div>
+
+    <div v-if="sortOpen" class="flex flex-wrap items-end gap-2 rounded-ztx-md border border-ztx-border bg-ztx-surface p-3">
       <label class="min-w-36 text-ztx-caption text-ztx-muted">
         排序字段
         <select v-model="sortField" class="mt-1 w-full rounded-ztx-sm border border-ztx-border bg-ztx-surface px-2.5 py-2 text-ztx-body text-ztx-text">
@@ -140,13 +146,13 @@ onMounted(() => { void load() })
           <option value="asc">升序</option><option value="desc">降序</option>
         </select>
       </label>
-      <ZButton :disabled="busy" @click="searchNow">应用</ZButton>
+      <ZButton size="sm" :disabled="busy" @click="searchNow">应用排序</ZButton>
     </div>
 
-    <ZDataGrid :data="rows" :columns="columns" :page-size="200" :searchable="false" />
+    <ZDataGrid :data="rows" :columns="columns" :page-size="200" :searchable="false" :show-pagination="false" @selection-change="selectedCount = $event" />
 
     <footer class="flex items-center justify-between gap-3 text-ztx-caption text-ztx-muted">
-      <span>共 {{ total }} 条 · 第 {{ page }} 页 · 每页 {{ pageSize }} 条</span>
+      <span aria-live="polite">共 {{ total }} 条 · 已选 {{ selectedCount }} 条 · 第 {{ page }} 页 · 每页 {{ pageSize }} 条</span>
       <div class="flex gap-2">
         <ZButton variant="secondary" size="sm" :disabled="busy || page <= 1" @click="previousPage">上一页</ZButton>
         <ZButton variant="secondary" size="sm" :disabled="busy || page * pageSize >= total" @click="nextPage">下一页</ZButton>
