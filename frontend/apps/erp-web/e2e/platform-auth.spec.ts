@@ -159,7 +159,7 @@ test('平台管理员会话不能用于访问企业业务工作区', async ({ pa
   await page.goto('/workspace')
 
   // Then：平台会话不能替代企业身份，必须进入企业登录入口
-  await expect(page).toHaveURL(/\\/tenant\\/login$/)
+  await expect(page).toHaveURL(/\/tenant\/login$/)
 })
 
 test('企业用户会话不能用于访问平台管理工作区', async ({ page }) => {
@@ -186,5 +186,5 @@ test('企业用户会话不能用于访问平台管理工作区', async ({ page 
   await page.goto('/platform/admin')
 
   // Then：企业会话不能替代平台身份，必须进入平台登录入口
-  await expect(page).toHaveURL(/\\/platform\\/login$/)
+  await expect(page).toHaveURL(/\/platform\/login$/)
 })
