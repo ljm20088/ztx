@@ -8,6 +8,18 @@ test.beforeEach(async ({ page }) => {
   }))
 })
 
+test('工作台展示指标、趋势、待办和最近业务记录区域', async ({ page }) => {
+  // Given 用户进入工作台首页
+  await page.goto('/workspace')
+
+  // Then 工作台按仪表盘布局呈现 KPI、业务趋势、待办和最近业务记录
+  await expect(page.getByTestId('workspace-kpi')).toHaveCount(4)
+  await expect(page.getByTestId('business-trend')).toBeVisible()
+  await expect(page.getByTestId('pending-items')).toBeVisible()
+  await expect(page.getByTestId('recent-business')).toBeVisible()
+  await expect(page.getByText('工作台示例数据仅用于界面预览')).toBeVisible()
+})
+
 test('工作区首屏与页面截图', async ({ page }, testInfo) => {
   // Given 用户打开 ZTX Web 工作区
   await page.goto('/workspace')
