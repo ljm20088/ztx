@@ -70,6 +70,13 @@ async function load() {
   }
 }
 
+function inputValue(value: unknown): string | number | boolean {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? value : ''
+}
+function setValue(name: string, value: string | number | boolean) {
+  document[name] = value
+}
+
 function addDetailRow(field: Field) {
   const row: DocumentData = {}
   for (const child of field.childFields ?? []) row[child.name] = child.defaultValue ?? ''
@@ -102,7 +109,7 @@ async function save() {
     Object.assign(document, result)
     message.value = '单据已保存'
     if (!documentId.value && result.id) {
-      await router.replace('/developer/documents/' + encodeURIComponent(doctype.value) + '/' + encodeURIComponent(result.id))
+      await router.replace('/developer/documents/' + encodeURIComponent(doctype.value) + '/' + encodeURIComponent(String(result.id)))
     }
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '保存失败'
@@ -154,17 +161,19 @@ onMounted(() => { void load() })
       <template v-for="field in fields" :key="field.name">
         <ZFormField v-if="field.type !== 'table' && field.type !== 'boolean' && field.type !== 'json' && field.type !== 'text' && field.type !== 'select'"
           :label="field.label || field.name" :field-id="'doc-' + field.name" :required="field.required">
-          <ZInput :id="'doc-' + field.name" v-model="document[field.name]" :type="field.type === 'date' ? 'date' : field.type === 'datetime' ? 'datetime-local' : ['decimal','money','integer'].includes(field.type) ? 'number' : 'text'"
+          <ZInput :id="'doc-' + field.name" :model-value="inputValue(document[field.name])"
+            @update:model-value="setValue(field.name, $event)"
+            :type="field.type === 'date' ? 'date' : field.type === 'datetime' ? 'datetime-local' : ['decimal','money','integer'].includes(field.type) ? 'number' : 'text'"
             :disabled="busy || field.readOnly || docstatus !== 0" :step="['decimal','money'].includes(field.type) ? 'any' : undefined" />
         </ZFormField>
         <ZFormField v-else-if="field.type === 'select'" :label="field.label || field.name" :field-id="'doc-' + field.name" :required="field.required">
-          <select :id="'doc-' + field.name" v-model="document[field.name]" :disabled="busy || field.readOnly || docstatus !== 0"
+          <select :id="'doc-' + field.name" :value="String(document[field.name] ?? '')" @change="setValue(field.name, ($event.target as HTMLSelectElement).value)" :disabled="busy || field.readOnly || docstatus !== 0"
             class="w-full rounded-ztx-sm border border-ztx-border bg-ztx-surface px-2.5 py-2 text-ztx-body">
             <option value="">请选择</option><option v-for="option in field.options ?? []" :key="option" :value="option">{{ option }}</option>
           </select>
         </ZFormField>
         <ZFormField v-else-if="field.type === 'text'" :label="field.label || field.name" :field-id="'doc-' + field.name" :required="field.required">
-          <textarea :id="'doc-' + field.name" v-model="document[field.name]" :disabled="busy || field.readOnly || docstatus !== 0"
+          <textarea :id="'doc-' + field.name" :value="String(document[field.name] ?? '')" @input="setValue(field.name, ($event.target as HTMLTextAreaElement).value)" :disabled="busy || field.readOnly || docstatus !== 0"
             class="min-h-24 w-full rounded-ztx-sm border border-ztx-border bg-ztx-surface px-2.5 py-2 text-ztx-body" />
         </ZFormField>
         <ZFormField v-else-if="field.type === 'json'" :label="field.label || field.name" :field-id="'doc-' + field.name">
