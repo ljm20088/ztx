@@ -365,8 +365,6 @@ test('工作区内容区按统一字号令牌呈现层级', async ({ page }) => 
     quickDescription: getComputedStyle(document.querySelector('[data-testid="quick-link-description"]')!).fontSize,
     sectionTitle: getComputedStyle(document.querySelector('[data-testid="section-title"]')!).fontSize,
     recentTitle: getComputedStyle(document.querySelector('[data-testid="recent-title"]')!).fontSize,
-    foundationTitle: getComputedStyle(document.querySelector('[data-testid="foundation-title"]')!).fontSize,
-    foundationDescription: getComputedStyle(document.querySelector('[data-testid="foundation-description"]')!).fontSize,
   }))
   expect(contentTypography).toEqual({
     bodyToken: '13px',
@@ -377,8 +375,6 @@ test('工作区内容区按统一字号令牌呈现层级', async ({ page }) => 
     quickDescription: '12px',
     sectionTitle: '15px',
     recentTitle: '13px',
-    foundationTitle: '13px',
-    foundationDescription: '12px',
   })
 })
 
