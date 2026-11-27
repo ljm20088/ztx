@@ -287,7 +287,7 @@ class PlatformAuthService(
                 if (adminId != null) details.put("targetUsername", admin!!.getString("username"))
 
                 val failureReason = when {
-                    rows.size != 1 -> "UNIQUE_PLATFORM_ADMIN_REQUIRED"
+                    rows.count() != 1 -> "UNIQUE_PLATFORM_ADMIN_REQUIRED"
                     password.length < 8 || !password.any(Char::isLetter) || !password.any(Char::isDigit) ->
                         "PASSWORD_POLICY_REJECTED"
                     AuthSupport.verifyPassword(password, requireNotNull(admin).getString("password_hash")) ->
@@ -299,7 +299,6 @@ class PlatformAuthService(
                     writePasswordResetAudit(connection, adminId, "FAILURE", details)
                         .map(PlatformPasswordResetResult(false, failureReason))
                 } else {
-                    val target = requireNotNull(admin)
                     val targetId = requireNotNull(adminId)
                     val passwordHash = AuthSupport.hashPassword(password, PBKDF2_ITERATIONS)
                     connection.preparedQuery(
