@@ -199,7 +199,7 @@ onMounted(() => { void load() })
               <tbody>
                 <tr v-for="(row,index) in document[field.name]" :key="index" class="border-b border-ztx-border">
                   <td v-for="child in field.childFields ?? []" :key="child.name" class="px-2 py-1.5">
-                    <input v-model="row[child.name]" :type="['decimal','money','integer'].includes(child.type) ? 'number' : child.type === 'date' ? 'date' : 'text'"
+                    <input v-model="row[child.name]" :type="['decimal','money','integer'].includes(child.type) ? 'number' : child.type === 'date' ? 'date' : child.type === 'time' ? 'time' : 'text'"
                       :disabled="busy || child.readOnly || field.readOnly || docstatus !== 0"
                       class="w-full min-w-24 rounded-ztx-sm border border-ztx-border bg-ztx-surface px-2 py-1.5">
                   </td>
