@@ -6,6 +6,35 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.BodyHandler
 import java.net.InetAddress
 
+/**
+ * 初始化请求必须由真实回环连接发起，并使用回环 Host；代理转发头一律不作为来源证明。
+ * 单独提取为纯函数，便于覆盖伪造 Host、代理头和非回环来源。
+ */
+internal fun allowsLoopbackInitialization(
+    remoteHost: String?,
+    hostHeader: String?,
+    hasForwardedHeaders: Boolean
+): Boolean {
+    if (remoteHost == null || hostHeader.isNullOrBlank() || hasForwardedHeaders) return false
+    val authority = hostHeader.trim().lowercase()
+    val host: String
+    val validAuthority = if (authority.startsWith("[")) {
+        val closingBracket = authority.indexOf(']')
+        if (closingBracket < 0) return false
+        host = authority.substring(1, closingBracket)
+        val suffix = authority.substring(closingBracket + 1)
+        suffix.isEmpty() || suffix.matches(Regex(":[0-9]{1,5}"))
+    } else {
+        val parts = authority.split(':')
+        if (parts.size > 2) return false
+        host = parts[0]
+        parts.size == 1 || parts[1].matches(Regex("[0-9]{1,5}"))
+    }
+    if (!validAuthority || host !in setOf("localhost", "127.0.0.1", "::1")) return false
+    val isLoopback = runCatching { InetAddress.getByName(remoteHost).isLoopbackAddress }.getOrDefault(false)
+    return isLoopback
+}
+
 class PlatformAuthRoutes(
     private val service: PlatformAuthService,
     private val secureCookies: Boolean
@@ -56,19 +85,14 @@ class PlatformAuthRoutes(
      * 不信任 X-Forwarded-* 等代理头。SSH 本地端口转发和服务器本机访问的 Host 必须是 loopback。
      * 反向代理应显式拒绝转发初始化请求，不能把公网流量伪装成 loopback。
      */
-    private fun isLoopbackInitializationRequest(context: RoutingContext): Boolean {
-        val remoteHost = context.request().remoteAddress()?.host()
-        val hostHeader = context.request().getHeader("host")?.lowercase().orEmpty()
-        val localHost = hostHeader == "::1" || hostHeader.startsWith("[::1]") ||
-            hostHeader.substringBefore(':') in setOf("localhost", "127.0.0.1")
-        val forwarded = context.request().getHeader("forwarded") != null ||
-            context.request().getHeader("x-forwarded-for") != null ||
-            context.request().getHeader("x-real-ip") != null
-        val isLoopback = remoteHost != null && runCatching {
-            InetAddress.getByName(remoteHost).isLoopbackAddress
-        }.getOrDefault(false)
-        return isLoopback && localHost && !forwarded
-    }
+    private fun isLoopbackInitializationRequest(context: RoutingContext): Boolean =
+        allowsLoopbackInitialization(
+            remoteHost = context.request().remoteAddress()?.host(),
+            hostHeader = context.request().getHeader("host"),
+            hasForwardedHeaders = context.request().getHeader("forwarded") != null ||
+                context.request().getHeader("x-forwarded-for") != null ||
+                context.request().getHeader("x-real-ip") != null
+        )
 
     private fun login(context: RoutingContext) {
         val body = AuthSupport.body(context)
