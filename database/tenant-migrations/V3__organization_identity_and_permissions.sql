@@ -136,7 +136,7 @@ ALTER TABLE audit.tenant_security_event ADD COLUMN IF NOT EXISTS tenant_user_id 
 CREATE INDEX idx_group_master_reference ON org.company_group_master(master_item_id,status);
 
 -- 任职范围必须属于同一企业，岗位企业范围不能越过任职企业。
-CREATE FUNCTION org.validate_employment_scope() RETURNS trigger LANGUAGE plpgsql AS $
+CREATE FUNCTION org.validate_employment_scope() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.book_id IS NOT NULL AND NOT EXISTS (
         SELECT 1 FROM org.book b WHERE b.id=NEW.book_id AND b.company_id=NEW.company_id
@@ -146,11 +146,11 @@ BEGIN
         WHERE u.id=NEW.organization_unit_id AND (u.company_id IS NULL OR u.company_id=NEW.company_id)
     ) THEN RAISE EXCEPTION '任职组织必须属于同一企业'; END IF;
     RETURN NEW;
-END $;
+END $$;
 CREATE TRIGGER trg_employment_scope BEFORE INSERT OR UPDATE OF company_id,book_id,organization_unit_id
 ON hr.employment FOR EACH ROW EXECUTE FUNCTION org.validate_employment_scope();
 
-CREATE FUNCTION org.validate_position_scope() RETURNS trigger LANGUAGE plpgsql AS $
+CREATE FUNCTION org.validate_position_scope() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.book_id IS NOT NULL AND (NEW.company_id IS NULL OR NOT EXISTS (
         SELECT 1 FROM org.book b WHERE b.id=NEW.book_id AND b.company_id=NEW.company_id
@@ -160,11 +160,11 @@ BEGIN
         WHERE u.id=NEW.organization_unit_id AND (u.company_id IS NULL OR u.company_id=NEW.company_id)
     )) THEN RAISE EXCEPTION '岗位组织必须属于同一企业'; END IF;
     RETURN NEW;
-END $;
+END $$;
 CREATE TRIGGER trg_position_scope BEFORE INSERT OR UPDATE OF company_id,book_id,organization_unit_id
 ON iam.job_position FOR EACH ROW EXECUTE FUNCTION org.validate_position_scope();
 
-CREATE FUNCTION org.validate_employment_position() RETURNS trigger LANGUAGE plpgsql AS $
+CREATE FUNCTION org.validate_employment_position() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM hr.employment e JOIN iam.job_position p ON p.id=NEW.position_id
@@ -182,6 +182,6 @@ BEGIN
           ))
     ) THEN RAISE EXCEPTION '岗位范围不能超出任职企业、账套和组织范围'; END IF;
     RETURN NEW;
-END $;
+END $$;
 CREATE TRIGGER trg_employment_position BEFORE INSERT OR UPDATE ON hr.employment_position
 FOR EACH ROW EXECUTE FUNCTION org.validate_employment_position();
