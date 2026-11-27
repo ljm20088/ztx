@@ -192,7 +192,7 @@ onMounted(() => { void load() })
                       :disabled="busy || child.readOnly || field.readOnly || docstatus !== 0"
                       class="w-full min-w-24 rounded-ztx-sm border border-ztx-border bg-ztx-surface px-2 py-1.5">
                   </td>
-                  <td class="px-2"><button type="button" class="text-ztx-danger" :disabled="busy || field.readOnly || docstatus !== 0" @click="removeDetailRow(field,index)">删除</button></td>
+                  <td class="px-2"><button type="button" class="text-ztx-danger" :disabled="busy || field.readOnly || docstatus !== 0" @click="removeDetailRow(field, Number(index))">删除</button></td>
                 </tr>
               </tbody>
             </table>

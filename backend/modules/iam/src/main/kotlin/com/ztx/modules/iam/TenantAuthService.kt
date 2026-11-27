@@ -124,7 +124,7 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                     })
                 }
             }.compose { lookup ->
-                val principal = lookup.principal ?: return@compose Future.succeededFuture(null)
+                val principal = lookup.principal ?: return@compose Future.succeededFuture<TenantPrincipal?>(null)
                 tenantDatabase.database.withTransaction { connection ->
                     if (principal.subjectType == "ADMIN") {
                         connection.preparedQuery("SELECT id FROM org.company WHERE status='ACTIVE'").execute()
@@ -154,9 +154,9 @@ class TenantAuthService(private val databases: TenantDatabaseRegistry) {
                             )
                         }
                     }
-                }
+                }.map<TenantPrincipal?> { it }
             }
-        }.recover { Future.succeededFuture(null) }
+        }.recover { Future.succeededFuture<TenantPrincipal?>(null) }
 
     fun logout(tenantCode:String,rawToken:String,ip:String?=null):Future<Void> =
         databases.resolve(tenantCode).compose { tenantDatabase ->
