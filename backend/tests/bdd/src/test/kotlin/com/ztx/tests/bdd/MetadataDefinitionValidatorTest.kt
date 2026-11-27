@@ -26,6 +26,16 @@ class MetadataDefinitionValidatorTest {
         assertTrue(MetadataDefinitionValidator.validate(validDefinition()).isEmpty())
     }
 
+
+    // Given 字段索引配置使用非布尔值，When 校验元数据，Then 拒绝不明确的 Schema 约束声明。
+    @Test
+    fun rejectsInvalidIndexFlags() {
+        val definition = validDefinition()
+        definition.getJsonArray("fields").getJsonObject(0).put("indexed", "yes")
+        val codes = MetadataDefinitionValidator.validate(definition).map { it.code }
+        assertTrue("INVALID_INDEX_FLAG" in codes)
+    }
+
     // Given 定义包含重复字段和不存在的列表列，When 执行校验，Then 返回可定位的稳定错误。
     @Test
     fun rejectsDuplicateFieldsAndUnknownLayoutReferences() {
