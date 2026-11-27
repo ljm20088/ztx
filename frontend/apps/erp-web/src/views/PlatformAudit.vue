@@ -8,6 +8,8 @@ type AuditEvent = {
   outcome: 'SUCCESS' | 'FAILURE' | 'DENIED'
   sourceIp?: string | null
   adminUsername?: string | null
+  tenantCode?: string | null
+  tenantName?: string | null
   occurredAt: string
 }
 const events = ref<AuditEvent[]>([])
@@ -37,6 +39,10 @@ function eventTypeLabel(value: string) {
     MFA_ENROLLMENT_STARTED: '开始绑定多重身份验证',
     MFA_ENABLED: '启用多重身份验证',
     ADMIN_PASSWORD_RESET: '重置平台管理员密码',
+    TENANT_PROVISIONED: '租户开通成功',
+    TENANT_PROVISION_FAILED: '租户开通失败',
+    TENANT_ACTIVE: '启用租户',
+    TENANT_INACTIVE: '停用租户',
   }
   return labels[value] ?? '其他操作'
 }
@@ -54,16 +60,17 @@ function outcomeLabel(value: AuditEvent['outcome']) {
     <ZAlert v-if="error" class="mb-3" tone="error" role="alert">{{ error }}</ZAlert>
     <div class="overflow-x-auto rounded-ztx-md border border-ztx-border bg-ztx-surface">
       <table class="w-full border-collapse text-left text-ztx-body">
-        <thead class="bg-ztx-surface-soft text-ztx-muted"><tr><th class="px-3 py-2.5 font-medium">时间</th><th class="px-3 py-2.5 font-medium">操作</th><th class="px-3 py-2.5 font-medium">结果</th><th class="px-3 py-2.5 font-medium">管理员</th><th class="px-3 py-2.5 font-medium">来源 IP</th></tr></thead>
+        <thead class="bg-ztx-surface-soft text-ztx-muted"><tr><th class="px-3 py-2.5 font-medium">时间</th><th class="px-3 py-2.5 font-medium">操作</th><th class="px-3 py-2.5 font-medium">结果</th><th class="px-3 py-2.5 font-medium">管理员</th><th class="px-3 py-2.5 font-medium">管理对象</th><th class="px-3 py-2.5 font-medium">来源 IP</th></tr></thead>
         <tbody>
           <tr v-for="event in events" :key="event.id" class="border-t border-ztx-border">
             <td class="whitespace-nowrap px-3 py-2.5">{{ new Date(event.occurredAt).toLocaleString() }}</td>
             <td class="px-3 py-2.5">{{ eventTypeLabel(event.eventType) }}</td>
             <td class="px-3 py-2.5">{{ outcomeLabel(event.outcome) }}</td>
             <td class="px-3 py-2.5">{{ event.adminUsername || '—' }}</td>
+            <td class="px-3 py-2.5">{{ event.tenantName ? `${event.tenantName}（${event.tenantCode}）` : '—' }}</td>
             <td class="px-3 py-2.5">{{ event.sourceIp || '—' }}</td>
           </tr>
-          <tr v-if="!events.length"><td colspan="5" class="px-3 py-8 text-center text-ztx-muted">暂无审计记录</td></tr>
+          <tr v-if="!events.length"><td colspan="6" class="px-3 py-8 text-center text-ztx-muted">暂无审计记录</td></tr>
         </tbody>
       </table>
     </div>

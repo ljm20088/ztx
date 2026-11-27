@@ -47,10 +47,20 @@ class PlatformAuthService(
             connection.preparedQuery(
                 """SELECT event.id::text AS id, event.event_type, event.outcome,
                           host(event.source_ip) AS source_ip, event.occurred_at,
-                          admin.username AS admin_username
+                          admin.username AS admin_username,
+                          NULL::varchar AS tenant_code, NULL::varchar AS tenant_name
                    FROM audit.platform_security_event event
                    LEFT JOIN iam.platform_admin admin ON admin.id = event.admin_id
-                   ORDER BY event.occurred_at DESC
+                   UNION ALL
+                   SELECT event.id::text AS id, event.action AS event_type,
+                          CASE WHEN event.action LIKE '%FAILED%' THEN 'FAILURE' ELSE 'SUCCESS' END AS outcome,
+                          NULL::text AS source_ip, event.occurred_at,
+                          admin.username AS admin_username, tenant.code AS tenant_code,
+                          tenant.name AS tenant_name
+                   FROM audit.tenant_event event
+                   JOIN iam.platform_admin admin ON admin.id = event.actor_admin_id
+                   JOIN platform.tenant tenant ON tenant.id = event.tenant_id
+                   ORDER BY occurred_at DESC
                    LIMIT $1"""
             ).execute(Tuple.of(limit.coerceIn(1, 200))).map { rows ->
                 JsonArray(rows.map { row ->
@@ -60,6 +70,8 @@ class PlatformAuthService(
                         .put("outcome", row.getString("outcome"))
                         .put("sourceIp", row.getString("source_ip"))
                         .put("adminUsername", row.getString("admin_username"))
+                        .put("tenantCode", row.getString("tenant_code"))
+                        .put("tenantName", row.getString("tenant_name"))
                         .put("occurredAt", row.getOffsetDateTime("occurred_at").toString())
                 })
             }

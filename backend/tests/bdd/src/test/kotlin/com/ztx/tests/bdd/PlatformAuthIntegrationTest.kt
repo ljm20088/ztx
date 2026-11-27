@@ -88,6 +88,42 @@ class PlatformAuthIntegrationTest {
             val initialized = outcomes.single { it.isSuccess }.getOrThrow()
             val admin = initialized.admin
             assertEquals(true, service.initializationStatus().await())
+
+            // When：模拟 Server 重启后由新认证服务实例读取同一控制面数据库
+            val restartedService = PlatformAuthService(database, "test-mfa-encryption-key-32-bytes-minimum")
+
+            // Then：管理员记录仍然存在，首次初始化不会因应用重启重新开放
+            assertTrue(restartedService.initializationStatus().await())
+
+            // Given：平台管理员已执行租户生命周期操作，事件记录在独立租户审计表
+            val auditedTenantId = java.util.UUID.randomUUID()
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.prepareStatement(
+                    """INSERT INTO platform.tenant(id, code, name, status, database_name)
+                       VALUES (?, 'audit-demo', '审计演示企业', 'ACTIVE', 'ztx_t_audit_demo')"""
+                ).use { statement ->
+                    statement.setObject(1, auditedTenantId)
+                    statement.executeUpdate()
+                }
+                connection.prepareStatement(
+                    """INSERT INTO audit.tenant_event(id, tenant_id, actor_admin_id, action)
+                       VALUES (?, ?, ?, 'TENANT_ACTIVE')"""
+                ).use { statement ->
+                    statement.setObject(1, java.util.UUID.randomUUID())
+                    statement.setObject(2, auditedTenantId)
+                    statement.setObject(3, admin.id)
+                    statement.executeUpdate()
+                }
+            }
+
+            // Then：平台统一审计查询同时返回安全事件和租户生命周期事件
+            val auditEvents = service.recentAuditEvents().await()
+            val tenantAudit = (0 until auditEvents.size()).map { auditEvents.getJsonObject(it) }
+                .firstOrNull { it.getString("eventType") == "TENANT_ACTIVE" }
+            assertNotNull(tenantAudit)
+            assertEquals("audit-demo", tenantAudit!!.getString("tenantCode"))
+            assertEquals("审计演示企业", tenantAudit.getString("tenantName"))
+
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
                 connection.createStatement().use { statement ->
                     statement.executeQuery("SELECT count(*) FROM iam.platform_admin").use { rows ->
