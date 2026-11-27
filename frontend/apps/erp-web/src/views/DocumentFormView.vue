@@ -182,22 +182,16 @@ onMounted(() => {
 
 <template>
   <section class="mx-auto flex w-full max-w-[1180px] flex-col gap-3 text-ztx-text">
-    <header class="flex flex-wrap items-center justify-between gap-2">
-      <div>
-        <h1 class="m-0 text-ztx-page-title">{{ doctype }}</h1>
-        <p class="mt-1 text-ztx-caption text-ztx-muted">
-          {{ documentId ? '单据 ' + documentId : '新建单据' }} ·
-          {{ docstatus === 0 ? '草稿' : docstatus === 1 ? '已提交' : docstatus === 2 ? '已撤销' : '已作废' }}
-        </p>
-      </div>
-      <RouterLink :to="'/developer/lists/' + encodeURIComponent(doctype)">
-        <ZButton variant="secondary">返回列表</ZButton>
-      </RouterLink>
-    </header>
     <ZAlert v-if="error" tone="error" role="alert">{{ error }}</ZAlert>
     <ZAlert v-if="message" tone="success">{{ message }}</ZAlert>
 
     <div class="grid grid-cols-2 gap-x-4 gap-y-3 rounded-ztx-md border border-ztx-border bg-ztx-surface p-4 max-[760px]:grid-cols-1">
+      <div class="col-span-2 flex items-center justify-between border-b border-ztx-border pb-2 max-[760px]:col-span-1">
+        <h2 class="m-0 text-ztx-section-title font-semibold">基本信息</h2>
+        <span class="text-ztx-caption text-ztx-muted">
+          {{ docstatus === 0 ? '草稿' : docstatus === 1 ? '已提交' : docstatus === 2 ? '已撤销' : '已作废' }}
+        </span>
+      </div>
       <template v-for="field in fields" :key="field.name">
         <ZFormField v-if="field.type !== 'table' && field.type !== 'boolean' && field.type !== 'json' && field.type !== 'text' && field.type !== 'select'"
           :label="field.label || field.name" :field-id="'doc-' + field.name" :required="field.required">
@@ -253,7 +247,7 @@ onMounted(() => {
     </div>
 
     <footer class="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 border-t border-ztx-border bg-ztx-surface/95 py-3 backdrop-blur">
-      <span class="text-ztx-caption text-ztx-muted">保存与生命周期操作</span>
+      <span class="text-ztx-caption text-ztx-muted">保存与生命周期操作 · {{ documentId ? '单据 ' + documentId : '新建单据' }}</span>
       <div class="flex flex-wrap gap-2">
         <ZButton v-if="docstatus === 0" :disabled="busy" @click="save">保存</ZButton>
         <ZButton v-if="documentId && docstatus === 0" variant="secondary" :disabled="busy" @click="runAction('submit')">提交</ZButton>
