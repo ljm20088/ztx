@@ -63,7 +63,10 @@ test('一级点击、二级悬停后指针可移入三级浮层', async ({ page 
   // Given 该场景验证桌面端 hover；触屏端由点击交互用例覆盖
   test.skip(testInfo.project.name === 'mobile-chrome', '触屏端不依赖 hover，使用点击交互')
 
-  // Given 用户位于工作台
+  // Given 用户位于工作台，并为新接入的元数据设计器提供空定义列表
+  await page.route('**/api/v1/tenant/metadata/doctypes', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ items: [] }),
+  }))
   await page.goto('/workspace')
 
   // When 点击一级菜单“管理中心”，悬停二级菜单“低代码开发”
@@ -85,7 +88,7 @@ test('一级点击、二级悬停后指针可移入三级浮层', async ({ page 
   await feature.click()
 
   // Then 对应页面进入顶部工作区标签
-  await expect(page.getByTestId('placeholder-state')).toHaveText('该功能尚未开放')
+  await expect(page.getByRole('heading', { name: 'DocType 元数据设计器' })).toBeVisible()
   await expect(page.getByRole('navigation', { name: '工作区标签' }).getByText('DocType 管理')).toBeVisible()
 })
 
