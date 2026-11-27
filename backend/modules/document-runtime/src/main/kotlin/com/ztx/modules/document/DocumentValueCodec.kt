@@ -109,6 +109,12 @@ object DocumentValueCodec {
     private fun snakeToCamel(value: String): String =
         value.replace(Regex("_([a-z])")) { match -> match.groupValues[1].uppercase() }
 
+    /** 按字段元数据规范化单个动态字段值，供内存 Document 的下标赋值复用。 */
+    fun normalizeField(field: JsonObject, value: Any): Any {
+        val name = field.getString("name") ?: throw IllegalArgumentException("字段缺少 name")
+        return normalize(name, field.getString("type", ""), value, field)
+    }
+
     private fun normalize(name: String, type: String, value: Any, field: JsonObject): Any = try {
         when (type) {
             "string", "text", "select" -> value as? String ?: invalid(name, "必须是文本")

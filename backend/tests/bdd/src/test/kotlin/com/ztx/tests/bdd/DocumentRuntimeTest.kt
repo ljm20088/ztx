@@ -181,3 +181,50 @@ class DocumentBehaviorServiceLoaderTest {
         assertEquals("ServiceLoadedProbe", registry.resolve(definition, "ServiceLoadedProbe")?.doctype)
     }
 }
+
+
+class DynamicDocumentTest {
+    /** Given 元数据定义动态字段，When 通过下标读写，Then 类型转换正确且仅记录内存变更。 */
+    @Test
+    fun supportsBracketFieldAccessAndTracksChangesWithoutPersistence() {
+        val definition = JsonObject().put("fields", JsonArray()
+            .add(JsonObject().put("name", "code").put("type", "string").put("required", true))
+            .add(JsonObject().put("name", "total").put("type", "money"))
+            .add(JsonObject().put("name", "order_date").put("type", "date"))
+            .add(JsonObject().put("name", "locked").put("type", "string").put("readOnly", true))
+            .add(JsonObject().put("name", "status").put("type", "string").put("defaultValue", "DRAFT")))
+        val document = com.ztx.modules.document.DynamicDocument.new("PurchaseOrder", definition)
+
+        document["code"] = "PO-001"
+        document["total"] = "123.450"
+        document["order_date"] = "2026-11-28"
+
+        assertEquals("PO-001", document.getString("code"))
+        assertEquals(BigDecimal("123.450"), document.getDecimal("total"))
+        assertEquals(LocalDate.parse("2026-11-28"), document.getDate("order_date"))
+        assertEquals(0, document.version)
+        assertEquals(null, document.id)
+        assertEquals("DRAFT", document.getString("status"))
+        assertEquals(setOf("code", "total", "order_date"), document.dirtyFields())
+        assertEquals("PO-001", document.changes().getString("code"))
+        assertThrows(IllegalArgumentException::class.java) { document["unknown"] = "x" }
+        assertThrows(IllegalArgumentException::class.java) { document["locked"] = "x" }
+    }
+
+    /** Given 已加载 Document，When 修改嵌套 JSON 的读取副本，Then 不会绕过下标赋值污染原对象。 */
+    @Test
+    fun returnsDefensiveCopiesForNestedValues() {
+        val definition = JsonObject().put("fields", JsonArray()
+            .add(JsonObject().put("name", "details").put("type", "json")))
+        val original = JsonObject().put("id", UUID.randomUUID().toString()).put("version", 3)
+            .put("details", JsonObject().put("note", "original"))
+        val document = com.ztx.modules.document.DynamicDocument.loaded("Probe", definition, original)
+
+        val read = document["details"] as JsonObject
+        read.put("note", "mutated")
+
+        assertEquals("original", (document["details"] as JsonObject).getString("note"))
+        assertEquals(3, document.version)
+        assertEquals(emptySet<String>(), document.dirtyFields())
+    }
+}
