@@ -32,15 +32,15 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   }))
   await page.route('**/api/v1/tenant/documents/PurchaseOrder', route => route.fulfill({
     status: 201, contentType: 'application/json',
-    body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000099', supplier_name: '华东轴承', order_date: '2026-11-27', start_time: '08:30:00', lines: [], docstatus: 0 }),
+    body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000099', version: 1, supplier_name: '华东轴承', order_date: '2026-11-27', start_time: '08:30:00', lines: [], docstatus: 0 }),
   }))
   await page.route('**/api/v1/tenant/documents/PurchaseOrder/00000000-0000-0000-0000-000000000099', route => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000099', supplier_name: '华东轴承', order_date: '2026-11-27', lines: [], docstatus: 0 }),
+    body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000099', version: 1, supplier_name: '华东轴承', order_date: '2026-11-27', lines: [], docstatus: 0 }),
   }))
   await page.route('**/api/v1/tenant/documents/PurchaseOrder/00000000-0000-0000-0000-000000000099/actions/submit', route => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000099', supplier_name: '华东轴承', order_date: '2026-11-27', lines: [], docstatus: 1 }),
+    body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000099', version: 2, supplier_name: '华东轴承', order_date: '2026-11-27', lines: [], docstatus: 1 }),
   }))
 
   // When 用户打开元数据列表并创建采购订单

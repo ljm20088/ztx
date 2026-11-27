@@ -71,6 +71,8 @@ async function load() {
         jsonText[field.name] = JSON.stringify(document[field.name] ?? {}, null, 2)
       }
     }
+    if (route.query.saved === '1') message.value = '单据已保存'
+    savedSnapshot.value = currentSnapshot.value
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '加载单据失败'
   } finally {
