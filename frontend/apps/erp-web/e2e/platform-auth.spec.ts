@@ -57,7 +57,7 @@ test('首次启动自动显示初始化表单并创建管理员后直接登录',
   await expect(page.getByText('platform.admin').first()).toBeVisible()
 })
 
-test('平台管理员只看到独立的平台管理导航', async ({ page }) => {
+test('平台管理员使用统一工作台外壳和独立平台菜单', async ({ page }) => {
   await page.route('**/api/v1/platform/auth/me', route => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000001', username: 'platform.admin', mfaEnabled: false }),
@@ -78,8 +78,13 @@ test('平台管理员只看到独立的平台管理导航', async ({ page }) => 
   // When 平台管理员进入平台管理工作区
   await page.goto('/platform/operations')
 
-  // Then 页面使用独立导航，不出现企业业务菜单
-  await expect(page.getByRole('navigation', { name: '平台管理导航' })).toBeVisible()
+  // Then 页面使用统一工作台外壳，但只显示平台管理菜单
+  await expect(page.locator('.workspace-header')).toBeVisible()
+  await expect(page.getByRole('navigation', { name: '工作区标签' })).toBeVisible()
+  await expect(page.getByRole('complementary', { name: '一级菜单' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '全屏' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '通知' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '平台管理', exact: true })).toBeVisible()
   await expect(page.getByText('运维管理', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('采购管理')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: '运维管理' })).toBeVisible()
