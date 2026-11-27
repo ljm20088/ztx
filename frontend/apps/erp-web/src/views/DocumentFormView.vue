@@ -163,7 +163,7 @@ onMounted(() => { void load() })
           :label="field.label || field.name" :field-id="'doc-' + field.name" :required="field.required">
           <ZInput :id="'doc-' + field.name" :model-value="inputValue(document[field.name])"
             @update:model-value="setValue(field.name, $event)"
-            :type="field.type === 'date' ? 'date' : field.type === 'datetime' ? 'datetime-local' : ['decimal','money','integer'].includes(field.type) ? 'number' : 'text'"
+            :type="field.type === 'date' ? 'date' : field.type === 'datetime' ? 'datetime-local' : field.type === 'time' ? 'time' : ['decimal','money','integer'].includes(field.type) ? 'number' : 'text'"
             :disabled="busy || field.readOnly || docstatus !== 0" :step="['decimal','money'].includes(field.type) ? 'any' : undefined" />
         </ZFormField>
         <ZFormField v-else-if="field.type === 'select'" :label="field.label || field.name" :field-id="'doc-' + field.name" :required="field.required">

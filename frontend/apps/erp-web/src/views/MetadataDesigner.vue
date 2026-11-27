@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ZAlert, ZButton, ZFormField, ZInput } from '@ztx/ui'
 
-type FieldType = 'string'|'text'|'uuid'|'date'|'datetime'|'decimal'|'integer'|'boolean'|'reference'|'select'|'money'|'json'|'table'
+type FieldType = 'string'|'text'|'uuid'|'date'|'datetime'|'time'|'decimal'|'integer'|'boolean'|'reference'|'select'|'money'|'json'|'table'
 type MetadataField = {
   name: string
   label: string
@@ -26,7 +26,7 @@ type Definition = {
 type Diagnostic = { code: string; path: string; message: string }
 type DefinitionRow = { doctype: string; version: number; status: string }
 
-const fieldTypes: FieldType[] = ['string','text','uuid','date','datetime','decimal','integer','boolean','reference','select','money','json','table']
+const fieldTypes: FieldType[] = ['string','text','uuid','date','datetime','time','decimal','integer','boolean','reference','select','money','json','table']
 const rows = ref<DefinitionRow[]>([])
 const selectedDoctype = ref('')
 const version = ref<number|null>(null)

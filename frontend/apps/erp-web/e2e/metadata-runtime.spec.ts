@@ -9,12 +9,13 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
     fields: [
       { name: 'supplier_name', label: '供应商', type: 'string', required: true },
       { name: 'order_date', label: '订单日期', type: 'date', required: true },
+      { name: 'start_time', label: '开始时间', type: 'time', required: true },
       { name: 'lines', label: '订单明细', type: 'table', childFields: [
         { name: 'item_code', label: '物料编码', type: 'string', required: true },
         { name: 'quantity', label: '数量', type: 'decimal', required: true },
       ] },
     ],
-    form: { fields: ['supplier_name', 'order_date', 'lines'] },
+    form: { fields: ['supplier_name', 'order_date', 'start_time', 'lines'] },
     list: { columns: ['supplier_name', 'order_date'], filters: ['supplier_name'], sort: ['order_date'], search: ['supplier_name'] },
     permissions: { read: ['TENANT_ADMIN'], create: ['TENANT_ADMIN'], update: ['TENANT_ADMIN'], submit: ['TENANT_ADMIN'] },
   }
@@ -31,7 +32,7 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   }))
   await page.route('**/api/v1/tenant/documents/PurchaseOrder', route => route.fulfill({
     status: 201, contentType: 'application/json',
-    body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000099', supplier_name: '华东轴承', order_date: '2026-11-27', lines: [], docstatus: 0 }),
+    body: JSON.stringify({ id: '00000000-0000-0000-0000-000000000099', supplier_name: '华东轴承', order_date: '2026-11-27', start_time: '08:30:00', lines: [], docstatus: 0 }),
   }))
   await page.route('**/api/v1/tenant/documents/PurchaseOrder/00000000-0000-0000-0000-000000000099', route => route.fulfill({
     status: 200, contentType: 'application/json',
@@ -50,6 +51,7 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   await expect(page.getByRole('heading', { name: 'PurchaseOrder' })).toBeVisible()
   await page.getByLabel('供应商').fill('华东轴承')
   await page.getByLabel('订单日期').fill('2026-11-27')
+  await page.getByLabel('开始时间').fill('08:30')
   await page.getByRole('button', { name: '添加明细' }).click()
   await page.locator('tbody input').nth(0).fill('BRG-001')
   await page.locator('tbody input').nth(1).fill('2.5')
