@@ -389,3 +389,55 @@ test('精简后的平台管理员登录页使用统一字号令牌', async ({ pa
   }))
   expect(typography).toEqual({ title: '18px', label: '13px', input: '13px', submit: '13px' })
 })
+
+
+test('表单未保存保护与工作区视图实例恢复', async ({ page }) => {
+  // Given 用户打开已有单据，后端返回当前 Document 版本
+  const documentId = '7b9f5b9e-10c8-4f10-9e42-2c2f8a1c91d2'
+  await page.route('**/api/v1/tenant/runtime/doctypes/PurchaseOrder', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ doctype: 'PurchaseOrder', definition: {
+      doctype: 'PurchaseOrder',
+      fields: [{ name: 'code', label: '采购单号', type: 'string', required: true }],
+    } }),
+  }))
+  await page.route(`**/api/v1/tenant/documents/PurchaseOrder/${documentId}`, route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ id: documentId, version: 1, docstatus: 0, code: 'PO-001' }),
+  }))
+  await page.goto(`/developer/documents/PurchaseOrder/${documentId}`)
+  await expect(page.locator('#doc-code')).toHaveValue('PO-001')
+
+  // When 修改单据后尝试切换到工作台，并在未保存提示中选择取消
+  await page.locator('#doc-code').fill('PO-EDITED')
+  const tabs = page.getByRole('navigation', { name: '工作区标签' })
+  page.once('dialog', dialog => dialog.dismiss())
+  await tabs.getByRole('button', { name: /工作台/ }).click()
+  await expect(page).toHaveURL(new RegExp(`/developer/documents/PurchaseOrder/${documentId}$`))
+
+  // Then 原表单保持打开且修改内容没有丢失
+  await expect(page.locator('#doc-code')).toHaveValue('PO-EDITED')
+
+  // When 用户再次切换并明确确认放弃修改
+  page.once('dialog', dialog => dialog.accept())
+  await tabs.getByRole('button', { name: /工作台/ }).click()
+  await expect(page).toHaveURL(/\/workspace$/)
+
+  // Then 工作区仍保留原表单 Tab，重新激活后表单实例仍在
+  await tabs.getByRole('button', { name: /元数据单据/ }).click()
+  await expect(page.locator('#doc-code')).toHaveValue('PO-EDITED')
+})
+
+test('报表使用独立的参数与结果视图', async ({ page }) => {
+  // Given 用户打开一个报表 Tab
+  await page.goto('/reports/inventory-summary')
+
+  // When 报表视图渲染
+  const report = page.getByTestId('report-view')
+
+  // Then 参数区和结果区独立存在，不复用 Document Form 或 List View
+  await expect(report).toBeVisible()
+  await expect(report.getByRole('region', { name: '报表参数' })).toBeVisible()
+  await expect(report.getByRole('region', { name: '报表结果' })).toBeVisible()
+  await expect(report.getByText('当前报表尚未配置数据集或查询定义。')).toBeVisible()
+})
