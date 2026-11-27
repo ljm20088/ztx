@@ -13,7 +13,9 @@ import io.vertx.sqlclient.Tuple
 import java.util.UUID
 
 /** Document 通用 CRUD 与生命周期；权限、持久化和审计在同一租户数据库事务中执行。 */
-class DocumentRuntimeRoutes {
+class DocumentRuntimeRoutes(
+    private val behaviors: DocumentBehaviorRegistry = DocumentBehaviorRegistry.load()
+) {
     private val identifier = Regex("[a-z][a-z0-9_]{0,62}")
     private val protectedSchemas = setOf("platform", "iam", "meta", "audit", "pg_catalog", "information_schema")
 
@@ -31,11 +33,20 @@ class DocumentRuntimeRoutes {
             authorize(definition, principal, "create")
             val values = DocumentValueCodec.decode(definition, body(context))
             enforceCompanyScope(definition, values, principal, requireValue = true)
+            val doctype = context.pathParam("doctype")
+            val behavior = behaviors.resolve(definition, doctype)
             principal.database.withTransaction { connection ->
-                insert(connection, definition, values, principal).compose { row ->
-                    val id = UUID.fromString(row.getString("id"))
-                    audit(connection, principal, context.pathParam("doctype"), id, "CREATE", null, row)
-                        .map { row }
+                val hookContext = DocumentBehaviorContext(doctype, definition, principal, connection)
+                val beforeCreate = behavior?.beforeCreate(hookContext, values) ?: Future.succeededFuture()
+                beforeCreate.compose {
+                    insert(connection, definition, values, principal).compose { row ->
+                        val id = UUID.fromString(row.getString("id"))
+                        val afterContext = hookContext.copy(documentId = id, after = row)
+                        (behavior?.afterCreate(afterContext, row) ?: Future.succeededFuture())
+                            .compose {
+                                audit(connection, principal, doctype, id, "CREATE", null, row).map { row }
+                            }
+                    }
                 }
             }.onSuccess { send(context, redact(definition, principal, it), 201) }
                 .onFailure { fail(context, status(it), it.message ?: "创建单据失败") }
@@ -59,15 +70,24 @@ class DocumentRuntimeRoutes {
             val id = UUID.fromString(context.pathParam("id"))
             val values = DocumentValueCodec.decode(definition, body(context))
             enforceCompanyScope(definition, values, principal, requireValue = false)
+            val doctype = context.pathParam("doctype")
+            val behavior = behaviors.resolve(definition, doctype)
             principal.database.withTransaction { connection ->
                 selectOne(connection, definition, id, principal, lock = true).compose { before ->
                     if (before.getInteger("docstatus", 0) != DocumentStatus.DRAFT.code) {
                         return@compose Future.failedFuture<JsonObject>("只有草稿单据可以修改")
                     }
-                    updateRow(connection, definition, id, values, principal).compose { after ->
-                        audit(connection, principal, context.pathParam("doctype"), id, "UPDATE", before, after)
-                            .map { after }
-                    }
+                    val hookContext = DocumentBehaviorContext(doctype, definition, principal, connection, id, before)
+                    (behavior?.beforeUpdate(hookContext, before, values) ?: Future.succeededFuture())
+                        .compose {
+                            updateRow(connection, definition, id, values, principal).compose { after ->
+                                val afterContext = hookContext.copy(after = after)
+                                (behavior?.afterUpdate(afterContext, before, after) ?: Future.succeededFuture())
+                                    .compose {
+                                        audit(connection, principal, doctype, id, "UPDATE", before, after).map { after }
+                                    }
+                            }
+                        }
                 }
             }.onSuccess { send(context, redact(definition, principal, it)) }
                 .onFailure { fail(context, status(it), it.message ?: "更新单据失败") }
@@ -78,18 +98,27 @@ class DocumentRuntimeRoutes {
         loadDefinition(principal, context.pathParam("doctype")).compose { definition ->
             val action = context.pathParam("action")
             authorize(definition, principal, action)
+            val doctype = context.pathParam("doctype")
+            val behavior = behaviors.resolve(definition, doctype)
             val id = UUID.fromString(context.pathParam("id"))
             principal.database.withTransaction { connection ->
                 selectOne(connection, definition, id, principal, lock = true).compose { before ->
-                    val next = DocumentLifecycle.transition(before.getInteger("docstatus", 0), action)
-                    val sql = "UPDATE " + tableSql(definition) +
-                        " SET \"docstatus\"=$1,\"updated_at\"=clock_timestamp() WHERE \"id\"=$2 AND \"docstatus\"=$3 RETURNING *"
-                    connection.preparedQuery(sql).execute(Tuple.of(next, id, before.getInteger("docstatus", 0)))
-                        .compose { rows ->
-                            val after = rows.firstOrNull()?.toJson()
-                                ?: return@compose Future.failedFuture<JsonObject>("单据状态已变化，请刷新后重试")
-                            audit(connection, principal, context.pathParam("doctype"), id, action.uppercase(), before, after)
-                                .map { after }
+                    val hookContext = DocumentBehaviorContext(doctype, definition, principal, connection, id, before, action)
+                    (behavior?.beforeAction(hookContext, before, action) ?: Future.succeededFuture())
+                        .compose {
+                            val next = DocumentLifecycle.transition(before.getInteger("docstatus", 0), action)
+                            val sql = "UPDATE " + tableSql(definition) +
+                                " SET \"docstatus\"=$1,\"updated_at\"=clock_timestamp() WHERE \"id\"=$2 AND \"docstatus\"=$3 RETURNING *"
+                            connection.preparedQuery(sql).execute(Tuple.of(next, id, before.getInteger("docstatus", 0)))
+                                .compose { rows ->
+                                    val after = rows.firstOrNull()?.toJson()
+                                        ?: return@compose Future.failedFuture<JsonObject>("单据状态已变化，请刷新后重试")
+                                    val afterContext = hookContext.copy(after = after)
+                                    (behavior?.afterAction(afterContext, before, after, action) ?: Future.succeededFuture())
+                                        .compose {
+                                            audit(connection, principal, doctype, id, action.uppercase(), before, after).map { after }
+                                        }
+                                }
                         }
                 }
             }.onSuccess { send(context, redact(definition, principal, it)) }

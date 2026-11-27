@@ -56,3 +56,44 @@ class DocumentRuntimeTest {
         }
     }
 }
+
+
+class DocumentBehaviorRegistryTest {
+    private class PurchaseOrderBehavior : com.ztx.modules.document.DocumentBehavior {
+        override val doctype = "pur_purchase_order"
+        override val mode = com.ztx.modules.document.DocumentExtensionMode.METADATA_WITH_KOTLIN_FILE
+    }
+
+    /** Given DocType 声明已注册的单文件 Kotlin 扩展，When 解析运行时实现，Then 返回对应行为对象。 */
+    @Test
+    fun resolvesRegisteredSingleFileBehavior() {
+        val behavior = PurchaseOrderBehavior()
+        val registry = com.ztx.modules.document.DocumentBehaviorRegistry(listOf(behavior))
+        val definition = JsonObject().put("extension", JsonObject()
+            .put("mode", "METADATA_WITH_KOTLIN_FILE")
+            .put("implementation", PurchaseOrderBehavior::class.qualifiedName))
+        assertEquals(behavior, registry.resolve(definition, "pur_purchase_order"))
+    }
+
+    /** Given DocType 声明的扩展模式与已注册实现不同，When 解析扩展，Then 拒绝执行不匹配实现。 */
+    @Test
+    fun rejectsExtensionModeMismatch() {
+        val registry = com.ztx.modules.document.DocumentBehaviorRegistry(listOf(PurchaseOrderBehavior()))
+        val definition = JsonObject().put("extension", JsonObject()
+            .put("mode", "KOTLIN_IMPLEMENTATION")
+            .put("implementation", PurchaseOrderBehavior::class.qualifiedName))
+        assertThrows(IllegalArgumentException::class.java) {
+            registry.resolve(definition, "pur_purchase_order")
+        }
+    }
+
+    /** Given 两个 Kotlin 实现声明同一 DocType，When 建立扩展注册表，Then 拒绝歧义注册。 */
+    @Test
+    fun rejectsDuplicateDoctypeImplementations() {
+        assertThrows(IllegalArgumentException::class.java) {
+            com.ztx.modules.document.DocumentBehaviorRegistry(
+                listOf(PurchaseOrderBehavior(), PurchaseOrderBehavior())
+            )
+        }
+    }
+}

@@ -25,3 +25,16 @@ Codec 支持 UUID、LocalDate、LocalDateTime、BigDecimal、Long、Boolean、JS
 ## 当前实现边界
 
 当前切片覆盖纯元数据 Document 的通用 CRUD、草稿/提交/撤销/作废、嵌套 JSON 明细、统一权限/事务/审计和动态表单。可插拔 Kotlin 业务文件与 Kotlin 专用实现注册机制尚未纳入此切片；复杂业务扩展模式需要后续实现和单独验收。
+
+
+## Kotlin 业务扩展
+
+Document Runtime 支持三种执行模式：
+
+- **纯元数据**：DocType 不声明 `extension`，由通用运行时处理。
+- **元数据 + 单 Kotlin 业务文件**：在业务模块中提供一个实现 `DocumentBehavior` 的 Kotlin 类；通常只覆盖需要的 `beforeCreate`、`beforeUpdate` 或 `beforeAction` 等 Hook。
+- **Kotlin 专用实现**：同样实现 `DocumentBehavior`，但可以覆盖完整生命周期 Hook，承载该 DocType 的专用业务规则。
+
+元数据通过 `extension.mode` 和 `extension.implementation` 指定模式及实现类全名。实现必须由服务端构建并部署到 classpath，并通过 Java `ServiceLoader` 注册（资源文件：`META-INF/services/com.ztx.modules.document.DocumentBehavior`，每行一个实现类全名）。服务启动时构建注册表；运行时只接受 DocType、模式和实现类名三者完全匹配的实现。
+
+**安全边界：** 不在运行时编译、加载或执行租户提交的 Kotlin 源码；Kotlin 扩展属于可信部署代码，必须经过代码审查和正常发布。扩展 Hook 接收当前事务的 `SqlConnection`，与单据写入、状态迁移和审计共用同一事务。Hook 抛出异常或返回失败 Future 时，整个事务回滚。
