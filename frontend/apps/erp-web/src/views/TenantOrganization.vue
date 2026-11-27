@@ -59,7 +59,7 @@ const columns=computed(()=>{
     starts_on:'开始日期',ends_on:'结束日期',display_name:'显示名称',last_login_at:'最近登录',
     module_key:'模块',role_code:'角色编码',role_name:'角色名称',permission_key:'权限标识',
     data_scope:'数据范围',field_permissions:'字段权限',master_data:'集团主数据',protected_fields:'保护字段',
-    master_name:'集团档案',local_data:'企业补充信息',position_name:'岗位名称',employment_id:'任职 ID',
+    master_name:'集团档案',position_name:'岗位名称',employment_id:'任职 ID',
     tax_number:'统一社会信用代码',legal_name:'法人名称',currency:'本位币',status:'状态',code:'编码',name:'名称',
     mobile:'手机',email:'邮箱',description:'说明',effect:'授权效果',category:'分类',
   } as Record<string,string>)[key]??key}))

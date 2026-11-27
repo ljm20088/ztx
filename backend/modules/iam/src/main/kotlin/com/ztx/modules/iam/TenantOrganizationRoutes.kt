@@ -316,8 +316,10 @@ class TenantOrganizationRoutes {
     private fun effectivePermissions(context:RoutingContext)=withAdmin(context){principal->
         val employmentId=parseId(context.pathParam("id"))?:return@withAdmin fail(context,400,"任职标识无效")
         val query="""SELECT rp.permission_key,rp.effect,rp.data_scope,rp.field_permissions::text AS field_permissions,
-            e.company_id,e.book_id,e.organization_unit_id
+            e.company_id,e.book_id,e.organization_unit_id,p.book_id AS position_book_id,
+            p.organization_unit_id AS position_organization_unit_id
             FROM hr.employment e JOIN hr.employment_position ep ON ep.employment_id=e.id
+            JOIN iam.job_position p ON p.id=ep.position_id
             JOIN iam.job_position_module_role pr ON pr.position_id=ep.position_id
             JOIN iam.role_permission rp ON rp.role_id=pr.role_id
             WHERE e.id=$1 AND e.status='ACTIVE' AND (e.ends_on IS NULL OR e.ends_on>=CURRENT_DATE)"""
@@ -328,15 +330,17 @@ class TenantOrganizationRoutes {
                     val permissions=JsonObject()
                     rows.groupBy { it.getString("permission_key") }.forEach { (key,grants) ->
                         val denied=grants.any { it.getString("effect")=="DENY" }
-                        val first=grants.first()
-                        val hasBook=first.getValue("book_id")!=null
-                        val hasUnit=first.getValue("organization_unit_id")!=null
-                        val maxScope=when { hasBook&&hasUnit->"BOOK_AND_SUBTREE";hasBook->"BOOK";hasUnit->"SUBTREE";else->"COMPANY" }
-                        val requested=grants.maxBy { scopeRank(it.getString("data_scope")) }.getString("data_scope")
-                        val scope=if(scopeRank(requested)>scopeRank(maxScope))maxScope else requested
-                        val constraints=JsonObject().put("companyId",first.getUUID("company_id").toString())
-                            .put("bookId",first.getValue("book_id")?.toString())
-                            .put("organizationUnitId",first.getValue("organization_unit_id")?.toString())
+                        val scopedGrants=grants.map { grant ->
+                            val bookId=grant.getValue("position_book_id")?:grant.getValue("book_id")
+                            val unitId=grant.getValue("position_organization_unit_id")?:grant.getValue("organization_unit_id")
+                            val maxScope=when { bookId!=null&&unitId!=null->"BOOK_AND_SUBTREE";bookId!=null->"BOOK";unitId!=null->"SUBTREE";else->"COMPANY" }
+                            val requested=grant.getString("data_scope")
+                            val effectiveScope=if(scopeRank(requested)>scopeRank(maxScope))maxScope else requested
+                            Pair(effectiveScope,JsonObject().put("companyId",grant.getUUID("company_id").toString())
+                                .put("bookId",bookId?.toString()).put("organizationUnitId",unitId?.toString()))
+                        }
+                        val scope=scopedGrants.maxBy { scopeRank(it.first) }.first
+                        val constraints=JsonObject().put("allowedScopes",JsonArray(scopedGrants.map { it.second }))
                         val fieldModes=mutableMapOf<String,String>()
                         grants.forEach { row ->
                             val fields=runCatching { JsonObject(row.getString("field_permissions")) }.getOrDefault(JsonObject())
@@ -472,12 +476,16 @@ class TenantOrganizationRoutes {
         val permissionQuery="""SELECT e.company_id::text AS company_id
             FROM hr.employment e
             JOIN hr.employment_position ep ON ep.employment_id=e.id
+            JOIN iam.job_position p ON p.id=ep.position_id
             JOIN iam.job_position_module_role pr ON pr.position_id=ep.position_id
             JOIN iam.role_permission rp ON rp.role_id=pr.role_id
             WHERE e.user_id=$1 AND e.status='ACTIVE' AND (e.ends_on IS NULL OR e.ends_on>=CURRENT_DATE)
               AND rp.permission_key='organization.manage'
             GROUP BY e.company_id
-            HAVING bool_or(rp.effect='ALLOW') AND NOT bool_or(rp.effect='DENY')"""
+            HAVING bool_or(rp.effect='ALLOW' AND rp.data_scope IN ('COMPANY','TENANT','ALL')
+                AND e.book_id IS NULL AND e.organization_unit_id IS NULL
+                AND p.book_id IS NULL AND p.organization_unit_id IS NULL)
+              AND NOT bool_or(rp.effect='DENY')"""
         principal.database.withTransaction { connection ->
             connection.preparedQuery(permissionQuery).execute(Tuple.of(principal.userId)).map { rows ->
                 rows.map { UUID.fromString(it.getString("company_id")) }.toSet()

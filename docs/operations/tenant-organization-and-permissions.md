@@ -26,7 +26,7 @@
 对任职关联的全部岗位及模块角色执行合并：
 
 1. 同一权限标识只要出现显式 `DENY`，最终结果就是拒绝；否则按 `ALLOW` 授权。
-2. 多角色数据范围取可授予范围的并集，再裁剪到任职企业、账套和组织范围。有效权限结果同时返回 `scopeConstraints`，业务查询必须同时应用这些约束。
+2. 多角色数据范围取可授予范围的并集，再裁剪到任职企业、账套和组织范围。有效权限结果同时返回 `scopeConstraints.allowedScopes`，每项分别保留岗位、账套和组织边界；业务查询必须逐项应用这些约束。
 3. 数据范围支持 `SELF`、`UNIT`、`SUBTREE`、`BOOK`、`COMPANY` 和 `TENANT`。
 4. 字段权限采用限制更严格的结果：`HIDDEN > MASKED > READ_ONLY > EDITABLE > VISIBLE`。
 5. 未配置的权限不返回授权结果，业务 API 应按默认拒绝处理。
@@ -62,6 +62,3 @@
 - PostgreSQL/Testcontainers：租户迁移、模型独立性、跨企业岗位约束、业务用户登录、企业管理员数据范围和有效权限合并。
 - BDD 场景及关键测试注释采用中文 Given-When-Then。
 - Playwright：企业、账套管理流程和任职权限合并展示。
-
-
-> CI 验收状态以对应 Pull Request 的实际工作流结果为准；未执行的检查不得标记为通过。
