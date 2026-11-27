@@ -17,20 +17,18 @@ internal fun allowsLoopbackInitialization(
 ): Boolean {
     if (remoteHost == null || hostHeader.isNullOrBlank() || hasForwardedHeaders) return false
     val authority = hostHeader.trim().lowercase()
-    val host: String
-    val validAuthority = if (authority.startsWith("[")) {
+    val host = if (authority.startsWith("[")) {
         val closingBracket = authority.indexOf(']')
         if (closingBracket < 0) return false
-        host = authority.substring(1, closingBracket)
         val suffix = authority.substring(closingBracket + 1)
-        suffix.isEmpty() || suffix.matches(Regex(":[0-9]{1,5}"))
+        if (suffix.isNotEmpty() && !suffix.matches(Regex(":[0-9]{1,5}"))) return false
+        authority.substring(1, closingBracket)
     } else {
         val parts = authority.split(':')
-        if (parts.size > 2) return false
-        host = parts[0]
-        parts.size == 1 || parts[1].matches(Regex("[0-9]{1,5}"))
+        if (parts.size > 2 || (parts.size == 2 && !parts[1].matches(Regex("[0-9]{1,5}")))) return false
+        parts[0]
     }
-    if (!validAuthority || host !in setOf("localhost", "127.0.0.1", "::1")) return false
+    if (host !in setOf("localhost", "127.0.0.1", "::1")) return false
     val isLoopback = runCatching { InetAddress.getByName(remoteHost).isLoopbackAddress }.getOrDefault(false)
     return isLoopback
 }
