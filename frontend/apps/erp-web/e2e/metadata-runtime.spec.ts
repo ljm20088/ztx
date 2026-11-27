@@ -47,6 +47,9 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   await page.goto('/developer/lists/PurchaseOrder')
   await expect(page.getByText('华东轴承')).toBeVisible()
   await expect(page.getByText('共 21 条')).toBeVisible()
+  await page.getByRole('button', { name: '筛选' }).click()
+  await page.getByPlaceholder('搜索列表字段').fill('华东轴承')
+  await page.getByPlaceholder('搜索列表字段').press('Enter')
   await page.getByRole('button', { name: '新建' }).click()
   await expect(page.getByRole('heading', { name: '基本信息' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'PurchaseOrder' })).toHaveCount(0)
@@ -62,4 +65,9 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   await expect(page.getByText('单据已保存')).toBeVisible()
   await page.getByRole('button', { name: '提交' }).click()
   await expect(page.getByText('单据已提交')).toBeVisible()
+
+  // And 从工作区标签返回列表时，筛选面板与搜索条件仍保留
+  const tabs = page.getByRole('navigation', { name: '工作区标签' })
+  await tabs.locator('button.workspace-tab').filter({ hasText: '元数据列表' }).click()
+  await expect(page.getByPlaceholder('搜索列表字段')).toHaveValue('华东轴承')
 })
