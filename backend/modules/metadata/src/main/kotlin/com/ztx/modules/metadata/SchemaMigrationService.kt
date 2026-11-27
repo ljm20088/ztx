@@ -153,8 +153,8 @@ class SchemaMigrationService {
         val schema = plan.getString("schema")
         val table = plan.getString("table")
         val tableSql = "\"$schema\".\"$table\""
-        return connection.query("CREATE SCHEMA IF NOT EXISTS \"$schema\"").execute().mapEmpty()
-            .compose {
+        return connection.query("CREATE SCHEMA IF NOT EXISTS \"$schema\"").execute()
+            .compose { _ ->
                 connection.preparedQuery(
                     """SELECT EXISTS (SELECT 1 FROM information_schema.tables
                        WHERE table_schema=$1 AND table_name=$2 AND table_type='BASE TABLE') AS present"""
