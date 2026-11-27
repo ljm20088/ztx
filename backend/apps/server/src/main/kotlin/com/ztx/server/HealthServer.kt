@@ -7,6 +7,8 @@ import com.ztx.modules.iam.TenantAuthRoutes
 import com.ztx.modules.iam.TenantOrganizationRoutes
 import com.ztx.modules.metadata.MetadataRoutes
 import com.ztx.modules.metadata.MetadataQueryRoutes
+import com.ztx.modules.document.DocumentRuntimeRoutes
+import com.ztx.modules.metadata.MetadataQueryRoutes
 import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpServer
@@ -25,6 +27,8 @@ class HealthServer(
     private val tenantAuthRoutes: TenantAuthRoutes? = null,
     private val tenantOrganizationRoutes: TenantOrganizationRoutes? = null,
     private val metadataRoutes: MetadataRoutes? = null,
+    private val metadataQueryRoutes: MetadataQueryRoutes? = null,
+    private val documentRuntimeRoutes: DocumentRuntimeRoutes? = null,
     private val metadataQueryRoutes: MetadataQueryRoutes? = null
 ) {
     private val startedAt = Instant.now()
@@ -37,6 +41,8 @@ class HealthServer(
         tenantAuthRoutes?.register(router)
         tenantOrganizationRoutes?.register(router)
         metadataRoutes?.register(router)
+        metadataQueryRoutes?.register(router)
+        documentRuntimeRoutes?.register(router)
         metadataQueryRoutes?.register(router)
 
         router.route().failureHandler { context ->

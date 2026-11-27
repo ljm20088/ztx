@@ -5,6 +5,7 @@ import com.ztx.adapters.postgres.PgDatabase
 import com.ztx.adapters.postgres.PostgresModule
 import com.ztx.adapters.postgres.PostgresOutboxStore
 import com.ztx.modules.document.DocumentRuntimeModule
+import com.ztx.modules.document.DocumentRuntimeRoutes
 import com.ztx.modules.iam.IamModule
 import com.ztx.modules.iam.PlatformAuthRoutes
 import com.ztx.modules.iam.PlatformAuthService
@@ -83,7 +84,7 @@ fun main(args: Array<String>) {
                 HealthServer(
                     vertx, database, config.httpHost, config.httpPort,
                     PlatformAuthRoutes(authService, config.secureCookies), tenantRoutes, tenantAuthRoutes,
-                    TenantOrganizationRoutes(), MetadataRoutes(), MetadataQueryRoutes()
+                    TenantOrganizationRoutes(), MetadataRoutes(), MetadataQueryRoutes(), DocumentRuntimeRoutes()
                 ).start()
             }
             .onSuccess { logger.info("ZTX API Server 已启动，监听 {}:{}", config.httpHost, config.httpPort) }

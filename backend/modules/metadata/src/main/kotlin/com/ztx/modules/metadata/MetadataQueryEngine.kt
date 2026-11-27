@@ -74,7 +74,7 @@ object MetadataQueryEngine {
                 where += "FALSE"
             } else {
                 values.add(companyIds.toTypedArray())
-                where += "\"company_id\" = ANY($${values.size}::uuid[])"
+                where += "\"company_id\" = ANY(${'$'}${values.size}::uuid[])"
             }
         }
 
@@ -83,7 +83,7 @@ object MetadataQueryEngine {
                 values += search
                 val index = values.size
                 where += searchable.joinToString(" OR ", prefix = "(", postfix = ")") {
-                    "position(lower($${index}) in lower(\"$it\")) > 0"
+                    "position(lower(${'$'}${index}) in lower(\"$it\")) > 0"
                 }
             }
         }
@@ -107,7 +107,7 @@ object MetadataQueryEngine {
         selectValues += pageSize
         selectValues += (page - 1) * pageSize
         val selectSql = "SELECT " + selected.joinToString(", ") { "\"$it\"" } +
-            from + whereSql + orderSql + " LIMIT $${selectValues.size - 1} OFFSET $${selectValues.size}"
+            from + whereSql + orderSql + " LIMIT ${'$'}${selectValues.size - 1} OFFSET ${'$'}${selectValues.size}"
         return CompiledMetadataQuery(selectSql, countSql, selectValues, values.toList())
     }
 
@@ -137,12 +137,12 @@ object MetadataQueryEngine {
         if (operator == "in") {
             val items = value as? JsonArray ?: invalid("in 操作符的值必须是数组")
             if (items.isEmpty || items.size() > 100) invalid("in 操作符数组长度不合法")
-            val placeholders = items.map { item -> values += item; "$${values.size}" }
+            val placeholders = items.map { item -> values += item; "${'$'}${values.size}" }
             return "\"$field\" IN (${placeholders.joinToString(", ")})"
         }
         if (operator == "contains" || operator == "startsWith") {
             values += value.toString()
-            val parameter = "$${values.size}"
+            val parameter = "${'$'}${values.size}"
             return if (operator == "contains")
                 "position(lower($parameter) in lower(\"$field\")) > 0"
             else
@@ -158,7 +158,7 @@ object MetadataQueryEngine {
             else -> invalid("不支持的筛选操作符")
         }
         values += value
-        return "\"$field\" $sqlOperator $${values.size}"
+        return "\"$field\" $sqlOperator ${'$'}${values.size}"
     }
 
     private fun requireIdentifier(value: String, label: String) {

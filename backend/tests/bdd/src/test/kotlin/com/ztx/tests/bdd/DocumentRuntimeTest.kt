@@ -1,0 +1,58 @@
+package com.ztx.tests.bdd
+
+import com.ztx.modules.document.DocumentLifecycle
+import com.ztx.modules.document.DocumentValueCodec
+import io.vertx.core.json.JsonArray
+import io.vertx.core.json.JsonObject
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Test
+import java.math.BigDecimal
+import java.time.LocalDate
+import java.util.UUID
+
+class DocumentRuntimeTest {
+    /** Given 元数据定义金额、日期和嵌套明细，When 接收 JSON，Then 转换为精确 Kotlin 类型。 */
+    @Test
+    fun jsonValuesAreConvertedByMetadataTypes() {
+        val definition = JsonObject().put("fields", JsonArray()
+            .add(JsonObject().put("name", "supplier_id").put("type", "uuid"))
+            .add(JsonObject().put("name", "order_date").put("type", "date"))
+            .add(JsonObject().put("name", "total").put("type", "money"))
+            .add(JsonObject().put("name", "lines").put("type", "table").put("childFields", JsonArray()
+                .add(JsonObject().put("name", "quantity").put("type", "decimal").put("required", true)))))
+        val input = JsonObject().put("supplier_id", "00000000-0000-0000-0000-000000000001")
+            .put("order_date", "2026-11-27").put("total", "123456789.123456")
+            .put("lines", JsonArray().add(JsonObject().put("quantity", "2.500")))
+        val result = DocumentValueCodec.decode(definition, input)
+        assertEquals(UUID.fromString("00000000-0000-0000-0000-000000000001"), result.getValue("supplier_id"))
+        assertEquals(LocalDate.parse("2026-11-27"), result.getValue("order_date"))
+        assertEquals(BigDecimal("123456789.123456"), result.getValue("total"))
+        assertEquals(BigDecimal("2.500"), result.getJsonArray("lines").getJsonObject(0).getValue("quantity"))
+    }
+
+    /** Given JSON 缺少必填字段，When 转换 Document，Then 返回稳定字段错误。 */
+    @Test
+    fun missingRequiredFieldIsRejected() {
+        val definition = JsonObject().put("fields", JsonArray()
+            .add(JsonObject().put("name", "code").put("type", "string").put("required", true)))
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            DocumentValueCodec.decode(definition, JsonObject())
+        }
+        assertEquals("字段 code 为必填项", error.message)
+    }
+
+    /** Given 单据处于草稿，When 执行提交动作，Then 状态变为已提交。 */
+    @Test
+    fun draftCanBeSubmitted() {
+        assertEquals(1, DocumentLifecycle.transition(0, "submit"))
+    }
+
+    /** Given 单据已经提交，When 再次提交，Then 拒绝非法状态迁移。 */
+    @Test
+    fun submittedDocumentCannotBeSubmittedAgain() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DocumentLifecycle.transition(1, "submit")
+        }
+    }
+}

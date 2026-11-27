@@ -15,7 +15,7 @@ data class MetadataDiagnostic(
 object MetadataDefinitionValidator {
     private val doctypePattern = Regex("[A-Za-z][A-Za-z0-9_]{0,119}")
     private val identifierPattern = Regex("[a-z][a-z0-9_]{0,62}")
-    private val supportedTypes = setOf("string", "text", "uuid", "date", "datetime", "decimal", "integer", "boolean", "reference", "select", "money", "json")
+    private val supportedTypes = setOf("string", "text", "uuid", "date", "datetime", "decimal", "integer", "boolean", "reference", "select", "money", "json", "table")
     private val dangerousContent = Regex("(?i)<\\s*/?\\s*(script|iframe|object|embed)\\b|javascript\\s*:|on(error|load|click)\\s*=")
 
     fun validate(definition: JsonObject, knownDefinitions: Map<String, JsonObject> = emptyMap()): List<MetadataDiagnostic> {
@@ -70,6 +70,22 @@ object MetadataDefinitionValidator {
                 val options = field.getJsonArray("options") ?: JsonArray()
                 if (options.isEmpty || options.any { it !is String || it.isBlank() }) {
                     errors += MetadataDiagnostic("SELECT_OPTIONS_REQUIRED", "$path.options", "下拉字段必须提供非空选项")
+                }
+            }
+            if (type == "table") {
+                val children = field.getJsonArray("childFields") ?: JsonArray()
+                if (children.isEmpty || children.size() > 100) {
+                    errors += MetadataDiagnostic("CHILD_FIELDS_REQUIRED", "$path.childFields", "明细字段必须定义 1 到 100 个子字段")
+                }
+                val childNames = mutableSetOf<String>()
+                children.forEachIndexed { childIndex, rawChild ->
+                    val child = rawChild as? JsonObject
+                    val childName = child?.getString("name", "")?.trim().orEmpty()
+                    if (child == null || !identifierPattern.matches(childName) || !childNames.add(childName)) {
+                        errors += MetadataDiagnostic("INVALID_CHILD_FIELD", "$path.childFields[$childIndex]", "明细子字段标识不合法或重复")
+                    } else if (child.getString("type", "") !in supportedTypes - "table") {
+                        errors += MetadataDiagnostic("UNSUPPORTED_CHILD_FIELD_TYPE", "$path.childFields[$childIndex].type", "明细子字段类型不支持或不能嵌套明细表")
+                    }
                 }
             }
             if (field.containsKey("defaultValue") && !validDefault(type, field.getValue("defaultValue"))) {
