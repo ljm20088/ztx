@@ -417,11 +417,13 @@ test('表单未保存保护与工作区视图实例恢复', async ({ page }) => 
 
   // Then 原表单保持打开且修改内容没有丢失
   await expect(page.locator('#doc-code')).toHaveValue('PO-EDITED')
+  await expect(tabs.getByLabel('未保存修改')).toBeVisible()
 
   // When 用户再次切换并明确确认放弃修改
   page.once('dialog', dialog => dialog.accept())
   await tabs.getByRole('button', { name: /工作台/ }).click()
   await expect(page).toHaveURL(/\/workspace$/)
+  await expect(tabs.getByLabel('未保存修改')).toHaveCount(0)
 
   // Then 用户已确认放弃修改，重新激活表单时显示数据库中的原值
   await tabs.locator('button.workspace-tab').filter({ hasText: '元数据单据' }).click()

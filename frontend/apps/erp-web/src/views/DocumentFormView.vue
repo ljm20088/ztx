@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ZAlert, ZButton, ZFormField, ZInput } from '@ztx/ui'
+import { useWorkspaceStore } from '../stores/workspace'
 
 type Field = {
   name: string; label?: string; type: string; required?: boolean; readOnly?: boolean
@@ -11,6 +12,7 @@ type Definition = { doctype: string; fields: Field[]; form?: { fields?: string[]
 type DocumentData = Record<string, unknown>
 const route = useRoute()
 const router = useRouter()
+const workspace = useWorkspaceStore()
 const definition = ref<Definition | null>(null)
 const document = reactive<DocumentData>({})
 const jsonText = reactive<Record<string, string>>({})
@@ -20,10 +22,24 @@ const message = ref('')
 const savedSnapshot = ref('')
 const currentSnapshot = computed(() => JSON.stringify({ document, jsonText }))
 const isDirty = computed(() => savedSnapshot.value !== '' && savedSnapshot.value !== currentSnapshot.value)
+watch(isDirty, dirty => workspace.setDirty(route.path, dirty), { immediate: true })
+
+function restoreSnapshot() {
+  if (!savedSnapshot.value) return
+  const snapshot = JSON.parse(savedSnapshot.value) as { document: DocumentData; jsonText: Record<string, string> }
+  Object.keys(document).forEach(key => { if (!(key in snapshot.document)) delete document[key] })
+  Object.assign(document, snapshot.document)
+  Object.keys(jsonText).forEach(key => { if (!(key in snapshot.jsonText)) delete jsonText[key] })
+  Object.assign(jsonText, snapshot.jsonText)
+}
+
 onBeforeRouteLeave(() => {
   // Given 用户编辑了单据但尚未保存，When 切换工作区标签或离开表单，Then 必须明确确认而不能静默丢弃。
   if (!isDirty.value) return true
-  return window.confirm('当前单据有未保存的修改，确定放弃这些修改吗？')
+  if (!window.confirm('当前单据有未保存的修改，确定放弃这些修改吗？')) return false
+  restoreSnapshot()
+  workspace.setDirty(route.path, false)
+  return true
 })
 const doctype = computed(() => String(route.params.doctype ?? ''))
 const documentId = computed(() => route.params.id ? String(route.params.id) : '')

@@ -116,6 +116,8 @@ async function activateTab(path:string){workspace.activateTab(path);await router
 async function closeTab(path:string,event:Event){
  event.stopPropagation()
  const wasActive=workspace.activePath===path
+ const tab=workspace.tabs.find(item=>item.path===path)
+ if(!wasActive&&tab?.dirty&&!window.confirm('该标签页有未保存的修改，确定关闭并放弃吗？'))return
  if(wasActive){
   const remaining=workspace.tabs.filter(tab=>tab.path!==path)
   const fallback=remaining[Math.max(0,workspace.tabs.findIndex(tab=>tab.path===path)-1)]?.path??remaining[0]?.path
@@ -172,6 +174,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
           @click="activateTab(tab.path)"
         >
           <span>{{ tab.title }}</span>
+          <span v-if="tab.dirty" class="size-1.5 rounded-full bg-ztx-warning" aria-label="未保存修改" />
           <span
             v-if="tab.closable"
             class="tab-close grid size-[18px] place-items-center rounded text-ztx-muted hover:bg-ztx-border hover:text-ztx-text"

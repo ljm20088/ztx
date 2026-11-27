@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-export interface WorkspaceTab { path: string; title: string; closable: boolean }
+export interface WorkspaceTab { path: string; title: string; closable: boolean; dirty?: boolean }
 type WorkspaceMode = 'tenant' | 'platform'
 
 export const useWorkspaceStore = defineStore('workspace', () => {
@@ -24,6 +24,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     else tenantActivePath.value = tab.path
   }
 
+  function setDirty(path: string, dirty: boolean) {
+    const tab = tabs.value.find(item => item.path === path)
+    if (tab) tab.dirty = dirty
+  }
+
   function activateTab(path: string) {
     if (tabs.value.some(item => item.path === path)) {
       if (mode.value === 'platform') platformActivePath.value = path
@@ -44,5 +49,5 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  return { mode, tabs, activePath, setMode, openTab, activateTab, closeTab }
+  return { mode, tabs, activePath, setMode, openTab, activateTab, setDirty, closeTab }
 })
