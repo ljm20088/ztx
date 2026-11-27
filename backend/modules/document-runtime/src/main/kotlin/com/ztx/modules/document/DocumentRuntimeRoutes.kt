@@ -114,11 +114,31 @@ class DocumentRuntimeRoutes {
                 """SELECT definition_json FROM meta.document_definition
                    WHERE scope='TENANT' AND doctype=$1 AND status='VALIDATED'
                    ORDER BY version DESC LIMIT 1"""
-            ).execute(Tuple.of(doctype)).map { rows ->
-                rows.firstOrNull()?.getJsonObject("definition_json")
-                    ?: throw IllegalArgumentException("DocType 不存在或尚未通过校验")
+            ).execute(Tuple.of(doctype)).compose { rows ->
+                val definition = rows.firstOrNull()?.getJsonObject("definition_json")
+                    ?: return@compose Future.failedFuture<JsonObject>("DocType 不存在或尚未通过校验")
+                validateScopeFields(connection, definition).map { definition }
             }
         }
+
+    private fun validateScopeFields(connection: SqlConnection, definition: JsonObject): Future<Void> {
+        val table = definition.getJsonObject("table") ?: return Future.failedFuture("缺少物理表映射")
+        tableSql(definition)
+        return connection.preparedQuery(
+            """SELECT column_name FROM information_schema.columns
+               WHERE table_schema=$1 AND table_name=$2
+                 AND column_name = ANY($3::text[])"""
+        ).execute(Tuple.of(table.getString("schema"), table.getString("name"),
+            arrayOf("company_id", "book_id", "organization_unit_id"))).map { columns ->
+            val physical = columns.map { it.getString("column_name") }.toSet()
+            val declared = (definition.getJsonArray("fields") ?: JsonArray()).filterIsInstance<JsonObject>()
+                .mapNotNull { it.getString("name") }.toSet()
+            val missing = physical - declared
+            if (missing.isNotEmpty()) throw IllegalArgumentException(
+                "DocType 必须声明物理表的数据范围字段：" + missing.sorted().joinToString()
+            )
+        }.mapEmpty()
+    }
 
     private fun insert(
         connection: SqlConnection,

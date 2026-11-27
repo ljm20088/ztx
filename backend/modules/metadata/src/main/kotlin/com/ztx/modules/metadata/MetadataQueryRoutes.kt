@@ -3,11 +3,13 @@ package com.ztx.modules.metadata
 import com.ztx.modules.iam.TENANT_CONTEXT_KEY
 import com.ztx.modules.iam.TenantPrincipal
 import io.vertx.core.Future
+import io.vertx.core.Future
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.BodyHandler
+import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
 /** 元数据列表查询入口；认证主体和租户数据库只取自全局认证上下文。 */
@@ -37,18 +39,20 @@ class MetadataQueryRoutes {
                 if (permissions != null && !permissions.isEmpty && permissions.none {
                     it == principal.role || it == "TENANT_ADMIN"
                 }) return@compose Future.failedFuture<JsonObject>("无权读取此 DocType")
-                val compiled = MetadataQueryEngine.compile(definition, request, principal.role, principal.companyIds, principal.bookIds, principal.organizationUnitIds)
-                connection.preparedQuery(compiled.countSql).execute(Tuple.from(compiled.countParameters))
-                    .compose { countRows ->
-                        val total = countRows.first().getLong("total")
-                        connection.preparedQuery(compiled.selectSql).execute(Tuple.from(compiled.selectParameters))
-                            .map { rows ->
-                                JsonObject().put("items", JsonArray(rows.map { it.toJson() }))
-                                    .put("total", total)
-                                    .put("page", request.getInteger("page", 1).coerceIn(1, 100000))
-                                    .put("pageSize", request.getInteger("pageSize", 20).coerceIn(1, 200))
-                            }
-                    }
+                validateScopeFields(connection, definition).compose {
+                    val compiled = MetadataQueryEngine.compile(definition, request, principal.role, principal.companyIds, principal.bookIds, principal.organizationUnitIds)
+                    connection.preparedQuery(compiled.countSql).execute(Tuple.from(compiled.countParameters))
+                        .compose { countRows ->
+                            val total = countRows.first().getLong("total")
+                            connection.preparedQuery(compiled.selectSql).execute(Tuple.from(compiled.selectParameters))
+                                .map { rows ->
+                                    JsonObject().put("items", JsonArray(rows.map { it.toJson() }))
+                                        .put("total", total)
+                                        .put("page", request.getInteger("page", 1).coerceIn(1, 100000))
+                                        .put("pageSize", request.getInteger("pageSize", 20).coerceIn(1, 200))
+                                }
+                        }
+                }
             }
         }.onSuccess { result ->
             context.response().putHeader("cache-control", "no-store")
@@ -71,4 +75,22 @@ class MetadataQueryRoutes {
             .putHeader("content-type", "application/json; charset=utf-8")
             .end(JsonObject().put("error", JsonObject().put("code", "QUERY_REJECTED").put("message", message)).encode())
     }
-}
+}    private fun validateScopeFields(connection: SqlConnection, definition: JsonObject): Future<Void> {
+        val table = definition.getJsonObject("table") ?: return Future.failedFuture<Void>("缺少物理表映射")
+        return connection.preparedQuery(
+            """SELECT column_name FROM information_schema.columns
+               WHERE table_schema=$1 AND table_name=$2
+                 AND column_name = ANY($3::text[])"""
+        ).execute(Tuple.of(table.getString("schema"), table.getString("name"),
+            arrayOf("company_id", "book_id", "organization_unit_id"))).map { columns ->
+            val physical = columns.map { it.getString("column_name") }.toSet()
+            val declared = (definition.getJsonArray("fields") ?: JsonArray()).filterIsInstance<JsonObject>()
+                .mapNotNull { it.getString("name") }.toSet()
+            val missing = physical - declared
+            if (missing.isNotEmpty()) throw IllegalArgumentException(
+                "DocType 必须声明物理表的数据范围字段：" + missing.sorted().joinToString()
+            )
+        }.mapEmpty()
+    }
+
+
