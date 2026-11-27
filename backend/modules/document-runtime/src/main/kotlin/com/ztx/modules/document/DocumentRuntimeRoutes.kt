@@ -103,7 +103,7 @@ class DocumentRuntimeRoutes(
             val id = UUID.fromString(context.pathParam("id"))
             principal.database.withTransaction { connection ->
                 selectOne(connection, definition, id, principal, lock = true).compose { before ->
-                    val hookContext = DocumentBehaviorContext(doctype, definition, principal, connection, id, before, action)
+                    val hookContext = DocumentBehaviorContext(doctype, definition, principal, connection, id, before, action = action)
                     (behavior?.beforeAction(hookContext, before, action) ?: Future.succeededFuture())
                         .compose {
                             val next = DocumentLifecycle.transition(before.getInteger("docstatus", 0), action)

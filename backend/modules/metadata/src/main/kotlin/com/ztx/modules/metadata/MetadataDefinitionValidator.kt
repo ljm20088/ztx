@@ -112,7 +112,7 @@ object MetadataDefinitionValidator {
 
         definition.getJsonObject("permissions")?.let { permissions ->
             permissions.fieldNames().forEach { action ->
-                if (action !in setOf("read", "create", "update", "delete", "submit", "cancel")) {
+                if (action !in setOf("read", "create", "update", "delete", "submit", "cancel", "void")) {
                     errors += MetadataDiagnostic("INVALID_PERMISSION_ACTION", "permissions.$action", "不支持的权限动作")
                 }
                 val roles = permissions.getJsonArray(action)
