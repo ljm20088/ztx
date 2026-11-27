@@ -187,6 +187,20 @@ class DocumentRuntimeIntegrationTest {
             assertEquals("PO-DB-003", dbUpdated.getString("code"))
             assertEquals(3, dbUpdated.version)
 
+            val scopedRead = database.withTransaction { connection ->
+                val db = Db(principal, connection)
+                db.transaction { scoped ->
+                    scoped.exists("DocumentProbe", UUID.fromString(documentId)).compose { exists ->
+                        scoped.getAll("DocumentProbe", listOf(UUID.fromString(documentId))).map { documents ->
+                            exists to documents
+                        }
+                    }
+                }
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertTrue(scopedRead.first)
+            assertEquals(1, scopedRead.second.size)
+            assertEquals("PO-DB-003", scopedRead.second.single().getString("code"))
+
             val submitted = sendJson(client, "$base/$documentId/actions/submit", "POST",
                 JsonObject().put("version", dbUpdated.version))
             assertEquals(200, submitted.statusCode())

@@ -36,6 +36,9 @@ DocumentBehaviorContext 提供租户作用域化的 context.db，业务代码不
 - db.update(document)：只保存显式修改的字段，使用 Document 版本进行乐观锁校验；成功后返回新版本 Document。
 - db.list(doctype, query)：使用受控查询编译器，直接返回分页 JSON，不要求额外 DTO。
 - db.getValue(doctype, id, field)：读取单个字段，并执行字段读取权限。
+- db.exists(doctype, id) / db.getAll(doctype, ids)：批量检查或读取，避免逐条 N+1 查询。
+- db.submit(document) / db.cancel(document) / db.void(document)：通过统一门面执行单据生命周期，并校验版本。
+- db.transaction { ... }：在当前绑定连接上执行事务块；业务 Hook 中不会创建嵌套事务。
 
 这些操作复用 Hook 当前的 SqlConnection，与外层单据写入、业务规则和审计处于同一事务。DynamicDocument 支持下标读写和类型化 getter；内存赋值不会自动持久化，必须显式调用 db.update(document)。版本冲突禁止静默覆盖。
 
