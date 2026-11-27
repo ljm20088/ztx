@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test('元数据驱动列表可分页并打开动态单据表单', async ({ page }) => {
+test('元数据驱动列表可分页并打开动态单据表单', async ({ page }, testInfo) => {
   // Given 用户已登录，系统存在已校验的采购订单元数据
   const definition = {
     doctype: 'PurchaseOrder',
@@ -47,6 +47,7 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   await page.goto('/developer/lists/PurchaseOrder')
   await expect(page.getByText('华东轴承')).toBeVisible()
   await expect(page.getByText('共 21 条')).toBeVisible()
+  if (testInfo.project.name === 'chromium') await page.screenshot({ path: 'artifacts/frontend-visual-captures/metadata-list-desktop.png', fullPage: true })
   await page.getByRole('button', { name: '筛选' }).click()
   await page.getByPlaceholder('搜索列表字段').fill('华东轴承')
   await page.getByPlaceholder('搜索列表字段').press('Enter')
@@ -59,6 +60,7 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   await page.getByRole('button', { name: '添加明细' }).click()
   await page.locator('tbody input').nth(0).fill('BRG-001')
   await page.locator('tbody input').nth(1).fill('2.5')
+  if (testInfo.project.name === 'chromium') await page.screenshot({ path: 'artifacts/frontend-visual-captures/document-form-desktop.png', fullPage: true })
   await page.getByRole('button', { name: '保存', exact: true }).click()
 
   // Then 单据保存成功，且可以执行提交生命周期动作

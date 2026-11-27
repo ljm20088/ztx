@@ -438,7 +438,7 @@ test('表单未保存保护与工作区视图实例恢复', async ({ page }) => 
   await expect(page.locator('#doc-code')).toHaveValue('PO-001')
 })
 
-test('报表使用独立的参数与结果视图', async ({ page }) => {
+test('报表使用独立的参数与结果视图', async ({ page }, testInfo) => {
   // Given 用户打开一个报表 Tab
   await page.goto('/reports/inventory-summary')
 
@@ -450,4 +450,5 @@ test('报表使用独立的参数与结果视图', async ({ page }) => {
   await expect(report.getByRole('region', { name: '报表参数' })).toBeVisible()
   await expect(report.getByRole('region', { name: '报表结果' })).toBeVisible()
   await expect(report.getByText('当前报表尚未配置数据集或查询定义。')).toBeVisible()
+  if (testInfo.project.name === 'chromium') await page.screenshot({ path: 'artifacts/frontend-visual-captures/report-view-desktop.png', fullPage: true })
 })
