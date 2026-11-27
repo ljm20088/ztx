@@ -16,6 +16,7 @@ import com.ztx.modules.iam.TenantAuthRoutes
 import com.ztx.modules.iam.TenantOrganizationRoutes
 import com.ztx.modules.metadata.MetadataModule
 import com.ztx.modules.metadata.MetadataRoutes
+import com.ztx.modules.metadata.MetadataQueryRoutes
 import com.ztx.platform.common.AppConfig
 import com.ztx.platform.common.ModuleRegistry
 import com.ztx.platform.common.RuntimeRole
@@ -82,7 +83,7 @@ fun main(args: Array<String>) {
                 HealthServer(
                     vertx, database, config.httpHost, config.httpPort,
                     PlatformAuthRoutes(authService, config.secureCookies), tenantRoutes, tenantAuthRoutes,
-                    TenantOrganizationRoutes(), MetadataRoutes()
+                    TenantOrganizationRoutes(), MetadataRoutes(), MetadataQueryRoutes()
                 ).start()
             }
             .onSuccess { logger.info("ZTX API Server 已启动，监听 {}:{}", config.httpHost, config.httpPort) }
