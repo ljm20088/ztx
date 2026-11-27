@@ -413,11 +413,11 @@ test('表单未保存保护与工作区视图实例恢复', async ({ page }) => 
       fields: [{ name: 'code', label: '采购单号', type: 'string', required: true }],
     } }),
   }))
-  await page.route(`**/api/v1/tenant/documents/PurchaseOrder/${documentId}`, route => route.fulfill({
+  await page.route('**/api/v1/tenant/documents/PurchaseOrder/' + documentId, route => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ id: documentId, version: 1, docstatus: 0, code: 'PO-001' }),
   }))
-  await page.goto(`/developer/documents/PurchaseOrder/${documentId}`)
+  await page.goto('/developer/documents/PurchaseOrder/' + documentId)
   await expect(page.locator('#doc-code')).toHaveValue('PO-001')
 
   // When 修改单据后尝试切换到工作台，并在未保存提示中选择取消
