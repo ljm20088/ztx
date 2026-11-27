@@ -173,11 +173,12 @@ class DocumentRuntimeRoutes(
                WHERE table_schema=$1 AND table_name=$2
                  AND column_name = ANY($3::text[])"""
         ).execute(Tuple.of(table.getString("schema"), table.getString("name"),
-            arrayOf("company_id", "book_id", "organization_unit_id"))).map { columns ->
+            arrayOf("company_id", "book_id", "organization_unit_id", "version"))).map { columns ->
             val physical = columns.map { it.getString("column_name") }.toSet()
+            if ("version" !in physical) throw IllegalArgumentException("物理表必须包含系统版本列 version")
             val declared = (definition.getJsonArray("fields") ?: JsonArray()).filterIsInstance<JsonObject>()
                 .mapNotNull { it.getString("name") }.toSet()
-            val missing = physical - declared
+            val missing = (physical - setOf("version")) - declared
             if (missing.isNotEmpty()) throw IllegalArgumentException(
                 "DocType 必须声明物理表的数据范围字段：" + missing.sorted().joinToString()
             )

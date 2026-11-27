@@ -14,9 +14,9 @@
 
 ## 物理表约定
 
-Document 当前运行时映射到元数据声明的租户业务表。物理表必须提供 UUID 主键 id、整数状态列 docstatus、created_at 和 updated_at；created_at 应有数据库默认值。状态编码为 0 草稿、1 已提交、2 已撤销、3 已作废。普通字段按元数据字段名映射到物理列；json/table 类型以 JSONB 保存，table 子字段通过 childFields 描述并由统一 Codec 转换。
+Document 当前运行时映射到元数据声明的租户业务表。物理表必须提供 UUID 主键 id、整数状态列 docstatus、整数乐观锁版本列 version（NOT NULL，默认 1）、created_at 和 updated_at；created_at 应有数据库默认值。创建单据时版本从 1 开始，每次更新或生命周期动作成功后递增。状态编码为 0 草稿、1 已提交、2 已撤销、3 已作废。普通字段按元数据字段名映射到物理列；json/table 类型以 JSONB 保存，table 子字段通过 childFields 描述并由统一 Codec 转换。
 
-保存、更新和生命周期动作在同一 PostgreSQL 事务中执行；对应审计记录写入 audit.document_event。审计失败会导致业务事务回滚。更新和生命周期动作使用行锁，避免并发状态迁移。
+保存、更新和生命周期动作在同一 PostgreSQL 事务中执行；对应审计记录写入 audit.document_event。审计失败会导致业务事务回滚。更新和生命周期动作使用行锁，并要求客户端提交读取时的 version；服务端以 version 条件更新并递增版本。版本不匹配返回 HTTP 409 和明确冲突信息，禁止静默覆盖。
 
 ## 类型转换
 
