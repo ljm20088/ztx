@@ -10,7 +10,7 @@ import java.net.InetAddress
  * 初始化请求必须由真实回环连接发起，并使用回环 Host；代理转发头一律不作为来源证明。
  * 单独提取为纯函数，便于覆盖伪造 Host、代理头和非回环来源。
  */
-internal fun allowsLoopbackInitialization(
+fun allowsLoopbackInitialization(
     remoteHost: String?,
     hostHeader: String?,
     hasForwardedHeaders: Boolean
