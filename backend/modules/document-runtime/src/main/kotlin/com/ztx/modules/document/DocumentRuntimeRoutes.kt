@@ -12,8 +12,6 @@ import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 import java.util.UUID
 
-class DocumentVersionConflictException : RuntimeException("单据已被其他用户修改，请刷新后重新编辑")
-
 /** Document 通用 CRUD 与生命周期；权限、持久化和审计在同一租户数据库事务中执行。 */
 class DocumentRuntimeRoutes(behaviors: DocumentBehaviorRegistry = DocumentBehaviorRegistry.load()) : DocumentRuntimeSupport(behaviors) {
 
@@ -60,7 +58,7 @@ class DocumentRuntimeRoutes(behaviors: DocumentBehaviorRegistry = DocumentBehavi
             .onFailure { fail(context, status(it), it.message ?: "读取字段失败") }
     }
 
-        private fun update(context: RoutingContext) = withPrincipal(context) { principal ->
+    private fun update(context: RoutingContext) = withPrincipal(context) { principal ->
         val doctype = context.pathParam("doctype")
         val id = UUID.fromString(context.pathParam("id"))
         val request = body(context)
@@ -80,7 +78,7 @@ class DocumentRuntimeRoutes(behaviors: DocumentBehaviorRegistry = DocumentBehavi
             .onFailure { fail(context, status(it), it.message ?: "更新单据失败") }
     }
 
-        private fun action(context: RoutingContext) = withPrincipal(context) { principal ->
+    private fun action(context: RoutingContext) = withPrincipal(context) { principal ->
         val doctype = context.pathParam("doctype")
         val id = UUID.fromString(context.pathParam("id"))
         val action = context.pathParam("action")
@@ -97,7 +95,7 @@ class DocumentRuntimeRoutes(behaviors: DocumentBehaviorRegistry = DocumentBehavi
             .onFailure { fail(context, status(it), it.message ?: "单据动作执行失败") }
     }
 
-        private fun runtimeDefinition(context: RoutingContext) = withPrincipal(context) { principal ->
+    private fun runtimeDefinition(context: RoutingContext) = withPrincipal(context) { principal ->
         loadDefinition(principal, context.pathParam("doctype")).onSuccess { definition ->
             try {
                 authorize(definition, principal, "read")
