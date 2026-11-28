@@ -68,6 +68,34 @@ class SchemaMigrationIntegrationTest {
         val database = PgDatabase(vertx, config)
         val service = SchemaMigrationService()
         val actorId = UUID.randomUUID()
+
+        // Given Flyway 持有全局 session advisory lock，When 运行期迁移尝试执行，Then 必须等待同一把锁释放。
+        val flywayLockConnection = DriverManager.getConnection(config.jdbcUrl, config.user, config.password)
+        try {
+            flywayLockConnection.createStatement().use { statement ->
+                statement.execute("SELECT pg_advisory_lock(hashtext('ztx.schema-migration'), hashtext('global'))")
+            }
+            val lockDefinition = JsonObject()
+                .put("doctype", "LockProbe")
+                .put("table", JsonObject().put("schema", "org").put("name", "lock_probe"))
+                .put("fields", JsonArray().add(JsonObject().put("name", "code").put("type", "string")))
+            val blockedMigration = service.migrate(database, "LockProbe", 1, lockDefinition, actorId)
+                .toCompletionStage().toCompletableFuture()
+            Thread.sleep(300)
+            assertTrue(!blockedMigration.isDone, "运行期事务锁必须等待 Flyway 持有的同键 session 锁")
+            flywayLockConnection.createStatement().use { statement ->
+                statement.execute("SELECT pg_advisory_unlock(hashtext('ztx.schema-migration'), hashtext('global'))")
+            }
+            assertEquals("SUCCEEDED", blockedMigration.get(20, TimeUnit.SECONDS).status)
+        } finally {
+            runCatching {
+                flywayLockConnection.createStatement().use { statement ->
+                    statement.execute("SELECT pg_advisory_unlock(hashtext('ztx.schema-migration'), hashtext('global'))")
+                }
+            }
+            flywayLockConnection.close()
+        }
+
         val original = JsonObject()
             .put("doctype", "SchemaProbe")
             .put("table", JsonObject().put("schema", "org").put("name", "schema_probe"))
