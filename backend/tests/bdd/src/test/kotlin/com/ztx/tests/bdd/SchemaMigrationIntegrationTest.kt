@@ -87,7 +87,8 @@ class SchemaMigrationIntegrationTest {
                 .put("fields", JsonArray()
                     .add(JsonObject().put("name", "code").put("type", "string").put("required", true))
                     .add(JsonObject().put("name", "company_id").put("type", "uuid").put("required", true))
-                    .add(JsonObject().put("name", "remark").put("type", "text")))
+                    .add(JsonObject().put("name", "remark").put("type", "text"))
+                    .add(JsonObject().put("name", "category").put("type", "string").put("defaultValue", "general")))
 
             // When 第二版只增加可选字段，Then 只追加物理列且重复执行同一版本是幂等的。
             val second = service.migrate(database, "SchemaProbe", 2, expanded, actorId)
@@ -208,6 +209,7 @@ class SchemaMigrationIntegrationTest {
                 connection.createStatement().use { statement ->
                     statement.execute("ALTER TABLE org.schema_probe ALTER COLUMN code TYPE UUID USING gen_random_uuid()")
                     statement.execute("ALTER TABLE org.schema_probe ALTER COLUMN company_id DROP NOT NULL")
+                    statement.execute("ALTER TABLE org.schema_probe ALTER COLUMN category SET DEFAULT 'corrupted'")
                     statement.execute("ALTER TABLE org.schema_probe DROP COLUMN remark")
                     val uniqueIndex = statement.executeQuery(
                         """SELECT indexname FROM pg_indexes
@@ -223,6 +225,7 @@ class SchemaMigrationIntegrationTest {
             assertTrue(drift.any { (it as JsonObject).getString("code") == "COLUMN_MISSING" })
             assertTrue(drift.any { (it as JsonObject).getString("code") == "COLUMN_NULLABILITY_MISMATCH" })
             assertTrue(drift.any { (it as JsonObject).getString("code") == "INDEX_MISSING" })
+            assertTrue(drift.any { (it as JsonObject).getString("code") == "DEFAULT_MISMATCH" })
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
                 connection.createStatement().use { statement ->
                     statement.executeQuery(

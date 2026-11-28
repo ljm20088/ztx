@@ -117,6 +117,19 @@ class SchemaMigrationService {
                                 .put("column", name).put("expectedNullable", false)
                                 .put("message", "必填字段在物理表中允许 NULL"))
                         }
+                        val field = migrationPlan.getJsonArray("columns").filterIsInstance<JsonObject>()
+                            .firstOrNull { it.getString("name") == name }
+                        if (field != null) {
+                            val expectedDefault = field.getValue("defaultValue")?.let {
+                                defaultLiteral(field.getString("logicalType"), it)
+                            }
+                            val actualDefault = column.getString("column_default")
+                            if (normalizeDefaultExpression(actualDefault) != normalizeDefaultExpression(expectedDefault)) {
+                                diagnostics.add(JsonObject().put("code", "DEFAULT_MISMATCH").put("column", name)
+                                    .put("expectedDefault", expectedDefault).put("actualDefault", actualDefault)
+                                    .put("message", "物理字段默认值与元数据不一致"))
+                            }
+                        }
                     }
                 }
                 connection.preparedQuery(
@@ -150,6 +163,15 @@ class SchemaMigrationService {
                 }
             }
         }
+    }
+
+    private fun normalizeDefaultExpression(expression: String?): String? {
+        if (expression == null) return null
+        return expression.trim()
+            .removeSurrounding("(", ")")
+            .replace(Regex("::(?:text|uuid|date|timestamp(?: without time zone)?|time(?: without time zone)?|numeric|bigint|boolean|jsonb)$"), "")
+            .replace(Regex("\\s+"), " ")
+            .lowercase()
     }
 
     fun migrate(
