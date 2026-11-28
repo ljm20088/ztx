@@ -106,12 +106,18 @@ class SchemaMigrationService {
                                    SET status='SUCCEEDED',completed_at=clock_timestamp(),error_message=NULL
                                    WHERE source='RUNTIME' AND version=$1 AND doctype=$2"""
                             ).execute(Tuple.of(version.toString(), doctype))
-                        }.compose<Void> {
+                        }.compose {
                             connection.preparedQuery(
-                                """UPDATE meta.schema_migration_attempt
+                                """WITH updated_migration AS (
+                                     UPDATE meta.schema_migration
+                                     SET status='SUCCEEDED',completed_at=clock_timestamp(),error_message=NULL
+                                     WHERE source='RUNTIME' AND version=$1 AND doctype=$2
+                                     RETURNING id
+                                   )
+                                   UPDATE meta.schema_migration_attempt
                                    SET status='SUCCEEDED',completed_at=clock_timestamp(),diagnostics='[]'::jsonb,error_message=NULL
-                                   WHERE id=$1"""
-                            ).execute(Tuple.of(attemptId)).mapEmpty<Void>()
+                                   WHERE id=$3 AND migration_id IN (SELECT id FROM updated_migration)"""
+                            ).execute(Tuple.of(version.toString(), doctype, attemptId))
                         }.map {
                             RuntimeSchemaMigrationResult(activeMigrationId, doctype, version,
                                 schema, table, checksum, "SUCCEEDED", migrationPlan)
