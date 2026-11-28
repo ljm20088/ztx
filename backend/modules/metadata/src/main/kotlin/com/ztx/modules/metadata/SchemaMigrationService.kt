@@ -120,18 +120,29 @@ class SchemaMigrationService {
                     }
                 }
                 connection.preparedQuery(
-                    """SELECT indexname FROM pg_indexes
-                       WHERE schemaname=$1 AND tablename=$2"""
+                    """SELECT i.indisunique,
+                              array_to_json(array_agg(a.attname ORDER BY key.ordinality))::text AS columns
+                       FROM pg_class tbl
+                       JOIN pg_namespace ns ON ns.oid=tbl.relnamespace
+                       JOIN pg_index i ON i.indrelid=tbl.oid
+                       JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS key(attnum,ordinality)
+                         ON key.ordinality <= i.indnkeyatts
+                       JOIN pg_attribute a ON a.attrelid=tbl.oid AND a.attnum=key.attnum
+                       WHERE ns.nspname=$1 AND tbl.relname=$2
+                       GROUP BY i.indexrelid,i.indisunique"""
                 ).execute(Tuple.of(schema, table)).map { indexRows ->
-                    val indexes = indexRows.map { it.getString("indexname") }.toSet()
+                    val indexes = indexRows.map { row ->
+                        row.getBoolean("indisunique") to row.getString("columns")
+                    }.toSet()
                     migrationPlan.getJsonArray("columns").filterIsInstance<JsonObject>().forEach { field ->
                         val unique = field.getBoolean("unique", false)
                         if (unique || field.getBoolean("indexed", false)) {
-                            val name = indexName(schema, table, field.getString("name"), unique)
-                            if (name !in indexes) {
+                            val fieldName = field.getString("name")
+                            val expectedColumns = "[\\"$fieldName\\"]"
+                            if ((unique to expectedColumns) !in indexes) {
                                 diagnostics.add(JsonObject().put("code", "INDEX_MISSING")
-                                    .put("index", name).put("column", field.getString("name"))
-                                    .put("unique", unique).put("message", "元数据声明的索引不存在"))
+                                    .put("column", fieldName).put("unique", unique)
+                                    .put("message", "元数据声明的单字段索引不存在或唯一性不匹配"))
                             }
                         }
                     }
