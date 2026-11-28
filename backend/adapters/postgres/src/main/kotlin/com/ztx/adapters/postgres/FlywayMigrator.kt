@@ -51,7 +51,7 @@ class FlywayMigrator(private val config: DatabaseConfig) {
         val flyway = configuredFlyway()
         val states = flyway.info().all().map { it.state?.toString() ?: "UNKNOWN" }
         require(states.any { it == "FAILED" }) { "没有待修复的 Flyway 失败迁移" }
-        val unexpected = states.filter { it !in setOf("SUCCESS", "FAILED") }
+        val unexpected = states.filter { it !in setOf("SUCCESS", "FAILED", "PENDING") }
         require(unexpected.isEmpty()) {
             "检测到非失败迁移历史异常（${unexpected.joinToString()}），拒绝执行 Flyway repair"
         }
