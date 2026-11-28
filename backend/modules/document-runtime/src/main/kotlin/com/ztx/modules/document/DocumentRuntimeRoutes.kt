@@ -8,8 +8,6 @@ import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.BodyHandler
-import io.vertx.sqlclient.SqlConnection
-import io.vertx.sqlclient.Tuple
 import java.util.UUID
 
 /** Document 通用 CRUD 与生命周期；权限、持久化和审计在同一租户数据库事务中执行。 */
@@ -96,28 +94,11 @@ class DocumentRuntimeRoutes(behaviors: DocumentBehaviorRegistry = DocumentBehavi
     }
 
     private fun runtimeDefinition(context: RoutingContext) = withPrincipal(context) { principal ->
-        loadDefinition(principal, context.pathParam("doctype")).onSuccess { definition ->
-            try {
-                authorize(definition, principal, "read")
-                send(context, JsonObject().put("doctype", context.pathParam("doctype")).put("definition", definition))
-            } catch (error: Throwable) {
-                fail(context, status(error), error.message ?: "无权读取 DocType")
-            }
-        }.onFailure { fail(context, status(it), it.message ?: "读取运行时元数据失败") }
+        val doctype = context.pathParam("doctype")
+        dbProvider.transaction(principal) { db -> db.definition(doctype) }
+            .onSuccess { send(context, JsonObject().put("doctype", doctype).put("definition", it)) }
+            .onFailure { fail(context, status(it), it.message ?: "读取运行时元数据失败") }
     }
-
-    private fun loadDefinition(principal: TenantPrincipal, doctype: String): Future<JsonObject> =
-        principal.database.withTransaction { connection ->
-            connection.preparedQuery(
-                """SELECT definition_json FROM meta.document_definition
-                   WHERE scope='TENANT' AND doctype=$1 AND status='VALIDATED'
-                   ORDER BY version DESC LIMIT 1"""
-            ).execute(Tuple.of(doctype)).compose { rows ->
-                val definition = rows.firstOrNull()?.getJsonObject("definition_json")
-                    ?: return@compose Future.failedFuture<JsonObject>("DocType 不存在或尚未通过校验")
-                validateScopeFields(connection, definition).map { definition }
-            }
-        }
 
     private fun documentJson(document: DynamicDocument): JsonObject =
         document.toJson()
