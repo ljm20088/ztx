@@ -45,6 +45,7 @@ const definition = reactive<Definition>({
 const diagnostics = ref<Diagnostic[]>([])
 const defaultValueDrafts = reactive<Record<number, string>>({})
 const optionsDrafts = reactive<Record<number, string>>({})
+const layoutDrafts = reactive({ formFields: '', listColumns: '', listFilters: '', listSort: '', listSearch: '' })
 const busy = ref(false)
 const error = ref('')
 const message = ref('')
@@ -86,6 +87,11 @@ async function openDefinition(doctype: string) {
     Object.assign(definition, blankDefinition(), data.definition)
     Object.keys(defaultValueDrafts).forEach(key => delete defaultValueDrafts[Number(key)])
     Object.keys(optionsDrafts).forEach(key => delete optionsDrafts[Number(key)])
+    layoutDrafts.formFields = (definition.form?.fields ?? []).join(', ')
+    layoutDrafts.listColumns = (definition.list?.columns ?? []).join(', ')
+    layoutDrafts.listFilters = (definition.list?.filters ?? []).join(', ')
+    layoutDrafts.listSort = (definition.list?.sort ?? []).join(', ')
+    layoutDrafts.listSearch = (definition.list?.search ?? []).join(', ')
     definition.fields.forEach((field, index) => {
       defaultValueDrafts[index] = field.defaultValue === undefined ? '' : typeof field.defaultValue === 'string' ? field.defaultValue : JSON.stringify(field.defaultValue)
       optionsDrafts[index] = (field.options ?? []).join(', ')
@@ -104,6 +110,7 @@ function createNew() {
   Object.assign(definition, blankDefinition())
   Object.keys(defaultValueDrafts).forEach(key => delete defaultValueDrafts[Number(key)])
   Object.keys(optionsDrafts).forEach(key => delete optionsDrafts[Number(key)])
+  Object.assign(layoutDrafts, { formFields: '', listColumns: '', listFilters: '', listSort: '', listSearch: '' })
   selectedDoctype.value = ''
   version.value = null
   status.value = 'DRAFT'
@@ -178,11 +185,12 @@ function applyFieldConfiguration() {
 
 function syncLayout() {
   const names = definition.fields.map(field => field.name).filter(Boolean)
-  definition.form.fields = names
-  definition.list.columns = names
-  definition.list.filters = names
-  definition.list.sort = names
-  definition.list.search = names
+  const parse = (value: string) => value.trim() ? value.split(',').map(name => name.trim()).filter(Boolean) : names
+  definition.form.fields = parse(layoutDrafts.formFields)
+  definition.list.columns = parse(layoutDrafts.listColumns)
+  definition.list.filters = parse(layoutDrafts.listFilters)
+  definition.list.sort = parse(layoutDrafts.listSort)
+  definition.list.search = parse(layoutDrafts.listSearch)
 }
 
 async function save() {
@@ -365,6 +373,19 @@ onMounted(() => { void loadList().catch(cause => { error.value = cause instanceo
           </table>
         </div>
 
+        <section class="mt-5 border-t border-ztx-border pt-4">
+          <div class="mb-2">
+            <h3 class="m-0 text-ztx-section-title font-semibold">表单与列表布局</h3>
+            <p class="mt-1 text-ztx-caption text-ztx-muted">按字段标识配置显示顺序；多个字段使用英文逗号分隔。留空时默认包含全部字段。</p>
+          </div>
+          <div class="grid grid-cols-2 gap-3 max-[850px]:grid-cols-1">
+            <ZFormField label="表单字段与顺序" field-id="metadata-form-fields"><ZInput id="metadata-form-fields" v-model="layoutDrafts.formFields" placeholder="code, supplier, amount" /></ZFormField>
+            <ZFormField label="列表显示列" field-id="metadata-list-columns"><ZInput id="metadata-list-columns" v-model="layoutDrafts.listColumns" placeholder="code, supplier" /></ZFormField>
+            <ZFormField label="可筛选字段" field-id="metadata-list-filters"><ZInput id="metadata-list-filters" v-model="layoutDrafts.listFilters" placeholder="supplier, status" /></ZFormField>
+            <ZFormField label="可排序字段" field-id="metadata-list-sort"><ZInput id="metadata-list-sort" v-model="layoutDrafts.listSort" placeholder="created_at, amount" /></ZFormField>
+            <ZFormField label="可搜索字段" field-id="metadata-list-search"><ZInput id="metadata-list-search" v-model="layoutDrafts.listSearch" placeholder="code, supplier" /></ZFormField>
+          </div>
+        </section>
         <div v-if="diagnostics.length" class="mt-4 rounded-ztx-sm border border-ztx-danger/30 bg-ztx-danger-soft p-3">
           <h3 class="mb-2 text-ztx-body font-semibold text-ztx-danger">校验诊断</h3>
           <ul class="space-y-1 text-ztx-caption">
