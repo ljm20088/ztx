@@ -18,6 +18,7 @@ class DynamicDocument private constructor(
     val doctype: String,
     val id: UUID?,
     val version: Int,
+    val docstatus: Int,
     private val definition: JsonObject,
     initialValues: JsonObject
 ) {
@@ -119,7 +120,7 @@ class DynamicDocument private constructor(
                 val defaultValue = field.getValue("defaultValue") ?: return@forEach
                 defaults.put(name, DocumentValueCodec.normalizeField(field, defaultValue))
             }
-            return DynamicDocument(doctype, null, 0, definition.copy(), defaults)
+            return DynamicDocument(doctype, null, 0, DocumentStatus.DRAFT.code, definition.copy(), defaults)
         }
 
         /** 从数据库完整行构造已加载 Document；系统列不作为普通元数据字段。 */
@@ -128,6 +129,7 @@ class DynamicDocument private constructor(
                 ?: throw IllegalArgumentException("Document 缺少系统主键 id")
             val version = row.getInteger("version")
                 ?: throw IllegalArgumentException("Document 缺少系统版本 version")
+            val docstatus = row.getInteger("docstatus") ?: DocumentStatus.DRAFT.code
             val ordinary = row.copy().also {
                 it.remove("id")
                 it.remove("version")
@@ -135,7 +137,7 @@ class DynamicDocument private constructor(
                 it.remove("created_at")
                 it.remove("updated_at")
             }
-            return DynamicDocument(doctype, id, version, definition.copy(), ordinary)
+            return DynamicDocument(doctype, id, version, docstatus, definition.copy(), ordinary)
         }
     }
 }
