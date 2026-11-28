@@ -16,6 +16,7 @@ import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.sqlclient.Tuple
 import io.vertx.ext.web.Router
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
