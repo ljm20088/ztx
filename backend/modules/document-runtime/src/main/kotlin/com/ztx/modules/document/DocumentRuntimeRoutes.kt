@@ -439,7 +439,7 @@ class DocumentRuntimeRoutes(
     }
 
     /** 字段白名单按当前用户角色匹配；TENANT_ADMIN 是特权用户角色，不是授予所有人的通配符。 */
-    internal fun canReadField(roles: JsonArray?, role: String): Boolean =
+    fun canReadField(roles: JsonArray?, role: String): Boolean =
         roles == null || roles.isEmpty || role == "TENANT_ADMIN" || roles.any { it == role }
 
     private fun status(error: Throwable): Int = when {
