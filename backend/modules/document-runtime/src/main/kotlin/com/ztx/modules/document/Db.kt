@@ -22,7 +22,7 @@ class Db(
     /** 创建尚未持久化的 Document；调用方设置字段后必须显式调用 insert。 */
     fun new(doctype: String): Future<DynamicDocument> =
         runtime.loadDefinition(connection, doctype).map { definition ->
-            routes.authorize(definition, principal, "create")
+            runtime.authorize(definition, principal, "create")
             DynamicDocument.new(doctype, definition)
         }
 
@@ -31,18 +31,18 @@ class Db(
         if (document.id != null) return Future.failedFuture("已持久化 Document 不能再次 insert")
         val definition = document.metadata()
         return try {
-            routes.authorize(definition, principal, "create")
+            runtime.authorize(definition, principal, "create")
             val values = document.toJson()
-            routes.enforceCompanyScope(definition, values, principal, requireValue = true)
-            val behavior = routes.behaviors.resolve(definition, document.doctype)
+            runtime.enforceCompanyScope(definition, values, principal, requireValue = true)
+            val behavior = runtime.behaviors.resolve(definition, document.doctype)
             val context = DocumentBehaviorContext(document.doctype, definition, principal, connection)
             (behavior?.beforeCreate(context, values) ?: Future.succeededFuture()).compose {
-                routes.insert(connection, definition, values, principal).compose { row ->
+                runtime.insert(connection, definition, values, principal).compose { row ->
                     val id = UUID.fromString(row.getString("id"))
                     val afterContext = context.copy(documentId = id, after = row)
                     (behavior?.afterCreate(afterContext, row) ?: Future.succeededFuture()).compose {
-                        routes.audit(connection, principal, document.doctype, id, "CREATE", null, row).map {
-                            DynamicDocument.loaded(document.doctype, definition, routes.redact(definition, principal, row))
+                        runtime.audit(connection, principal, document.doctype, id, "CREATE", null, row).map {
+                            DynamicDocument.loaded(document.doctype, definition, runtime.redact(definition, principal, row))
                         }
                     }
                 }
@@ -53,10 +53,10 @@ class Db(
     }
 
     fun get(doctype: String, id: UUID): Future<DynamicDocument> =
-        routes.loadDefinition(connection, doctype).compose { definition ->
-            routes.authorize(definition, principal, "read")
-            routes.selectOne(connection, definition, id, principal, lock = false, includeDeferred = false).map { row ->
-                DynamicDocument.loaded(doctype, definition, routes.redact(definition, principal, row))
+        runtime.loadDefinition(connection, doctype).compose { definition ->
+            runtime.authorize(definition, principal, "read")
+            runtime.selectOne(connection, definition, id, principal, lock = false, includeDeferred = false).map { row ->
+                DynamicDocument.loaded(doctype, definition, runtime.redact(definition, principal, row))
             }
         }
 
@@ -70,7 +70,7 @@ class Db(
         val id = document.id ?: return Future.failedFuture("新建 Document 尚未持久化，不能调用 db.update")
         val definition = document.metadata()
         return try {
-            routes.authorize(definition, principal, "update")
+            runtime.authorize(definition, principal, "update")
             val changes = document.changes()
             if (changes.isEmpty) return Future.failedFuture("Document 没有待保存的修改")
             val fields = (definition.getJsonArray("fields") ?: JsonArray())
@@ -84,24 +84,24 @@ class Db(
                 }
                 normalized.put(name, value?.let { DocumentValueCodec.normalizeField(field, it) })
             }
-            routes.enforceCompanyScope(definition, normalized, principal, requireValue = false)
-            val entries = routes.writableEntries(definition, normalized, principal, includeNulls = true)
+            runtime.enforceCompanyScope(definition, normalized, principal, requireValue = false)
+            val entries = runtime.writableEntries(definition, normalized, principal, includeNulls = true)
             if (entries.size != normalized.size()) throw IllegalArgumentException("存在不可写字段")
-            routes.selectOne(connection, definition, id, principal, lock = true).compose { before ->
+            runtime.selectOne(connection, definition, id, principal, lock = true).compose { before ->
                 if (before.getInteger("version", 1) != document.version) {
                     return@compose Future.failedFuture<DynamicDocument>(DocumentVersionConflictException())
                 }
                 if (before.getInteger("docstatus", 0) != DocumentStatus.DRAFT.code) {
                     return@compose Future.failedFuture<DynamicDocument>("只有草稿单据可以修改")
                 }
-                val behavior = routes.behaviors.resolve(definition, document.doctype)
+                val behavior = runtime.behaviors.resolve(definition, document.doctype)
                 val context = DocumentBehaviorContext(document.doctype, definition, principal, connection, id, before)
                 (behavior?.beforeUpdate(context, before, normalized) ?: Future.succeededFuture()).compose {
-                    routes.updateRow(connection, definition, id, normalized, principal, document.version).compose { after ->
+                    runtime.updateRow(connection, definition, id, normalized, principal, document.version).compose { after ->
                         val afterContext = context.copy(after = after)
                         (behavior?.afterUpdate(afterContext, before, after) ?: Future.succeededFuture()).compose {
-                            routes.audit(connection, principal, document.doctype, id, "UPDATE", before, after).map {
-                                DynamicDocument.loaded(document.doctype, definition, routes.redact(definition, principal, after))
+                            runtime.audit(connection, principal, document.doctype, id, "UPDATE", before, after).map {
+                                DynamicDocument.loaded(document.doctype, definition, runtime.redact(definition, principal, after))
                             }
                         }
                     }
@@ -114,8 +114,8 @@ class Db(
 
     /** 返回受控列表投影 JSON，不额外包装业务 DTO。 */
     fun list(doctype: String, request: JsonObject = JsonObject()): Future<JsonObject> =
-        routes.loadDefinition(connection, doctype).compose { definition ->
-            routes.authorize(definition, principal, "read")
+        runtime.loadDefinition(connection, doctype).compose { definition ->
+            runtime.authorize(definition, principal, "read")
             val compiled = MetadataQueryEngine.compile(
                 definition, request, principal.role,
                 principal.companyIds, principal.bookIds, principal.organizationUnitIds
@@ -135,11 +135,11 @@ class Db(
         }
 
     fun exists(doctype: String, id: UUID): Future<Boolean> =
-        routes.loadDefinition(connection, doctype).compose { definition ->
-            routes.authorize(definition, principal, "read")
+        runtime.loadDefinition(connection, doctype).compose { definition ->
+            runtime.authorize(definition, principal, "read")
             val parameters = mutableListOf<Any?>(id)
-            val where = routes.scopeWhere(definition, principal, parameters)
-            val sql = "SELECT EXISTS (SELECT 1 FROM " + routes.tableSql(definition) +
+            val where = runtime.scopeWhere(definition, principal, parameters)
+            val sql = "SELECT EXISTS (SELECT 1 FROM " + runtime.tableSql(definition) +
                 " WHERE \"id\"=$1" + where + ") AS present"
             connection.preparedQuery(sql).execute(Tuple.from(parameters))
                 .map { it.first().getBoolean("present") }
@@ -148,16 +148,16 @@ class Db(
     /** 一次批量读取多个 Document，不逐条发起 SELECT，避免 N+1。 */
     fun getAll(doctype: String, ids: Collection<UUID>): Future<List<DynamicDocument>> {
         if (ids.isEmpty()) return Future.succeededFuture(emptyList())
-        return routes.loadDefinition(connection, doctype).compose { definition ->
-            routes.authorize(definition, principal, "read")
+        return runtime.loadDefinition(connection, doctype).compose { definition ->
+            runtime.authorize(definition, principal, "read")
             val parameters = mutableListOf<Any?>(ids.distinct().toTypedArray())
-            val where = routes.scopeWhere(definition, principal, parameters)
-            val sql = "SELECT " + routes.documentProjection(definition, includeDeferred = false) +
-                " FROM " + routes.tableSql(definition) + " WHERE \"id\" = ANY($1::uuid[])" + where
+            val where = runtime.scopeWhere(definition, principal, parameters)
+            val sql = "SELECT " + runtime.documentProjection(definition, includeDeferred = false) +
+                " FROM " + runtime.tableSql(definition) + " WHERE \"id\" = ANY($1::uuid[])" + where
             connection.preparedQuery(sql).execute(Tuple.from(parameters)).map { rows ->
                 rows.map { row ->
                     val json = row.toJson()
-                    DynamicDocument.loaded(doctype, definition, routes.redact(definition, principal, json))
+                    DynamicDocument.loaded(doctype, definition, runtime.redact(definition, principal, json))
                 }
             }
         }
@@ -174,18 +174,18 @@ class Db(
         val id = document.id ?: return Future.failedFuture("新建 Document 尚未持久化")
         val definition = document.metadata()
         return try {
-            routes.authorize(definition, principal, action)
-            routes.selectOne(connection, definition, id, principal, lock = true).compose { before ->
+            runtime.authorize(definition, principal, action)
+            runtime.selectOne(connection, definition, id, principal, lock = true).compose { before ->
                 if (before.getInteger("version", 1) != document.version) {
                     return@compose Future.failedFuture<DynamicDocument>(DocumentVersionConflictException())
                 }
-                val behavior = routes.behaviors.resolve(definition, document.doctype)
+                val behavior = runtime.behaviors.resolve(definition, document.doctype)
                 val hookContext = DocumentBehaviorContext(document.doctype, definition, principal, connection, id, before, action = action)
                 (behavior?.beforeAction(hookContext, before, action) ?: Future.succeededFuture()).compose {
                     val next = DocumentLifecycle.transition(before.getInteger("docstatus", 0), action)
                     val parameters = mutableListOf<Any?>(next, id, before.getInteger("docstatus", 0), document.version)
-                    val where = routes.scopeWhere(definition, principal, parameters)
-                    val sql = "UPDATE " + routes.tableSql(definition) +
+                    val where = runtime.scopeWhere(definition, principal, parameters)
+                    val sql = "UPDATE " + runtime.tableSql(definition) +
                         " SET \"docstatus\"=$1,\"version\"=\"version\"+1,\"updated_at\"=clock_timestamp()" +
                         " WHERE \"id\"=$2 AND \"docstatus\"=$3 AND \"version\"=$4" + where + " RETURNING *"
                     connection.preparedQuery(sql).execute(Tuple.from(parameters)).compose { rows ->
@@ -194,9 +194,9 @@ class Db(
                         val afterContext = hookContext.copy(after = after)
                         (behavior?.afterAction(afterContext, before, after, action) ?: Future.succeededFuture())
                             .compose {
-                                routes.audit(connection, principal, document.doctype, id, action.uppercase(), before, after)
+                                runtime.audit(connection, principal, document.doctype, id, action.uppercase(), before, after)
                                     .map {
-                                        DynamicDocument.loaded(document.doctype, definition, routes.redact(definition, principal, after))
+                                        DynamicDocument.loaded(document.doctype, definition, runtime.redact(definition, principal, after))
                                     }
                             }
                     }
@@ -208,7 +208,7 @@ class Db(
     }
 
     fun getValue(doctype: String, id: UUID, field: String): Future<Any?> =
-        routes.loadDefinition(connection, doctype).compose { definition ->
+        runtime.loadDefinition(connection, doctype).compose { definition ->
             val metadata = (definition.getJsonArray("fields") ?: JsonArray())
                 .filterIsInstance<JsonObject>().firstOrNull { it.getString("name") == field }
                 ?: return@compose Future.failedFuture<Any?>("DocType 未定义字段：$field")
@@ -220,10 +220,10 @@ class Db(
             if (!metadata.getBoolean("loadOnDemand", false)) {
                 return@compose get(doctype, id).map { it[field] }
             }
-            routes.authorize(definition, principal, "read")
+            runtime.authorize(definition, principal, "read")
             val parameters = mutableListOf<Any?>(id)
-            val where = routes.scopeWhere(definition, principal, parameters)
-            val sql = "SELECT \"$field\" FROM " + routes.tableSql(definition) + " WHERE \"id\"=$1" + where
+            val where = runtime.scopeWhere(definition, principal, parameters)
+            val sql = "SELECT \"$field\" FROM " + runtime.tableSql(definition) + " WHERE \"id\"=$1" + where
             connection.preparedQuery(sql).execute(Tuple.from(parameters)).map { rows ->
                 val row = rows.firstOrNull() ?: throw IllegalArgumentException("单据不存在或无权访问")
                 row.getValue(field)
