@@ -63,7 +63,7 @@ class MetadataManagementIntegrationTest {
                 .put("doctype", "MetadataTestItem")
                 .put("scope", "TENANT")
                 .put("table", JsonObject().put("schema", "org").put("name", "metadata_test_item"))
-                .put("fields", JsonArray().add(JsonObject().put("name", "code").put("type", "string").put("required", true)))
+                .put("fields", JsonArray().add(JsonObject().put("name", "code").put("type", "string").put("required", true).put("defaultValue", "NEW")) )
                 .put("form", JsonObject().put("fields", JsonArray().add("code")))
                 .put("list", JsonObject().put("columns", JsonArray().add("code")))
             val create = client.send(
@@ -79,6 +79,14 @@ class MetadataManagementIntegrationTest {
             )
             assertEquals(200, validate.statusCode())
             assertTrue(JsonObject(validate.body()).getBoolean("valid"))
+            // Given 字段默认值随元数据草稿保存，When 读取已发布定义，Then 默认值应原样持久化并返回。
+            val readDefinition = client.send(
+                HttpRequest.newBuilder(URI.create("$base/api/v1/tenant/metadata/doctypes/MetadataTestItem")).GET().build(),
+                HttpResponse.BodyHandlers.ofString()
+            )
+            assertEquals(200, readDefinition.statusCode())
+            assertEquals("NEW", JsonObject(readDefinition.body()).getJsonObject("definition")
+                .getJsonArray("fields").getJsonObject(0).getString("defaultValue"))
             // Given 元数据校验成功，When 设计器激活该定义，Then 真实物理表和统一运行期迁移历史必须先成功创建。
             val publishedSchema = database.withTransaction { connection ->
                 connection.preparedQuery(
