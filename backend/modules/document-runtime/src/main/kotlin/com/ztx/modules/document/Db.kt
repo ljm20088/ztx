@@ -17,11 +17,11 @@ import kotlin.reflect.KClass
 class Db(
     private val principal: TenantPrincipal,
     private val connection: SqlConnection,
-    private val routes: DocumentRuntimeRoutes = DocumentRuntimeRoutes()
+    private val runtime: DocumentRuntimeSupport = DocumentRuntimeSupport()
 ) {
     /** 创建尚未持久化的 Document；调用方设置字段后必须显式调用 insert。 */
     fun new(doctype: String): Future<DynamicDocument> =
-        routes.loadDefinition(connection, doctype).map { definition ->
+        runtime.loadDefinition(connection, doctype).map { definition ->
             routes.authorize(definition, principal, "create")
             DynamicDocument.new(doctype, definition)
         }
@@ -236,14 +236,14 @@ class Db(
  * 为普通业务执行上下文开启一个事务并创建作用域 Db。
  * 不持有全局租户状态；每次调用都绑定调用者提供的可信 TenantPrincipal。
  */
-class DbProvider(private val routes: DocumentRuntimeRoutes = DocumentRuntimeRoutes()) {
+class DbProvider(private val runtime: DocumentRuntimeSupport = DocumentRuntimeSupport()) {
     private data class TransactionResult<T>(val value: T)
 
     /** 支持 nullable 查询结果；使用非空包装值跨过 Vert.x 事务泛型边界，事务完成后再还原结果。 */
     fun <T> transaction(principal: TenantPrincipal, block: (Db) -> Future<T>): Future<T> =
         principal.database.withTransaction<Any> { connection ->
             try {
-                block(Db(principal, connection, routes)).map { result -> TransactionResult(result) as Any }
+                block(Db(principal, connection, runtime)).map { result -> TransactionResult(result) as Any }
             } catch (error: Throwable) {
                 Future.failedFuture<Any>(error)
             }
