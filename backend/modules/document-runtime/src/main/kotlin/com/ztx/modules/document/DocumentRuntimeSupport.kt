@@ -14,6 +14,8 @@ import java.util.UUID
  * 只包含元数据、权限、数据范围、字段映射、SQL 持久化和审计能力；
  * 不依赖 HTTP Router 或 RoutingContext。Db 与 HTTP Routes 都可以调用它。
  */
+class DocumentVersionConflictException : RuntimeException("单据已被其他用户修改，请刷新后重新编辑")
+
 open class DocumentRuntimeSupport(internal val behaviors: DocumentBehaviorRegistry = DocumentBehaviorRegistry.load()) {
     private val identifier = Regex("[a-z][a-z0-9_]{0,62}")
     private val protectedSchemas = setOf("public", "platform", "iam", "meta", "audit", "pg_catalog", "information_schema")
