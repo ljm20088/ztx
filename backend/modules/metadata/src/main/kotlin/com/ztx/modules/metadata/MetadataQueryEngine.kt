@@ -55,7 +55,8 @@ object MetadataQueryEngine {
 
         val readable = fields.filterIsInstance<JsonObject>().filter { field ->
             val roles = field.getJsonArray("readRoles")
-            roles == null || roles.isEmpty || roles.any { it == role || it == "TENANT_ADMIN" }
+            // TENANT_ADMIN 是当前主体的特权角色，不是可写入字段白名单的通配符。
+            roles == null || roles.isEmpty || role == "TENANT_ADMIN" || roles.any { it == role }
         }.mapNotNull { it.getString("name") }.toSet()
         val selected = allowedColumns.filter { it in readable }
         // 系统主键始终作为隐藏投影返回，供列表行打开对应 Document；不要求元数据把 id 声明为普通字段。
