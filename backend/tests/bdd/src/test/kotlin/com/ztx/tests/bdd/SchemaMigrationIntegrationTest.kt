@@ -146,6 +146,18 @@ class SchemaMigrationIntegrationTest {
             val retried = service.migrate(database, "SchemaProbe", 4, retryDefinition, actorId)
                 .toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
             assertEquals("SUCCEEDED", retried.status)
+            // Given 第一次迁移失败后使用相同 checksum 重试成功，Then 两次尝试的失败诊断和成功状态都必须保留。
+            val attemptHistory = database.withTransaction { connection ->
+                connection.preparedQuery(
+                    """SELECT string_agg(a.status, ',' ORDER BY a.attempt_no) AS statuses,
+                              max(a.error_message) FILTER (WHERE a.attempt_no=1) AS first_error
+                       FROM meta.schema_migration_attempt a
+                       JOIN meta.schema_migration m ON m.id=a.migration_id
+                       WHERE m.source='RUNTIME' AND m.doctype='SchemaProbe' AND m.version='4'"""
+                ).execute().map { rows -> rows.first().getString("statuses") to rows.first().getString("first_error") }
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals("FAILED,SUCCEEDED", attemptHistory.first)
+            assertTrue(attemptHistory.second.contains("duplicate key", ignoreCase = true))
             val concurrent = (1..2).map {
                 service.migrate(database, "SchemaProbe", 5, retryDefinition, actorId)
                     .toCompletionStage().toCompletableFuture()
