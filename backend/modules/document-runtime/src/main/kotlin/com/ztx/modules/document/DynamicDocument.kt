@@ -134,8 +134,6 @@ class DynamicDocument private constructor(
                 it.remove("id")
                 it.remove("version")
                 it.remove("docstatus")
-                it.remove("created_at")
-                it.remove("updated_at")
             }
             return DynamicDocument(doctype, id, version, docstatus, definition.copy(), ordinary)
         }
