@@ -74,7 +74,7 @@ class SchemaMigrationService {
         catch (error: Throwable) { return Future.failedFuture(error) }
         val schema = migrationPlan.getString("schema")
         val table = migrationPlan.getString("table")
-                            val expectedColumnsJson = JsonArray().add(fieldName).encode()
+        val expectedColumns = mutableListOf(
             Triple("id", "uuid", true),
             Triple("docstatus", "int4", true),
             Triple("version", "int4", true),
@@ -138,7 +138,7 @@ class SchemaMigrationService {
                         val unique = field.getBoolean("unique", false)
                         if (unique || field.getBoolean("indexed", false)) {
                             val fieldName = field.getString("name")
-                            val expectedColumns = "[\\"$fieldName\\"]"
+                            val expectedColumnsJson = JsonArray().add(fieldName).encode()
                             if ((unique to expectedColumnsJson) !in indexes) {
                                 diagnostics.add(JsonObject().put("code", "INDEX_MISSING")
                                     .put("column", fieldName).put("unique", unique)
