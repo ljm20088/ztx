@@ -35,7 +35,34 @@ class SchemaMigrationIntegrationTest {
             user = postgres.username, password = postgres.password, poolSize = 2,
             migrationLocations = "filesystem:${projectDir.resolve("database/tenant-migrations")}"
         )
-        FlywayMigrator(config).migrate()
+        val flywayMigrator = FlywayMigrator(config)
+        flywayMigrator.migrate()
+        val initialFlywayHistory = DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery(
+                    """SELECT count(*),count(DISTINCT installed_rank)
+                       FROM public.flyway_schema_history"""
+                ).use { rows -> rows.next(); rows.getInt(1) to rows.getInt(2) }
+            }
+        }
+        val initialFlywayAttempts = DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery(
+                    "SELECT count(*) FROM meta.schema_migration_attempt a JOIN meta.schema_migration m ON m.id=a.migration_id WHERE m.source='FLYWAY'"
+                ).use { rows -> rows.next(); rows.getInt(1) }
+            }
+        }
+        assertEquals(initialFlywayHistory.first, initialFlywayAttempts)
+        // 重复部署/同步必须幂等，不得为同一 installed_rank 重复创建 attempt。
+        flywayMigrator.migrate()
+        val repeatedFlywayAttempts = DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery(
+                    "SELECT count(*) FROM meta.schema_migration_attempt a JOIN meta.schema_migration m ON m.id=a.migration_id WHERE m.source='FLYWAY'"
+                ).use { rows -> rows.next(); rows.getInt(1) }
+            }
+        }
+        assertEquals(initialFlywayAttempts, repeatedFlywayAttempts)
         val vertx = Vertx.vertx()
         val database = PgDatabase(vertx, config)
         val service = SchemaMigrationService()
