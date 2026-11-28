@@ -4,6 +4,7 @@ import com.ztx.modules.document.Db
 import com.ztx.modules.document.DbProvider
 import com.ztx.modules.document.DocumentRuntimeRoutes
 import com.ztx.modules.document.DocumentRuntimeSupport
+import com.ztx.modules.document.DynamicDocument
 import com.ztx.modules.document.DocumentLifecycle
 import com.ztx.modules.document.DocumentValueCodec
 import io.vertx.core.json.JsonArray
