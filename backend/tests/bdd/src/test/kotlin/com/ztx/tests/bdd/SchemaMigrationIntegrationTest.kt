@@ -185,6 +185,26 @@ class SchemaMigrationIntegrationTest {
             }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
             assertEquals("FAILED,SUCCEEDED", attemptHistory.first)
             assertTrue(attemptHistory.second.contains("duplicate key", ignoreCase = true))
+            // Given 已发布表被人工修改，When 只读检查 Schema 漂移，Then 返回缺失列/类型诊断且不自动修复。
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute("ALTER TABLE org.schema_probe ALTER COLUMN code TYPE UUID USING gen_random_uuid()")
+                    statement.execute("ALTER TABLE org.schema_probe DROP COLUMN remark")
+                }
+            }
+            val drift = service.inspectDrift(database, "SchemaProbe", retryDefinition)
+                .toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertTrue(drift.any { (it as JsonObject).getString("code") == "COLUMN_TYPE_MISMATCH" })
+            assertTrue(drift.any { (it as JsonObject).getString("code") == "COLUMN_MISSING" })
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.executeQuery(
+                        """SELECT udt_name FROM information_schema.columns
+                           WHERE table_schema='org' AND table_name='schema_probe' AND column_name='code'"""
+                    ).use { rows -> rows.next(); assertEquals("uuid", rows.getString(1)) }
+                }
+            }
+
             val concurrent = (1..2).map {
                 service.migrate(database, "SchemaProbe", 5, retryDefinition, actorId)
                     .toCompletionStage().toCompletableFuture()

@@ -65,6 +65,82 @@ class SchemaMigrationService {
             .put("columns", plannedFields).put("policy", "EXPAND_ONLY")
     }
 
+    /**
+     * 只读检查已发布 DocType 的受管物理结构。
+     * 不报告额外列（例如 #12 自定义字段扩展或历史 Expand-only 列），也不执行修复。
+     */
+    fun inspectDrift(database: PgDatabase, doctype: String, definition: JsonObject): Future<JsonArray> {
+        val migrationPlan = try { plan(doctype, 1, definition) }
+        catch (error: Throwable) { return Future.failedFuture(error) }
+        val schema = migrationPlan.getString("schema")
+        val table = migrationPlan.getString("table")
+        val expectedColumns = mutableListOf(
+            Triple("id", "uuid", true),
+            Triple("docstatus", "int4", true),
+            Triple("version", "int4", true),
+            Triple("created_at", "timestamptz", true),
+            Triple("updated_at", "timestamptz", true)
+        )
+        migrationPlan.getJsonArray("columns").filterIsInstance<JsonObject>().forEach { field ->
+            expectedColumns += Triple(
+                field.getString("name"), udtType(field.getString("type")),
+                field.getBoolean("required", false)
+            )
+        }
+        return database.withTransaction { connection ->
+            connection.preparedQuery(
+                """SELECT column_name,udt_name,is_nullable
+                   FROM information_schema.columns
+                   WHERE table_schema=$1 AND table_name=$2"""
+            ).execute(Tuple.of(schema, table)).compose { rows ->
+                val actual = rows.associateBy { it.getString("column_name") }
+                val diagnostics = JsonArray()
+                if (actual.isEmpty()) {
+                    diagnostics.add(JsonObject().put("code", "TABLE_MISSING")
+                        .put("schema", schema).put("table", table)
+                        .put("message", "受管物理表不存在"))
+                    return@compose Future.succeededFuture(diagnostics)
+                }
+                expectedColumns.forEach { (name, expectedType, required) ->
+                    val column = actual[name]
+                    if (column == null) {
+                        diagnostics.add(JsonObject().put("code", "COLUMN_MISSING").put("column", name)
+                            .put("expectedType", expectedType).put("message", "受管字段缺失"))
+                    } else {
+                        if (column.getString("udt_name") != expectedType) {
+                            diagnostics.add(JsonObject().put("code", "COLUMN_TYPE_MISMATCH").put("column", name)
+                                .put("expectedType", expectedType).put("actualType", column.getString("udt_name"))
+                                .put("message", "物理字段类型与元数据不一致"))
+                        }
+                        if (required && column.getString("is_nullable") == "YES") {
+                            diagnostics.add(JsonObject().put("code", "COLUMN_NULLABILITY_MISMATCH")
+                                .put("column", name).put("expectedNullable", false)
+                                .put("message", "必填字段在物理表中允许 NULL"))
+                        }
+                    }
+                }
+                connection.preparedQuery(
+                    """SELECT indexname FROM pg_indexes
+                       WHERE schemaname=$1 AND tablename=$2"""
+                ).execute(Tuple.of(schema, table)).map { indexRows ->
+                    val indexes = indexRows.map { it.getString("indexname") }.toSet()
+                    migrationPlan.getJsonArray("columns").filterIsInstance<JsonObject>().forEach { field ->
+                        val unique = field.getBoolean("unique", false)
+                        if (unique || field.getBoolean("indexed", false)) {
+                            val name = indexName(schema, table, field.getString("name"), unique)
+                            if (name !in indexes) {
+                                diagnostics.add(JsonObject().put("code", "INDEX_MISSING")
+                                    .put("index", name).put("column", field.getString("name"))
+                                    .put("unique", unique).put("message", "元数据声明的索引不存在"))
+                            }
+                        }
+                    }
+                    diagnostics
+                }
+            }
+        }
+    }
+
     fun migrate(
         database: PgDatabase, doctype: String, version: Int,
         definition: JsonObject, actorId: UUID? = null
