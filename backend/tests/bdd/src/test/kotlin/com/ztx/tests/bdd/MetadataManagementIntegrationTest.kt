@@ -24,7 +24,7 @@ import java.nio.file.Path
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-@Testcontainers(disabledWithoutDocker = true)
+@Testcontainers
 class MetadataManagementIntegrationTest {
     companion object {
         @Container
@@ -102,7 +102,10 @@ class MetadataManagementIntegrationTest {
                 HttpResponse.BodyHandlers.ofString()
             )
             assertEquals(200, history.statusCode())
-            assertEquals(2, JsonObject(history.body()).getJsonArray("items").size())
+            val historyItems = JsonObject(history.body()).getJsonArray("items")
+            assertEquals(2, historyItems.size())
+            // Given 成功发布已完成，Then 历史动作必须明确记录为 PUBLISH，而不是只验证记录数量。
+            assertTrue(historyItems.toList().any { (it as JsonObject).getString("action") == "PUBLISH" })
         } finally {
             server.close().toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
             database.close()
