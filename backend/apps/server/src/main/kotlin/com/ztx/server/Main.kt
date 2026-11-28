@@ -5,6 +5,9 @@ import com.ztx.adapters.postgres.PgDatabase
 import com.ztx.adapters.postgres.PostgresModule
 import com.ztx.adapters.postgres.PostgresOutboxStore
 import com.ztx.modules.document.DocumentRuntimeModule
+import com.ztx.modules.document.DocumentBehaviorRegistry
+import com.ztx.modules.document.DocumentRuntimeSupport
+import com.ztx.modules.document.DbProvider
 import com.ztx.modules.document.DocumentRuntimeRoutes
 import com.ztx.modules.iam.IamModule
 import com.ztx.modules.iam.PlatformAuthRoutes
@@ -65,6 +68,11 @@ fun main(args: Array<String>) {
     val tenantAuthService = TenantAuthService(tenantDatabases)
     val tenantAuthRoutes = TenantAuthRoutes(tenantAuthService, tenantService, config.secureCookies)
 
+    // 应用装配层统一创建 Document Runtime 与 DbProvider；HTTP Routes 只接收 DbProvider。
+    val documentRuntime = DocumentRuntimeSupport(DocumentBehaviorRegistry.load())
+    val dbProvider = DbProvider(documentRuntime)
+    val documentRuntimeRoutes = DocumentRuntimeRoutes(dbProvider)
+
     // 具体业务处理器由后续平台能力/业务扩展注册；空处理器集合不会领取未知任务。
     val worker = BackgroundTaskWorker(
         vertx = vertx, database = database, store = outboxStore,
@@ -84,7 +92,7 @@ fun main(args: Array<String>) {
                 HealthServer(
                     vertx, database, config.httpHost, config.httpPort,
                     PlatformAuthRoutes(authService, config.secureCookies), tenantRoutes, tenantAuthRoutes,
-                    TenantOrganizationRoutes(), MetadataRoutes(), MetadataQueryRoutes(), DocumentRuntimeRoutes()
+                    TenantOrganizationRoutes(), MetadataRoutes(), MetadataQueryRoutes(), documentRuntimeRoutes
                 ).start()
             }
             .onSuccess { logger.info("ZTX API Server 已启动，监听 {}:{}", config.httpHost, config.httpPort) }

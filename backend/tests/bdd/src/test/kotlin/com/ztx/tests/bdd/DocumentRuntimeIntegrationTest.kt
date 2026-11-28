@@ -157,7 +157,9 @@ class DocumentRuntimeIntegrationTest {
             context.put(TENANT_CONTEXT_KEY, principal)
             context.next()
         }
-        DocumentRuntimeRoutes(DocumentBehaviorRegistry(listOf(DocumentProbeBehavior()))).register(router)
+        val runtime = DocumentRuntimeSupport(DocumentBehaviorRegistry(listOf(DocumentProbeBehavior())))
+        val dbProvider = DbProvider(runtime)
+        DocumentRuntimeRoutes(dbProvider).register(router)
         val server = vertx.createHttpServer().requestHandler(router).listen(0).toCompletionStage().toCompletableFuture()
             .get(20, TimeUnit.SECONDS)
         val client = HttpClient.newHttpClient()

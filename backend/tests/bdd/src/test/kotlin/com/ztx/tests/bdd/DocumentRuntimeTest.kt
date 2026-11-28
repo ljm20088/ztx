@@ -27,7 +27,13 @@ class DocumentRuntimeTest {
             DocumentRuntimeRoutes::class.java.isAssignableFrom(it.type)
         })
         assertTrue(DocumentRuntimeRoutes::class.java.declaredFields.any { it.type == DbProvider::class.java })
-        assertTrue(DocumentRuntimeRoutes::class.java.declaredFields.any { it.type == DocumentRuntimeSupport::class.java })
+        assertTrue(DocumentRuntimeRoutes::class.java.declaredFields.none {
+            DocumentRuntimeSupport::class.java.isAssignableFrom(it.type)
+        })
+        assertTrue(
+            DocumentRuntimeRoutes::class.java.declaredConstructors
+                .any { it.parameterTypes.contentEquals(arrayOf(DbProvider::class.java)) }
+        )
     }
 
     /** Given 数据库返回完整 Document 行，When 转换为动态对象，Then HTTP 投影仍保留系统时间字段和状态。 */

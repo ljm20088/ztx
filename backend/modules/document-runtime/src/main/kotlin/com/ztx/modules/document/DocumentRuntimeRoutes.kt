@@ -11,10 +11,7 @@ import io.vertx.ext.web.handler.BodyHandler
 import java.util.UUID
 
 /** Document 通用 CRUD 与生命周期；权限、持久化和审计在同一租户数据库事务中执行。 */
-class DocumentRuntimeRoutes(behaviors: DocumentBehaviorRegistry = DocumentBehaviorRegistry.load()) {
-
-    private val runtime = DocumentRuntimeSupport(behaviors)
-    private val dbProvider = DbProvider(runtime)
+class DocumentRuntimeRoutes(private val dbProvider: DbProvider) {
 
     fun register(router: Router) {
         router.route("/api/v1/tenant/documents/*").handler(BodyHandler.create().setBodyLimit(1024 * 1024))
