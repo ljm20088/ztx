@@ -185,6 +185,24 @@ class SchemaMigrationIntegrationTest {
             }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
             assertEquals("FAILED,SUCCEEDED", attemptHistory.first)
             assertTrue(attemptHistory.second.contains("duplicate key", ignoreCase = true))
+            val concurrent = (1..2).map {
+                service.migrate(database, "SchemaProbe", 5, retryDefinition, actorId)
+                    .toCompletionStage().toCompletableFuture()
+            }
+            val concurrentResults = concurrent.map { it.get(20, TimeUnit.SECONDS) }
+            assertEquals(concurrentResults[0].id, concurrentResults[1].id)
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.prepareStatement(
+                    "SELECT count(*) FROM meta.schema_migration WHERE source='RUNTIME' AND doctype='SchemaProbe' AND version='4' AND status='SUCCEEDED'"
+                ).use { statement ->
+                    statement.executeQuery().use { rows -> rows.next(); assertEquals(1, rows.getInt(1)) }
+                }
+                connection.prepareStatement(
+                    "SELECT count(*) FROM meta.schema_migration WHERE source='RUNTIME' AND doctype='SchemaProbe' AND version='5'"
+                ).use { statement ->
+                    statement.executeQuery().use { rows -> rows.next(); assertEquals(1, rows.getInt(1)) }
+                }
+            }
             // Given 已发布表被人工修改，When 只读检查 Schema 漂移，Then 返回缺失列/类型诊断且不自动修复。
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
                 connection.createStatement().use { statement ->
@@ -205,24 +223,6 @@ class SchemaMigrationIntegrationTest {
                 }
             }
 
-            val concurrent = (1..2).map {
-                service.migrate(database, "SchemaProbe", 5, retryDefinition, actorId)
-                    .toCompletionStage().toCompletableFuture()
-            }
-            val concurrentResults = concurrent.map { it.get(20, TimeUnit.SECONDS) }
-            assertEquals(concurrentResults[0].id, concurrentResults[1].id)
-            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
-                connection.prepareStatement(
-                    "SELECT count(*) FROM meta.schema_migration WHERE source='RUNTIME' AND doctype='SchemaProbe' AND version='4' AND status='SUCCEEDED'"
-                ).use { statement ->
-                    statement.executeQuery().use { rows -> rows.next(); assertEquals(1, rows.getInt(1)) }
-                }
-                connection.prepareStatement(
-                    "SELECT count(*) FROM meta.schema_migration WHERE source='RUNTIME' AND doctype='SchemaProbe' AND version='5'"
-                ).use { statement ->
-                    statement.executeQuery().use { rows -> rows.next(); assertEquals(1, rows.getInt(1)) }
-                }
-            }
         } finally {
             database.close()
             vertx.close().toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
