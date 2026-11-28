@@ -15,9 +15,9 @@ import java.util.UUID
 class DocumentVersionConflictException : RuntimeException("单据已被其他用户修改，请刷新后重新编辑")
 
 /** Document 通用 CRUD 与生命周期；权限、持久化和审计在同一租户数据库事务中执行。 */
-class DocumentRuntimeRoutes(
-    internal val behaviors: DocumentBehaviorRegistry = DocumentBehaviorRegistry.load()
-) : DocumentRuntimeSupport() {
+class DocumentRuntimeRoutes(behaviors: DocumentBehaviorRegistry = DocumentBehaviorRegistry.load()) : DocumentRuntimeSupport(behaviors) {
+
+    private val dbProvider = DbProvider(this)
 
     fun register(router: Router) {
         router.route("/api/v1/tenant/documents/*").handler(BodyHandler.create().setBodyLimit(1024 * 1024))
