@@ -79,7 +79,7 @@ class DocumentRuntimeRoutes(
                 return@compose Future.failedFuture<JsonObject>("字段 $fieldName 不是延迟加载字段")
             }
             val roles = field.getJsonArray("readRoles")
-            if (roles != null && !roles.isEmpty && roles.none { it == principal.role || it == "TENANT_ADMIN" }) {
+            if (!canReadField(roles, principal.role)) {
                 return@compose Future.failedFuture<JsonObject>("无权读取字段：$fieldName")
             }
             val id = UUID.fromString(context.pathParam("id"))
@@ -437,6 +437,10 @@ class DocumentRuntimeRoutes(
         context.response().setStatusCode(status).putHeader("cache-control", "no-store")
             .putHeader("content-type", "application/json; charset=utf-8").end(value.encode())
     }
+
+    /** 字段白名单按当前用户角色匹配；TENANT_ADMIN 是特权用户角色，不是授予所有人的通配符。 */
+    internal fun canReadField(roles: JsonArray?, role: String): Boolean =
+        roles == null || roles.isEmpty || role == "TENANT_ADMIN" || roles.any { it == role }
 
     private fun status(error: Throwable): Int = when {
         error.message?.contains("无权") == true -> 403
