@@ -29,6 +29,22 @@ class DocumentRuntimeTest {
         assertTrue(DocumentRuntimeRoutes::class.java.declaredFields.any { it.type == DocumentRuntimeSupport::class.java })
     }
 
+    /** Given 数据库返回完整 Document 行，When 转换为动态对象，Then HTTP 投影仍保留系统时间字段和状态。 */
+    @Test
+    fun loadedDocumentRetainsSystemProjectionFields() {
+        val id = UUID.fromString("00000000-0000-0000-0000-000000000001")
+        val row = JsonObject()
+            .put("id", id.toString())
+            .put("version", 3)
+            .put("docstatus", 1)
+            .put("created_at", "2026-11-28T01:00:00Z")
+            .put("updated_at", "2026-11-28T02:00:00Z")
+        val document = DynamicDocument.loaded("TestDocument", JsonObject().put("fields", JsonArray()), row)
+        assertEquals(1, document.docstatus)
+        assertEquals("2026-11-28T01:00:00Z", document.toJson().getString("created_at"))
+        assertEquals("2026-11-28T02:00:00Z", document.toJson().getString("updated_at"))
+    }
+
     /** Given 元数据定义金额、日期和嵌套明细，When 接收 JSON，Then 转换为精确 Kotlin 类型。 */
     @Test
     fun jsonValuesAreConvertedByMetadataTypes() {
