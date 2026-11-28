@@ -89,7 +89,7 @@ class SchemaMigrationService {
         }
         return database.withTransaction { connection ->
             connection.preparedQuery(
-                """SELECT column_name,udt_name,is_nullable
+                """SELECT column_name,udt_name,is_nullable,column_default
                    FROM information_schema.columns
                    WHERE table_schema=$1 AND table_name=$2"""
             ).execute(Tuple.of(schema, table)).compose { rows ->
