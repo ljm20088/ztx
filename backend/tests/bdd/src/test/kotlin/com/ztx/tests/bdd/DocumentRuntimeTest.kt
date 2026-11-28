@@ -21,11 +21,12 @@ class DocumentRuntimeTest {
     /** Given 统一数据访问门面与 HTTP 路由，When 检查类型依赖，Then Db 不得反向依赖 Routes。 */
     @Test
     fun dbIsIndependentFromHttpRoutes() {
-        assertTrue(DocumentRuntimeRoutes::class.java.superclass == DocumentRuntimeSupport::class.java)
+        assertTrue(Db::class.java.declaredFields.any { it.type == DocumentRuntimeSupport::class.java })
         assertTrue(Db::class.java.declaredFields.none {
             DocumentRuntimeRoutes::class.java.isAssignableFrom(it.type)
         })
         assertTrue(DocumentRuntimeRoutes::class.java.declaredFields.any { it.type == DbProvider::class.java })
+        assertTrue(DocumentRuntimeRoutes::class.java.declaredFields.any { it.type == DocumentRuntimeSupport::class.java })
     }
 
     /** Given 字段只允许 TENANT_ADMIN，When 普通角色请求，Then 不得把管理员角色当成通配符。 */
