@@ -45,6 +45,6 @@ test('租户管理员可以在 DocType 设计器创建并校验元数据草稿',
   // Then 草稿出现在定义列表中，并可以执行校验
   await expect(page.getByText('草稿已保存')).toBeVisible()
   await expect(page.getByRole('button', { name: /PlaywrightSample v1/ })).toBeVisible()
-  await page.getByRole('button', { name: '校验' }).click()
-  await expect(page.getByText('元数据校验通过')).toBeVisible()
+  await page.getByRole('button', { name: '校验并发布' }).click()
+  await expect(page.getByText('元数据校验通过并已发布')).toBeVisible()
 })

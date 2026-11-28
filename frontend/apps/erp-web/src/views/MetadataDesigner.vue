@@ -165,7 +165,7 @@ async function validate() {
     )
     diagnostics.value = data.diagnostics
     status.value = data.status
-    message.value = data.valid ? '元数据校验通过' : '发现需要修正的问题'
+    message.value = data.valid ? '元数据校验通过并已发布' : '发现需要修正的问题'
     await loadList()
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '校验失败'
@@ -239,7 +239,7 @@ onMounted(() => { void loadList().catch(cause => { error.value = cause instanceo
           </div>
           <div class="flex flex-wrap gap-2">
             <ZButton v-if="version!==null" variant="secondary" :disabled="busy" @click="copyVersion">复制版本</ZButton>
-            <ZButton variant="secondary" :disabled="busy || version===null" @click="validate">校验</ZButton>
+            <ZButton variant="secondary" :disabled="busy || version===null" @click="validate">校验并发布</ZButton>
             <ZButton :disabled="busy || !canSave" @click="save">保存草稿</ZButton>
           </div>
         </div>
