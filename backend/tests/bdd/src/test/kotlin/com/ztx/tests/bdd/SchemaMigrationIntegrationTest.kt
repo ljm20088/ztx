@@ -206,6 +206,11 @@ class SchemaMigrationIntegrationTest {
                     statement.executeQuery().use { rows -> rows.next(); assertEquals(1, rows.getInt(1)) }
                 }
             }
+            // Given DocType 物理结构与元数据一致，When 执行只读漂移检查，Then 不应把已配置的默认值误报为漂移。
+            val cleanDrift = service.inspectDrift(database, "SchemaProbe", retryDefinition)
+                .toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertTrue(cleanDrift.isEmpty(), "一致的物理 Schema 不应产生漂移诊断：$cleanDrift")
+
             // Given 已发布表被人工修改，When 只读检查 Schema 漂移，Then 返回缺失列/类型诊断且不自动修复。
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
                 connection.createStatement().use { statement ->
