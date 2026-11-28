@@ -31,7 +31,7 @@ PostgreSQL 的非事务性迁移（例如 `CREATE INDEX CONCURRENTLY`）失败�
 
 恢复必须由有部署权限的操作者执行：
 1. 检查 Flyway 失败诊断和数据库残留状态（例如无效索引），先修复数据或迁移脚本。
-2. 调用 `FlywayMigrator.repairFailedMigrations()` 清理 Flyway 原生失败标记。该入口要求存在失败记录，并拒绝同时存在其他非正常迁移状态。
+2. 调用 `FlywayMigrator.repairFailedMigrations()` 清理 Flyway 原生失败标记。该入口要求存在失败记录；允许后续尚未执行的 `PENDING` 迁移保持待执行，只拒绝其他异常历史状态。
 3. 再调用常规 `migrate()` 重试迁移。
 4. 核对 `meta.schema_migration_attempt` 中原 FAILED 与新 SUCCEEDED 尝试均保留，master 状态更新为 SUCCEEDED。
 
