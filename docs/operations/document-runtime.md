@@ -1,0 +1,144 @@
+# Document Runtime 与动态表单
+
+## 运行时接口
+
+- GET /api/v1/tenant/runtime/doctypes/{doctype}：读取已校验的租户级 DocType 元数据，并检查 read 权限。
+- POST /api/v1/tenant/documents/{doctype}：创建草稿。
+- GET /api/v1/tenant/documents/{doctype}/{id}：读取单据。
+- PUT /api/v1/tenant/documents/{doctype}/{id}：更新草稿。
+- POST /api/v1/tenant/documents/{doctype}/{id}/actions/submit：提交。
+- POST /api/v1/tenant/documents/{doctype}/{id}/actions/cancel：撤销已提交单据。
+- POST /api/v1/tenant/documents/{doctype}/{id}/actions/void：作废草稿。
+
+所有接口只读取当前租户数据库中的 VALIDATED 定义。角色权限在服务端检查；字段 readRoles 控制返回字段，writeRoles/readOnly 控制可写字段。company_id、book_id、organization_unit_id（若定义在 DocType 中）按认证主体的有效任职范围约束。
+
+## 物理表约定
+
+Document 当前运行时映射到元数据声明的租户业务表。物理表必须提供 UUID 主键 id、整数状态列 docstatus、整数乐观锁版本列 version（NOT NULL，默认 1）、created_at 和 updated_at；created_at 应有数据库默认值。创建单据时版本从 1 开始，每次更新或生命周期动作成功后递增。状态编码为 0 草稿、1 已提交、2 已撤销、3 已作废。普通字段按元数据字段名映射到物理列；json/table 类型以 JSONB 保存，table 子字段通过 childFields 描述并由统一 Codec 转换。
+
+保存、更新和生命周期动作在同一 PostgreSQL 事务中执行；对应审计记录写入 audit.document_event。审计失败会导致业务事务回滚。更新和生命周期动作使用行锁，并要求客户端提交读取时的 version；服务端以 version 条件更新并递增版本。版本不匹配返回 HTTP 409 和明确冲突信息，禁止静默覆盖。
+
+## 类型转换
+
+Codec 支持 UUID、LocalDate、LocalDateTime、LocalTime、BigDecimal、Long、Boolean、JSON 对象/数组及嵌套 table 明细。除 `decode` 返回规范化 JSON 外，业务 Kotlin 文件可调用 `DocumentValueCodec.decodeAs(definition, input, PurchaseOrder::class)`，将 JSON 转换为 Kotlin data class、嵌套 data class 和 `List<T>`/`Set<T>`；元数据蛇形字段名（如 `supplier_id`）会映射到 Kotlin 属性名（如 `supplierId`）。金额/小数使用 BigDecimal，输入应使用十进制字符串避免 JavaScript 浮点精度损失。字段缺失、类型错误和未知字段会返回稳定的字段错误。
+
+## 当前实现边界
+
+当前切片覆盖纯元数据 Document 的通用 CRUD、草稿/提交/撤销/作废、嵌套 JSON 明细、统一权限/事务/审计、动态表单，以及通过服务端可信代码注册的 Kotlin 业务扩展。独立关系型明细表映射不属于本 Issue 的交付范围；当前明细按 JSONB 保存。
+
+
+## Kotlin 业务代码的数据访问门面
+
+普通业务执行上下文通过 DbProvider.transaction(principal) 获取租户作用域 Db；DocumentBehaviorContext 直接提供复用当前事务连接的 context.db。业务代码不需要自行选择租户数据库或拼接数据访问前缀：
+
+- db.new(doctype)：按元数据创建内存 Document，应用默认值；不写数据库。
+- db.get(doctype, id)：按当前租户和用户数据范围读取 Document，并执行字段读取权限。
+- db.update(document)：只保存显式修改的字段，使用 Document 版本进行乐观锁校验；成功后返回新版本 Document。
+- db.list(doctype, query)：使用受控查询编译器，直接返回分页 JSON，不要求额外 DTO。
+- db.getValue(doctype, id, field)：读取单个字段，并执行字段读取权限。
+- db.exists(doctype, id) / db.getAll(doctype, ids)：批量检查或读取，避免逐条 N+1 查询。
+- db.submit(document) / db.cancel(document) / db.void(document)：通过统一门面执行单据生命周期，并校验版本。
+- db.transaction { ... }：在当前绑定连接上执行事务块；业务 Hook 中不会创建嵌套事务。DbProvider.transaction(principal) 负责建立外层事务和作用域 Db。
+
+这些操作复用 Hook 当前的 SqlConnection，与外层单据写入、业务规则和审计处于同一事务。DynamicDocument 支持下标读写和类型化 getter；内存赋值不会自动持久化，必须显式调用 db.update(document)。版本冲突禁止静默覆盖。
+
+## Kotlin 业务扩展
+
+Document Runtime 支持三种执行模式：
+
+- **纯元数据**：DocType 不声明 `extension`，由通用运行时处理。
+- **元数据 + 单 Kotlin 业务文件**：在业务模块中提供一个实现 `DocumentBehavior` 的 Kotlin 类；通常只覆盖需要的 `beforeCreate`、`beforeUpdate` 或 `beforeAction` 等 Hook。
+- **Kotlin 专用实现**：同样实现 `DocumentBehavior`，但可以覆盖完整生命周期 Hook，承载该 DocType 的专用业务规则。
+
+元数据通过 `extension.mode` 和 `extension.implementation` 指定模式及实现类全名。实现必须由服务端构建并部署到 classpath，并通过 Java `ServiceLoader` 注册（资源文件：`META-INF/services/com.ztx.modules.document.DocumentBehavior`，每行一个实现类全名）。服务启动时构建注册表；运行时只接受 DocType、模式和实现类名三者完全匹配的实现。
+
+**安全边界：** 不在运行时编译、加载或执行租户提交的 Kotlin 源码；Kotlin 扩展属于可信部署代码，必须经过代码审查和正常发布。扩展 Hook 接收当前事务的 `SqlConnection`，与单据写入、状态迁移和审计共用同一事务。Hook 抛出异常或返回失败 Future 时，整个事务回滚。
+
+
+### Kotlin 扩展示例
+
+业务模块中的单个 Kotlin 文件可以直接实现 Hook，不需要为常规单据机械拆分多层类：
+
+```kotlin
+class PurchaseOrderBehavior : DocumentBehavior {
+    override val doctype = "PurchaseOrder"
+    override val mode = DocumentExtensionMode.METADATA_WITH_KOTLIN_FILE
+
+    override fun beforeAction(
+        context: DocumentBehaviorContext,
+        before: JsonObject,
+        action: String
+    ): Future<Void> {
+        if (action != "submit") return Future.succeededFuture()
+        // 在当前事务中执行必要的业务校验；失败时阻止提交并回滚。
+        return context.connection.preparedQuery(
+            "SELECT 1 WHERE EXISTS (SELECT 1 FROM pur.supplier WHERE id = $1)"
+        ).execute(Tuple.of(before.getValue("supplier_id")))
+            .compose { rows ->
+                if (rows.size() == 1) Future.succeededFuture()
+                else Future.failedFuture("供应商不存在或不可用")
+            }
+    }
+}
+```
+
+将实现类全名加入 `META-INF/services/com.ztx.modules.document.DocumentBehavior`，并在 DocType 元数据中声明：
+
+```json
+{
+  "extension": {
+    "mode": "METADATA_WITH_KOTLIN_FILE",
+    "implementation": "com.example.purchase.PurchaseOrderBehavior"
+  }
+}
+```
+
+上例通过 `beforeAction` 在提交动作前校验供应商；Hook 失败会使状态迁移和审计记录一起回滚。
+
+## 统一 db 门面的显式创建与 Hook
+
+普通业务代码通过 `DbProvider.transaction(principal) { db -> ... }` 从当前可信租户执行上下文取得作用域化 `db`。先用 `db.new()` 创建内存 Document，设置字段，再显式调用 `db.insert()` 持久化；读取后修改则调用 `db.update()`。`new()` 和字段赋值都不会写数据库。`insert/update` 会复用当前事务连接执行字段/组织范围校验、权限校验、Document Hook 和审计；Hook 失败会使外层事务回滚。
+
+```kotlin
+val dbProvider = DbProvider()
+dbProvider.transaction(principal) { db ->
+    db.new("PurchaseOrder").compose { document ->
+        document["supplier"] = supplierId
+        document["company_id"] = companyId
+        document["order_date"] = LocalDate.now()
+        db.insert(document)
+    }.compose { saved ->
+        db.submit(saved)
+    }
+}
+
+// 列表只执行 Query Runtime 投影，不构造完整 Document。
+dbProvider.transaction(principal) { db ->
+    db.list("PurchaseOrder", JsonObject().put("page", 1).put("pageSize", 20))
+}
+
+// 平台核心 Kotlin data class 通过同一 db 门面读取和转换。
+dbProvider.transaction(principal) { db ->
+    db.getAs("PurchaseOrder", purchaseOrderId, PurchaseOrderView::class)
+}
+
+// 大字段显式按需读取。
+dbProvider.transaction(principal) { db ->
+    db.getValue("PurchaseOrder", purchaseOrderId, "attachment_content")
+}
+```
+
+租户管理员通过 DocType 设计器保存草稿并执行“校验/发布”。发布流程先执行运行期 Schema Migration，只有物理表/列迁移成功后才将该版本激活；失败时保留旧的已发布版本。开发期源码 Migration 继续由 Flyway 管理，二者共享迁移历史和 advisory lock，但保留各自来源。
+
+## 大字段与附件的延迟加载
+
+普通 `db.get()` / `db.getAll()` 默认读取全部普通字段，但跳过元数据标记 `loadOnDemand: true` 的大字段或附件字段。对尚未加载的延迟字段执行 `document["field"]` 会明确报错，避免把“未加载”误判为 `null`。业务代码可通过 `db.getValue(doctype, id, field)` 显式读取；HTTP 运行时也提供 `GET /api/v1/tenant/documents/{doctype}/{id}/fields/{field}`。两种方式都继续执行租户范围、DocType 读取权限和字段 `readRoles` 检查。
+
+```json
+{ "name": "attachment_content", "type": "json", "loadOnDemand": true }
+```
+
+## 可选字段清空与部分更新
+
+更新请求只处理实际提交的字段；未提交字段不会被默认值覆盖。可选字段显式传入 `null` 表示清空，必填字段传入 `null` 会被拒绝。`db.update(document)` 同样支持将可选字段设为 `null` 后显式保存。
+

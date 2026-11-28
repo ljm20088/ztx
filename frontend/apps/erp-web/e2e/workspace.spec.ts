@@ -8,6 +8,18 @@ test.beforeEach(async ({ page }) => {
   }))
 })
 
+test('工作台展示指标、趋势、待办和最近业务记录区域', async ({ page }) => {
+  // Given 用户进入工作台首页
+  await page.goto('/workspace')
+
+  // Then 工作台按仪表盘布局呈现 KPI、业务趋势、待办和最近业务记录
+  await expect(page.getByTestId('workspace-kpi')).toHaveCount(4)
+  await expect(page.getByTestId('business-trend')).toBeVisible()
+  await expect(page.getByTestId('pending-items')).toBeVisible()
+  await expect(page.getByTestId('recent-business')).toBeVisible()
+  await expect(page.getByText('工作台示例数据仅用于界面预览')).toBeVisible()
+})
+
 test('工作区首屏与页面截图', async ({ page }, testInfo) => {
   // Given 用户打开 ZTX Web 工作区
   await page.goto('/workspace')
@@ -63,7 +75,10 @@ test('一级点击、二级悬停后指针可移入三级浮层', async ({ page 
   // Given 该场景验证桌面端 hover；触屏端由点击交互用例覆盖
   test.skip(testInfo.project.name === 'mobile-chrome', '触屏端不依赖 hover，使用点击交互')
 
-  // Given 用户位于工作台
+  // Given 用户位于工作台，并为新接入的元数据设计器提供空定义列表
+  await page.route('**/api/v1/tenant/metadata/doctypes', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ items: [] }),
+  }))
   await page.goto('/workspace')
 
   // When 点击一级菜单“管理中心”，悬停二级菜单“低代码开发”
@@ -85,7 +100,7 @@ test('一级点击、二级悬停后指针可移入三级浮层', async ({ page 
   await feature.click()
 
   // Then 对应页面进入顶部工作区标签
-  await expect(page.getByTestId('placeholder-state')).toHaveText('该功能尚未开放')
+  await expect(page.getByRole('heading', { name: 'DocType 元数据设计器' })).toBeVisible()
   await expect(page.getByRole('navigation', { name: '工作区标签' }).getByText('DocType 管理')).toBeVisible()
 })
 
@@ -217,7 +232,11 @@ test('折叠导航下悬停菜单跟随一级图标，鼠标离开后关闭', as
 
   // When 悬停二级分类，再移动到三级功能菜单
   const category = page.getByRole('button', { name: '低代码开发', exact: true })
-  await category.hover()
+  await expect(category).toBeVisible()
+  // Given 折叠菜单已打开且二级项已经渲染，When 指针移入二级项中心，Then 触发真实 pointerenter 而不触发自动滚动导致的 DOM 重挂载竞态。
+  const categoryBox = await category.boundingBox()
+  if (!categoryBox) throw new Error('二级菜单项未取得可见边界')
+  await page.mouse.move(categoryBox.x + categoryBox.width / 2, categoryBox.y + categoryBox.height / 2)
   const featureMenu = page.locator('.feature-flyout')
   await expect(featureMenu).toBeVisible()
   await expect(featureMenu.locator('.flyout-heading')).toHaveCount(0)
@@ -350,8 +369,6 @@ test('工作区内容区按统一字号令牌呈现层级', async ({ page }) => 
     quickDescription: getComputedStyle(document.querySelector('[data-testid="quick-link-description"]')!).fontSize,
     sectionTitle: getComputedStyle(document.querySelector('[data-testid="section-title"]')!).fontSize,
     recentTitle: getComputedStyle(document.querySelector('[data-testid="recent-title"]')!).fontSize,
-    foundationTitle: getComputedStyle(document.querySelector('[data-testid="foundation-title"]')!).fontSize,
-    foundationDescription: getComputedStyle(document.querySelector('[data-testid="foundation-description"]')!).fontSize,
   }))
   expect(contentTypography).toEqual({
     bodyToken: '13px',
@@ -362,8 +379,6 @@ test('工作区内容区按统一字号令牌呈现层级', async ({ page }) => 
     quickDescription: '12px',
     sectionTitle: '15px',
     recentTitle: '13px',
-    foundationTitle: '13px',
-    foundationDescription: '12px',
   })
 })
 
@@ -385,4 +400,71 @@ test('精简后的平台管理员登录页使用统一字号令牌', async ({ pa
     submit: getComputedStyle(document.querySelector('[data-testid="platform-auth-submit"]')!).fontSize,
   }))
   expect(typography).toEqual({ title: '18px', label: '13px', input: '13px', submit: '13px' })
+})
+
+
+test('表单未保存保护与工作区视图实例恢复', async ({ page }) => {
+  // Given 用户打开已有单据，后端返回当前 Document 版本
+  const documentId = '7b9f5b9e-10c8-4f10-9e42-2c2f8a1c91d2'
+  await page.route('**/api/v1/tenant/runtime/doctypes/PurchaseOrder', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ doctype: 'PurchaseOrder', definition: {
+      doctype: 'PurchaseOrder',
+      fields: [{ name: 'code', label: '采购单号', type: 'string', required: true }],
+    } }),
+  }))
+  await page.route(`**/api/v1/tenant/documents/PurchaseOrder/${documentId}`, route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ id: documentId, version: 1, docstatus: 0, code: 'PO-001' }),
+  }))
+  await page.goto(`/developer/documents/PurchaseOrder/${documentId}`)
+  await expect(page.locator('#doc-code')).toHaveValue('PO-001')
+
+  // When 修改单据后尝试切换到工作台，并在未保存提示中选择取消
+  await page.locator('#doc-code').fill('PO-EDITED')
+  const tabs = page.getByRole('navigation', { name: '工作区标签' })
+  page.once('dialog', dialog => dialog.dismiss())
+  await tabs.getByRole('button', { name: /工作台/ }).click()
+  await expect(page).toHaveURL('/developer/documents/PurchaseOrder/' + documentId)
+  await expect(tabs.locator('button.workspace-tab[aria-current="page"]')).toContainText('元数据单据')
+
+  // Then 原表单保持打开且修改内容没有丢失
+  await expect(page.locator('#doc-code')).toHaveValue('PO-EDITED')
+  await expect(tabs.getByLabel('未保存修改')).toBeVisible()
+
+  // When 用户再次切换并明确确认放弃修改
+  page.once('dialog', dialog => dialog.accept())
+  await tabs.getByRole('button', { name: /工作台/ }).click()
+  await expect(page).toHaveURL(/\/workspace$/)
+  await expect(tabs.getByLabel('未保存修改')).toHaveCount(0)
+
+  // Then 用户已确认放弃修改，重新激活表单时显示数据库中的原值
+  await tabs.locator('button.workspace-tab').filter({ hasText: '元数据单据' }).click()
+  await expect(page.locator('#doc-code')).toHaveValue('PO-001')
+
+  // And 修改后关闭当前表单 Tab，取消时保留页面与修改；确认时才真正关闭。
+  await page.locator('#doc-code').fill('PO-CLOSE-EDIT')
+  page.once('dialog', dialog => dialog.dismiss())
+  await tabs.getByLabel('关闭 元数据单据').click()
+  await expect(page).toHaveURL('/developer/documents/PurchaseOrder/' + documentId)
+  await expect(page.locator('#doc-code')).toHaveValue('PO-CLOSE-EDIT')
+  page.once('dialog', dialog => dialog.accept())
+  await tabs.getByLabel('关闭 元数据单据').click()
+  await expect(page).toHaveURL(/\/workspace$/)
+  await expect(tabs.locator('button.workspace-tab').filter({ hasText: '元数据单据' })).toHaveCount(0)
+})
+
+test('报表使用独立的参数与结果视图', async ({ page }, testInfo) => {
+  // Given 用户打开一个报表 Tab
+  await page.goto('/reports/inventory-summary')
+
+  // When 报表视图渲染
+  const report = page.getByTestId('report-view')
+
+  // Then 参数区和结果区独立存在，不复用 Document Form 或 List View
+  await expect(report).toBeVisible()
+  await expect(report.getByRole('region', { name: '报表参数' })).toBeVisible()
+  await expect(report.getByRole('region', { name: '报表结果' })).toBeVisible()
+  await expect(report.getByText('当前报表尚未配置数据集或查询定义。')).toBeVisible()
+  if (testInfo.project.name === 'chromium') await page.screenshot({ path: 'artifacts/frontend-visual-captures/report-view-desktop.png', fullPage: true })
 })

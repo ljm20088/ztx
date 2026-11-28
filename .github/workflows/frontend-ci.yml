@@ -66,6 +66,13 @@ jobs:
         working-directory: frontend
         run: pnpm build
 
+      - name: Install CJK fonts for visual captures
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes fonts-noto-cjk
+          fc-cache --force
+          fc-match sans:lang=zh
+
       - name: Install Playwright Chromium
         working-directory: frontend
         run: pnpm --filter @ztx/erp-web exec playwright install chromium

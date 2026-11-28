@@ -9,6 +9,10 @@ import PlatformOperations from '../views/PlatformOperations.vue'
 import PlatformAudit from '../views/PlatformAudit.vue'
 import TenantAccount from '../views/TenantAccount.vue'
 import TenantOrganization from '../views/TenantOrganization.vue'
+import MetadataDesigner from '../views/MetadataDesigner.vue'
+import MetadataListView from '../views/MetadataListView.vue'
+import DocumentFormView from '../views/DocumentFormView.vue'
+import ReportView from '../views/ReportView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -23,6 +27,10 @@ export const router = createRouter({
     { path: '/platform/operations', name: 'platform-operations', component: PlatformOperations, meta: { title: '运维管理', closable: true } },
     { path: '/platform/audit', name: 'platform-audit', component: PlatformAudit, meta: { title: '安全审计', closable: true } },
     { path: '/enterprise/:feature', name: 'tenant-organization', component: TenantOrganization, meta: { title: '企业与组织管理', closable: true } },
+    { path: '/developer/doctypes', name: 'metadata-designer', component: MetadataDesigner, meta: { title: 'DocType 元数据设计器', closable: true } },
+    { path: '/developer/lists/:doctype', name: 'metadata-list', component: MetadataListView, meta: { title: '元数据列表', closable: true } },
+    { path: '/developer/documents/:doctype/:id?', name: 'metadata-document', component: DocumentFormView, meta: { title: '元数据单据', closable: true } },
+    { path: '/reports/:reportId', name: 'report-view', component: ReportView, meta: { title: '报表', closable: true } },
     { path: '/:section/:feature', name: 'feature', component: PlaceholderView },
     { path: '/:pathMatch(.*)*', redirect: '/workspace' },
   ],
