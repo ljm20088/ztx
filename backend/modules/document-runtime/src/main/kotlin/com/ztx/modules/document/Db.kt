@@ -19,6 +19,13 @@ class Db(
     private val connection: SqlConnection,
     private val runtime: DocumentRuntimeSupport = DocumentRuntimeSupport()
 ) {
+    /** Routes 使用的受控元数据读取；权限仍由 db 统一执行。 */
+    internal fun definition(doctype: String): Future<JsonObject> =
+        runtime.loadDefinition(connection, doctype).map { definition ->
+            runtime.authorize(definition, principal, "read")
+            definition
+        }
+
     /** 创建尚未持久化的 Document；调用方设置字段后必须显式调用 insert。 */
     fun new(doctype: String): Future<DynamicDocument> =
         runtime.loadDefinition(connection, doctype).map { definition ->
