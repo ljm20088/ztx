@@ -10,6 +10,7 @@ type MetadataField = {
   required: boolean
   readOnly: boolean
   unique: boolean
+  defaultValue?: unknown
   loadOnDemand?: boolean
   target?: string
   options?: string[]
@@ -42,6 +43,8 @@ const definition = reactive<Definition>({
   permissions: { read: [], create: [], update: [], delete: [] },
 })
 const diagnostics = ref<Diagnostic[]>([])
+const defaultValueDrafts = reactive<Record<number, string>>({})
+const optionsDrafts = reactive<Record<number, string>>({})
 const busy = ref(false)
 const error = ref('')
 const message = ref('')
@@ -81,6 +84,12 @@ async function openDefinition(doctype: string) {
       '/api/v1/tenant/metadata/doctypes/' + encodeURIComponent(doctype),
     )
     Object.assign(definition, blankDefinition(), data.definition)
+    Object.keys(defaultValueDrafts).forEach(key => delete defaultValueDrafts[Number(key)])
+    Object.keys(optionsDrafts).forEach(key => delete optionsDrafts[Number(key)])
+    definition.fields.forEach((field, index) => {
+      defaultValueDrafts[index] = field.defaultValue === undefined ? '' : typeof field.defaultValue === 'string' ? field.defaultValue : JSON.stringify(field.defaultValue)
+      optionsDrafts[index] = (field.options ?? []).join(', ')
+    })
     selectedDoctype.value = doctype
     version.value = data.version
     status.value = data.status
@@ -93,6 +102,8 @@ async function openDefinition(doctype: string) {
 
 function createNew() {
   Object.assign(definition, blankDefinition())
+  Object.keys(defaultValueDrafts).forEach(key => delete defaultValueDrafts[Number(key)])
+  Object.keys(optionsDrafts).forEach(key => delete optionsDrafts[Number(key)])
   selectedDoctype.value = ''
   version.value = null
   status.value = 'DRAFT'
@@ -102,9 +113,12 @@ function createNew() {
 }
 
 function addField() {
+  const index = definition.fields.length
   definition.fields.push({
     name: '', label: '', type: 'string', required: false, readOnly: false, unique: false, loadOnDemand: false,
   })
+  defaultValueDrafts[index] = ''
+  optionsDrafts[index] = ''
 }
 
 function addChildField(field: MetadataField) {
@@ -114,6 +128,52 @@ function addChildField(field: MetadataField) {
 
 function removeField(index: number) {
   definition.fields.splice(index, 1)
+  const defaults = definition.fields.map((_, i) => defaultValueDrafts[i < index ? i : i + 1] ?? '')
+  const options = definition.fields.map((_, i) => optionsDrafts[i < index ? i : i + 1] ?? '')
+  Object.keys(defaultValueDrafts).forEach(key => delete defaultValueDrafts[Number(key)])
+  Object.keys(optionsDrafts).forEach(key => delete optionsDrafts[Number(key)])
+  defaults.forEach((value, i) => { defaultValueDrafts[i] = value })
+  options.forEach((value, i) => { optionsDrafts[i] = value })
+}
+
+function applyFieldConfiguration() {
+  definition.fields.forEach((field, index) => {
+    const raw = defaultValueDrafts[index]?.trim() ?? ''
+    if (!raw) {
+      delete field.defaultValue
+    } else {
+      switch (field.type) {
+        case 'decimal':
+        case 'money':
+        case 'integer': {
+          const value = Number(raw)
+          if (!Number.isFinite(value) || (field.type === 'integer' && !Number.isInteger(value))) {
+            throw new Error(`字段 ${field.label || field.name} 的默认值必须是有效的${field.type === 'integer' ? '整数' : '数字'}`)
+          }
+          field.defaultValue = value
+          break
+        }
+        case 'boolean':
+          if (raw !== 'true' && raw !== 'false') throw new Error(`字段 ${field.label || field.name} 的布尔默认值只能是 true 或 false`)
+          field.defaultValue = raw === 'true'
+          break
+        case 'json':
+          try { field.defaultValue = JSON.parse(raw) as unknown }
+          catch { throw new Error(`字段 ${field.label || field.name} 的 JSON 默认值格式不正确`) }
+          break
+        case 'table':
+          throw new Error(`明细字段 ${field.label || field.name} 不支持默认值`)
+        default:
+          field.defaultValue = raw
+      }
+    }
+    if (field.type === 'select') {
+      field.options = (optionsDrafts[index] ?? '').split(',').map(value => value.trim()).filter(Boolean)
+    } else {
+      delete field.options
+    }
+    if (field.type !== 'reference') delete field.target
+  })
 }
 
 function syncLayout() {
@@ -131,6 +191,7 @@ async function save() {
   message.value = ''
   diagnostics.value = []
   try {
+    applyFieldConfiguration()
     syncLayout()
     const isNew = version.value === null
     const path = isNew
@@ -261,19 +322,22 @@ onMounted(() => { void loadList().catch(cause => { error.value = cause instanceo
           <ZButton size="sm" variant="secondary" @click="addField">添加字段</ZButton>
         </div>
         <div class="overflow-x-auto rounded-ztx-sm border border-ztx-border">
-          <table class="w-full min-w-[760px] text-left text-ztx-body">
+          <table class="w-full min-w-[1180px] text-left text-ztx-body">
             <thead class="bg-ztx-surface-soft text-ztx-caption text-ztx-muted">
-              <tr><th class="px-2 py-2">字段标识</th><th class="px-2 py-2">显示名称</th><th class="px-2 py-2">类型</th><th class="px-2 py-2">必填</th><th class="px-2 py-2">只读</th><th class="px-2 py-2">唯一</th><th class="px-2 py-2">按需加载</th><th class="px-2 py-2">操作</th></tr>
+              <tr><th class="px-2 py-2">字段标识</th><th class="px-2 py-2">显示名称</th><th class="px-2 py-2">类型</th><th class="px-2 py-2">默认值</th><th class="px-2 py-2">引用目标</th><th class="px-2 py-2">下拉选项</th><th class="px-2 py-2">必填</th><th class="px-2 py-2">只读</th><th class="px-2 py-2">唯一</th><th class="px-2 py-2">按需加载</th><th class="px-2 py-2">操作</th></tr>
             </thead>
             <tbody>
               <tr v-for="(field,index) in definition.fields" :key="index" class="border-t border-ztx-border">
-                <td class="p-1.5"><input v-model="field.name" class="w-full rounded border border-ztx-border bg-ztx-surface px-2 py-1.5" placeholder="field_name"></td>
-                <td class="p-1.5"><input v-model="field.label" class="w-full rounded border border-ztx-border bg-ztx-surface px-2 py-1.5" placeholder="字段名称"></td>
+                <td class="p-1.5"><input v-model="field.name" aria-label="字段标识" class="w-full rounded border border-ztx-border bg-ztx-surface px-2 py-1.5" placeholder="field_name"></td>
+                <td class="p-1.5"><input v-model="field.label" aria-label="显示名称" class="w-full rounded border border-ztx-border bg-ztx-surface px-2 py-1.5" placeholder="字段名称"></td>
                 <td class="p-1.5">
-                  <select v-model="field.type" class="w-full rounded border border-ztx-border bg-ztx-surface px-2 py-1.5">
+                  <select v-model="field.type" aria-label="字段类型" class="w-full rounded border border-ztx-border bg-ztx-surface px-2 py-1.5">
                     <option v-for="type in fieldTypes" :key="type" :value="type">{{ type }}</option>
                   </select>
                 </td>
+                <td class="p-1.5"><input v-model="defaultValueDrafts[index]" aria-label="默认值" class="w-full min-w-24 rounded border border-ztx-border bg-ztx-surface px-2 py-1.5" placeholder="可选"></td>
+                <td class="p-1.5"><input v-if="field.type === 'reference'" v-model="field.target" aria-label="引用目标" class="w-full min-w-28 rounded border border-ztx-border bg-ztx-surface px-2 py-1.5" placeholder="目标 DocType"></td>
+                <td class="p-1.5"><input v-if="field.type === 'select'" v-model="optionsDrafts[index]" aria-label="下拉选项" class="w-full min-w-28 rounded border border-ztx-border bg-ztx-surface px-2 py-1.5" placeholder="选项A, 选项B"></td>
                 <td class="p-1.5 text-center"><input v-model="field.required" type="checkbox" aria-label="必填"></td>
                 <td class="p-1.5 text-center"><input v-model="field.readOnly" type="checkbox" aria-label="只读"></td>
                 <td class="p-1.5 text-center"><input v-model="field.unique" type="checkbox" aria-label="唯一"></td>
@@ -281,7 +345,7 @@ onMounted(() => { void loadList().catch(cause => { error.value = cause instanceo
                 <td class="p-1.5"><button type="button" class="text-ztx-danger hover:underline" @click="removeField(index)">删除</button></td>
               </tr>
               <tr v-for="field in definition.fields.filter(item => item.type === 'table')" :key="field.name + '-children'" class="bg-ztx-surface-soft">
-                <td colspan="8" class="px-3 py-2">
+                <td colspan="11" class="px-3 py-2">
                   <div class="flex flex-wrap items-center justify-between gap-2">
                     <span class="text-ztx-caption font-semibold text-ztx-muted">{{ field.label || field.name }} · 明细字段</span>
                     <button type="button" class="text-ztx-caption text-ztx-primary hover:underline" @click="addChildField(field)">添加子字段</button>
@@ -296,7 +360,7 @@ onMounted(() => { void loadList().catch(cause => { error.value = cause instanceo
                   </div>
                 </td>
               </tr>
-              <tr v-if="definition.fields.length===0"><td colspan="8" class="px-3 py-7 text-center text-ztx-caption text-ztx-muted">尚未添加字段</td></tr>
+              <tr v-if="definition.fields.length===0"><td colspan="11" class="px-3 py-7 text-center text-ztx-caption text-ztx-muted">尚未添加字段</td></tr>
             </tbody>
           </table>
         </div>
