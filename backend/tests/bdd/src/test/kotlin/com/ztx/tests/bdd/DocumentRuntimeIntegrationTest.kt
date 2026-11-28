@@ -9,6 +9,7 @@ import com.ztx.modules.document.DocumentBehaviorContext
 import com.ztx.modules.document.DocumentBehaviorRegistry
 import com.ztx.modules.document.DocumentExtensionMode
 import com.ztx.modules.document.DocumentRuntimeSupport
+import com.ztx.modules.document.DocumentRuntimeRoutes
 import com.ztx.modules.iam.TENANT_CONTEXT_KEY
 import com.ztx.modules.iam.TenantPrincipal
 import com.ztx.platform.common.DatabaseConfig
