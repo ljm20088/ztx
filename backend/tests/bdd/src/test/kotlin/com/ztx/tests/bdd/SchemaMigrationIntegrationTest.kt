@@ -111,6 +111,59 @@ class SchemaMigrationIntegrationTest {
                     }
                 }
             }
+
+            // Given 唯一索引创建因重复数据失败，When 清理冲突数据后以相同版本和相同定义重试，Then FAILED 迁移可恢复为 SUCCEEDED。
+            val retryDefinition = JsonObject()
+                .put("doctype", "SchemaProbe")
+                .put("table", JsonObject().put("schema", "org").put("name", "schema_probe"))
+                .put("fields", JsonArray()
+                    .add(JsonObject().put("name", "code").put("type", "string").put("required", true).put("unique", true))
+                    .add(JsonObject().put("name", "company_id").put("type", "uuid").put("required", true))
+                    .add(JsonObject().put("name", "remark").put("type", "text")))
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.prepareStatement(
+                    """INSERT INTO org.schema_probe(id,code,company_id) VALUES
+                       (?, 'DUPLICATE', ?), (?, 'DUPLICATE', ?)"""
+                ).use { statement ->
+                    statement.setObject(1, UUID.randomUUID())
+                    statement.setObject(2, UUID.randomUUID())
+                    statement.setObject(3, UUID.randomUUID())
+                    statement.setObject(4, UUID.randomUUID())
+                    statement.executeUpdate()
+                }
+            }
+            val retryFailure = runCatching {
+                service.migrate(database, "SchemaProbe", 4, retryDefinition, actorId)
+                    .toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            }.exceptionOrNull()
+            assertTrue(retryFailure != null)
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.prepareStatement(
+                    """DELETE FROM org.schema_probe WHERE id = (
+                       SELECT id FROM org.schema_probe WHERE code='DUPLICATE' ORDER BY id DESC LIMIT 1)"""
+                ).use { it.executeUpdate() }
+            }
+            val retried = service.migrate(database, "SchemaProbe", 4, retryDefinition, actorId)
+                .toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals("SUCCEEDED", retried.status)
+            val concurrent = (1..2).map {
+                service.migrate(database, "SchemaProbe", 5, retryDefinition, actorId)
+                    .toCompletionStage().toCompletableFuture()
+            }
+            val concurrentResults = concurrent.map { it.get(20, TimeUnit.SECONDS) }
+            assertEquals(concurrentResults[0].id, concurrentResults[1].id)
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.prepareStatement(
+                    "SELECT count(*) FROM meta.schema_migration WHERE source='RUNTIME' AND doctype='SchemaProbe' AND version='4' AND status='SUCCEEDED'"
+                ).use { statement ->
+                    statement.executeQuery().use { rows -> rows.next(); assertEquals(1, rows.getInt(1)) }
+                }
+                connection.prepareStatement(
+                    "SELECT count(*) FROM meta.schema_migration WHERE source='RUNTIME' AND doctype='SchemaProbe' AND version='5'"
+                ).use { statement ->
+                    statement.executeQuery().use { rows -> rows.next(); assertEquals(1, rows.getInt(1)) }
+                }
+            }
         } finally {
             database.close()
             vertx.close().toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
