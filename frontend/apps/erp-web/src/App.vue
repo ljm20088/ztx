@@ -181,7 +181,7 @@ onBeforeUnmount(()=>{clearCloseTimer();clearAccountCloseTimer();window.removeEve
           @click="activateTab(tab.path)"
         >
           <span>{{ tab.title }}</span>
-          <span v-if="tab.dirty" class="size-1.5 rounded-full bg-ztx-warning" aria-label="未保存修改" />
+          <span v-if="tab.dirty" class="inline-block size-1.5 shrink-0 rounded-full bg-ztx-warning" aria-label="未保存修改" />
           <span
             v-if="tab.closable"
             class="tab-close grid size-[18px] place-items-center rounded text-ztx-muted hover:bg-ztx-border hover:text-ztx-text"
