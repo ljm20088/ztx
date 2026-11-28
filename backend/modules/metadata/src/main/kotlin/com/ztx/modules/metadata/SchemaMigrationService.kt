@@ -75,6 +75,7 @@ class SchemaMigrationService {
         val table = migrationPlan.getString("table")
         val checksum = sha256(migrationPlan.encode())
         val migrationId = UUID.randomUUID()
+        val attemptId = UUID.randomUUID()
         return database.withTransaction { connection ->
             connection.preparedQuery("SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))")
                 .execute(Tuple.of("ztx.schema-migration", "global"))
@@ -97,7 +98,7 @@ class SchemaMigrationService {
                         )
                     }
                     val activeMigrationId = existing?.getUUID("id") ?: migrationId
-                    markRunning(connection, activeMigrationId, doctype, version, schema, table, checksum, migrationPlan, actorId)
+                    markRunning(connection, activeMigrationId, attemptId, doctype, version, schema, table, checksum, migrationPlan, actorId)
                         .compose { applyPlan(connection, migrationPlan) }
                         .compose {
                             connection.preparedQuery(
@@ -105,6 +106,12 @@ class SchemaMigrationService {
                                    SET status='SUCCEEDED',completed_at=clock_timestamp(),error_message=NULL
                                    WHERE source='RUNTIME' AND version=$1 AND doctype=$2"""
                             ).execute(Tuple.of(version.toString(), doctype))
+                        }.compose {
+                            connection.preparedQuery(
+                                """UPDATE meta.schema_migration_attempt
+                                   SET status='SUCCEEDED',completed_at=clock_timestamp(),diagnostics='[]'::jsonb,error_message=NULL
+                                   WHERE id=$1"""
+                            ).execute(Tuple.of(attemptId)).mapEmpty()
                         }.map {
                             RuntimeSchemaMigrationResult(activeMigrationId, doctype, version,
                                 schema, table, checksum, "SUCCEEDED", migrationPlan)
@@ -117,7 +124,7 @@ class SchemaMigrationService {
                     .execute(Tuple.of("ztx.schema-migration", "global"))
                     .compose {
                         connection.preparedQuery(
-                            """SELECT checksum,status FROM meta.schema_migration
+                            """SELECT id,checksum,status FROM meta.schema_migration
                                WHERE source='RUNTIME' AND version=$1 AND doctype=$2 FOR UPDATE"""
                         ).execute(Tuple.of(version.toString(), doctype))
                     }.compose { rows ->
@@ -125,7 +132,8 @@ class SchemaMigrationService {
                         if (current?.getString("status") == "SUCCEEDED" && current.getString("checksum") == checksum) {
                             Future.succeededFuture()
                         } else {
-                            recordFailure(connection, migrationId, doctype, version, schema, table,
+                            val activeMigrationId = current?.getUUID("id") ?: migrationId
+                            recordFailure(connection, activeMigrationId, attemptId, doctype, version, schema, table,
                                 checksum, migrationPlan, actorId, error)
                         }
                     }
@@ -134,7 +142,7 @@ class SchemaMigrationService {
     }
 
     private fun markRunning(
-        connection: SqlConnection, id: UUID, doctype: String, version: Int,
+        connection: SqlConnection, id: UUID, attemptId: UUID, doctype: String, version: Int,
         schema: String, table: String, checksum: String, plan: JsonObject, actorId: UUID?
     ): Future<Void> = connection.preparedQuery(
         """INSERT INTO meta.schema_migration
@@ -144,25 +152,44 @@ class SchemaMigrationService {
              schema_name=EXCLUDED.schema_name,table_name=EXCLUDED.table_name,checksum=EXCLUDED.checksum,
              status='RUNNING',plan_json=EXCLUDED.plan_json,diagnostics='[]'::jsonb,actor_id=EXCLUDED.actor_id,
              started_at=clock_timestamp(),completed_at=NULL,error_message=NULL"""
-    ).execute(Tuple.of(id, version.toString(), doctype, schema, table, checksum, plan.encode(), actorId)).mapEmpty()
+    ).execute(Tuple.of(id, version.toString(), doctype, schema, table, checksum, plan.encode(), actorId))
+        .compose {
+            connection.preparedQuery(
+                """INSERT INTO meta.schema_migration_attempt
+                   (id,migration_id,attempt_no,status,checksum,plan_json,diagnostics,actor_id,started_at)
+                   VALUES ($1,$2,
+                     (SELECT COALESCE(MAX(attempt_no),0)+1 FROM meta.schema_migration_attempt WHERE migration_id=$2),
+                     'RUNNING',$3,$4::jsonb,'[]'::jsonb,$5,clock_timestamp())"""
+            ).execute(Tuple.of(attemptId, id, checksum, plan.encode(), actorId)).mapEmpty()
+        }
+
 
     private fun recordFailure(
-        connection: SqlConnection, id: UUID, doctype: String, version: Int,
+        connection: SqlConnection, id: UUID, attemptId: UUID, doctype: String, version: Int,
         schema: String, table: String, checksum: String, plan: JsonObject,
         actorId: UUID?, error: Throwable
-    ): Future<Void> = connection.preparedQuery(
-        """INSERT INTO meta.schema_migration
-           (id,source,version,doctype,schema_name,table_name,checksum,status,plan_json,diagnostics,actor_id,started_at,completed_at,error_message)
-           VALUES ($1,'RUNTIME',$2,$3,$4,$5,$6,'FAILED',$7::jsonb,$8::jsonb,$9,clock_timestamp(),clock_timestamp(),$10)
-           ON CONFLICT(source,version,doctype) DO UPDATE SET
-             status='FAILED',plan_json=EXCLUDED.plan_json,diagnostics=EXCLUDED.diagnostics,
-             actor_id=EXCLUDED.actor_id,completed_at=clock_timestamp(),error_message=EXCLUDED.error_message"""
-    ).execute(Tuple.of(
-        id, version.toString(), doctype, schema, table, checksum, plan.encode(),
-        JsonArray().add(JsonObject().put("code", "DDL_FAILED")
-            .put("message", error.message ?: "Schema Migration failed")).encode(),
-        actorId, (error.message ?: "Schema Migration failed").take(4000)
-    )).mapEmpty()
+    ): Future<Void> {
+        val message = (error.message ?: "Schema Migration failed").take(4000)
+        val diagnostics = JsonArray().add(JsonObject().put("code", "DDL_FAILED").put("message", message))
+        return connection.preparedQuery(
+            """INSERT INTO meta.schema_migration
+               (id,source,version,doctype,schema_name,table_name,checksum,status,plan_json,diagnostics,actor_id,started_at,completed_at,error_message)
+               VALUES ($1,'RUNTIME',$2,$3,$4,$5,$6,'FAILED',$7::jsonb,$8::jsonb,$9,clock_timestamp(),clock_timestamp(),$10)
+               ON CONFLICT(source,version,doctype) DO UPDATE SET
+                 status='FAILED',plan_json=EXCLUDED.plan_json,diagnostics=EXCLUDED.diagnostics,
+                 actor_id=EXCLUDED.actor_id,started_at=clock_timestamp(),
+                 completed_at=clock_timestamp(),error_message=EXCLUDED.error_message"""
+        ).execute(Tuple.of(id, version.toString(), doctype, schema, table, checksum,
+            plan.encode(), diagnostics.encode(), actorId, message)).compose {
+            connection.preparedQuery(
+                """INSERT INTO meta.schema_migration_attempt
+                   (id,migration_id,attempt_no,status,checksum,plan_json,diagnostics,actor_id,started_at,completed_at,error_message)
+                   VALUES ($1,$2,
+                     (SELECT COALESCE(MAX(attempt_no),0)+1 FROM meta.schema_migration_attempt WHERE migration_id=$2),
+                     'FAILED',$3,$4::jsonb,$5::jsonb,$6,clock_timestamp(),clock_timestamp(),$7)"""
+            ).execute(Tuple.of(attemptId, id, checksum, plan.encode(), diagnostics.encode(), actorId, message)).mapEmpty()
+        }
+    }
 
     private fun applyPlan(connection: SqlConnection, plan: JsonObject): Future<Void> {
         val schema = plan.getString("schema")
