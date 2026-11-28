@@ -246,7 +246,7 @@ internal fun audit(
         before?.encode(), after?.encode())).mapEmpty()
 }
     
-    internal fun canReadField(roles: JsonArray?, role: String): Boolean =
+    fun canReadField(roles: JsonArray?, role: String): Boolean =
         roles == null || roles.isEmpty || role == "TENANT_ADMIN" || roles.any { it == role }
 
 }
