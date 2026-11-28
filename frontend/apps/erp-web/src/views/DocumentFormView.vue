@@ -69,7 +69,7 @@ function initializeDefaults() {
       delete document[field.name]
       continue
     }
-    document[field.name] = field.defaultValue ?? (field.type === 'boolean' ? false : field.type === 'table' ? [] : '')
+    document[field.name] = field.defaultValue ?? (field.type === 'boolean' ? false : field.type === 'table' ? [] : field.type === 'json' ? {} : '')
     if (field.loadOnDemand) loadedDeferredFields.value.add(field.name)
     if (field.type === 'json') jsonText[field.name] = JSON.stringify(document[field.name] ?? {}, null, 2)
   }

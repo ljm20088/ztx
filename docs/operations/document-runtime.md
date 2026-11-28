@@ -97,19 +97,33 @@ class PurchaseOrderBehavior : DocumentBehavior {
 
 ## 统一 db 门面的显式创建与 Hook
 
-普通业务代码在当前可信租户上下文中取得 `Db` 后，先用 `db.new()` 创建内存 Document，设置字段，再显式调用 `db.insert()` 持久化；读取后修改则调用 `db.update()`。`new()` 和字段赋值都不会写数据库。`insert/update` 会复用当前事务连接执行字段/组织范围校验、权限校验、Document Hook 和审计；Hook 失败会使外层事务回滚。
+普通业务代码通过 `DbProvider.transaction(principal) { db -> ... }` 从当前可信租户执行上下文取得作用域化 `db`。先用 `db.new()` 创建内存 Document，设置字段，再显式调用 `db.insert()` 持久化；读取后修改则调用 `db.update()`。`new()` 和字段赋值都不会写数据库。`insert/update` 会复用当前事务连接执行字段/组织范围校验、权限校验、Document Hook 和审计；Hook 失败会使外层事务回滚。
 
 ```kotlin
-db.new("PurchaseOrder").compose { document ->
-    document["supplier"] = supplierId
-    document["company_id"] = companyId
-    document["order_date"] = LocalDate.now()
-    db.insert(document)
-}.compose { saved ->
-    saved["status"] = "Confirmed"
-    db.update(saved)
+val dbProvider = DbProvider()
+dbProvider.transaction(principal) { db ->
+    db.new("PurchaseOrder").compose { document ->
+        document["supplier"] = supplierId
+        document["company_id"] = companyId
+        document["order_date"] = LocalDate.now()
+        db.insert(document)
+    }.compose { saved ->
+        db.submit(saved)
+    }
+}
+
+// 列表只执行 Query Runtime 投影，不构造完整 Document。
+dbProvider.transaction(principal) { db ->
+    db.list("PurchaseOrder", JsonObject().put("page", 1).put("pageSize", 20))
+}
+
+// 大字段显式按需读取。
+dbProvider.transaction(principal) { db ->
+    db.getValue("PurchaseOrder", purchaseOrderId, "attachment_content")
 }
 ```
+
+租户管理员通过 DocType 设计器保存草稿并执行“校验/发布”。发布流程先执行运行期 Schema Migration，只有物理表/列迁移成功后才将该版本激活；失败时保留旧的已发布版本。开发期源码 Migration 继续由 Flyway 管理，二者共享迁移历史和 advisory lock，但保留各自来源。
 
 ## 大字段与附件的延迟加载
 
