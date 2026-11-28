@@ -30,147 +30,74 @@ class DocumentRuntimeRoutes(behaviors: DocumentBehaviorRegistry = DocumentBehavi
     }
 
     private fun create(context: RoutingContext) = withPrincipal(context) { principal ->
-        loadDefinition(principal, context.pathParam("doctype")).compose { definition ->
-            authorize(definition, principal, "create")
-            val values = DocumentValueCodec.decode(definition, body(context))
-            enforceCompanyScope(definition, values, principal, requireValue = true)
-            val doctype = context.pathParam("doctype")
-            val behavior = behaviors.resolve(definition, doctype)
-            principal.database.withTransaction { connection ->
-                val hookContext = DocumentBehaviorContext(doctype, definition, principal, connection)
-                val beforeCreate = behavior?.beforeCreate(hookContext, values) ?: Future.succeededFuture()
-                beforeCreate.compose {
-                    insert(connection, definition, values, principal).compose { row ->
-                        val id = UUID.fromString(row.getString("id"))
-                        val afterContext = hookContext.copy(documentId = id, after = row)
-                        (behavior?.afterCreate(afterContext, row) ?: Future.succeededFuture())
-                            .compose {
-                                audit(connection, principal, doctype, id, "CREATE", null, row).map { row }
-                            }
-                    }
-                }
-            }.onSuccess { send(context, redact(definition, principal, it), 201) }
-                .onFailure { fail(context, status(it), it.message ?: "创建单据失败") }
-        }.onFailure { fail(context, status(it), it.message ?: "创建单据失败") }
+        val doctype = context.pathParam("doctype")
+        dbProvider.transaction(principal) { db ->
+            db.new(doctype).compose { document ->
+                val values = DocumentValueCodec.decode(document.metadata(), body(context))
+                values.fieldNames().forEach { field -> document[field] = values.getValue(field) }
+                db.insert(document)
+            }
+        }.onSuccess { send(context, documentJson(it), 201) }
+            .onFailure { fail(context, status(it), it.message ?: "创建单据失败") }
     }
 
     private fun read(context: RoutingContext) = withPrincipal(context) { principal ->
-        loadDefinition(principal, context.pathParam("doctype")).compose { definition ->
-            authorize(definition, principal, "read")
-            val id = UUID.fromString(context.pathParam("id"))
-            principal.database.withTransaction { connection ->
-                selectOne(connection, definition, id, principal, lock = false, includeDeferred = false)
-            }.onSuccess { send(context, redact(definition, principal, it)) }
-                .onFailure { fail(context, status(it), it.message ?: "读取单据失败") }
-        }.onFailure { fail(context, status(it), it.message ?: "读取单据失败") }
+        val doctype = context.pathParam("doctype")
+        val id = UUID.fromString(context.pathParam("id"))
+        dbProvider.transaction(principal) { db -> db.get(doctype, id) }
+            .onSuccess { send(context, documentJson(it)) }
+            .onFailure { fail(context, status(it), it.message ?: "读取单据失败") }
     }
 
     /** 按需读取被标记为延迟加载的大字段/附件，不把它们放进普通 Document 响应。 */
     private fun getField(context: RoutingContext) = withPrincipal(context) { principal ->
-        loadDefinition(principal, context.pathParam("doctype")).compose { definition ->
-            authorize(definition, principal, "read")
-            val fieldName = context.pathParam("field")
-            val field = (definition.getJsonArray("fields") ?: JsonArray())
-                .filterIsInstance<JsonObject>().firstOrNull { it.getString("name") == fieldName }
-                ?: return@compose Future.failedFuture<JsonObject>("DocType 未定义字段：$fieldName")
-            if (!field.getBoolean("loadOnDemand", false)) {
-                return@compose Future.failedFuture<JsonObject>("字段 $fieldName 不是延迟加载字段")
-            }
-            val roles = field.getJsonArray("readRoles")
-            if (!canReadField(roles, principal.role)) {
-                return@compose Future.failedFuture<JsonObject>("无权读取字段：$fieldName")
-            }
-            val id = UUID.fromString(context.pathParam("id"))
-            principal.database.withTransaction { connection ->
-                val parameters = mutableListOf<Any?>(id)
-                val where = scopeWhere(definition, principal, parameters)
-                val sql = "SELECT \"$fieldName\" FROM " + tableSql(definition) +
-                    " WHERE \"id\"=$1" + where
-                connection.preparedQuery(sql).execute(Tuple.from(parameters)).map { rows ->
-                    val row = rows.firstOrNull() ?: throw IllegalArgumentException("单据不存在或无权访问")
-                    JsonObject().put("field", fieldName).put("value", row.getValue(fieldName))
-                }
-            }
+        val doctype = context.pathParam("doctype")
+        val id = UUID.fromString(context.pathParam("id"))
+        val field = context.pathParam("field")
+        dbProvider.transaction(principal) { db ->
+            db.getValue(doctype, id, field).map { JsonObject().put("field", field).put("value", it) }
         }.onSuccess { send(context, it) }
             .onFailure { fail(context, status(it), it.message ?: "读取字段失败") }
     }
 
-    private fun update(context: RoutingContext) = withPrincipal(context) { principal ->
-        loadDefinition(principal, context.pathParam("doctype")).compose { definition ->
-            authorize(definition, principal, "update")
-            val id = UUID.fromString(context.pathParam("id"))
-            val request = body(context)
-            val expectedVersion = request.getInteger("version")
-                ?: return@compose Future.failedFuture<JsonObject>("保存单据必须提供版本号")
-            request.remove("version")
-            val values = DocumentValueCodec.decode(definition, request, applyDefaults = false)
-            enforceCompanyScope(definition, values, principal, requireValue = false)
-            val doctype = context.pathParam("doctype")
-            val behavior = behaviors.resolve(definition, doctype)
-            principal.database.withTransaction { connection ->
-                selectOne(connection, definition, id, principal, lock = true).compose { before ->
-                    if (before.getInteger("version", 1) != expectedVersion) {
-                        return@compose Future.failedFuture<JsonObject>(DocumentVersionConflictException())
-                    }
-                    if (before.getInteger("docstatus", 0) != DocumentStatus.DRAFT.code) {
-                        return@compose Future.failedFuture<JsonObject>("只有草稿单据可以修改")
-                    }
-                    val hookContext = DocumentBehaviorContext(doctype, definition, principal, connection, id, before)
-                    (behavior?.beforeUpdate(hookContext, before, values) ?: Future.succeededFuture())
-                        .compose {
-                            updateRow(connection, definition, id, values, principal, expectedVersion).compose { after ->
-                                val afterContext = hookContext.copy(after = after)
-                                (behavior?.afterUpdate(afterContext, before, after) ?: Future.succeededFuture())
-                                    .compose {
-                                        audit(connection, principal, doctype, id, "UPDATE", before, after).map { after }
-                                    }
-                            }
-                        }
+        private fun update(context: RoutingContext) = withPrincipal(context) { principal ->
+        val doctype = context.pathParam("doctype")
+        val id = UUID.fromString(context.pathParam("id"))
+        val request = body(context)
+        val expectedVersion = request.getInteger("version")
+            ?: return@withPrincipal fail(context, 400, "保存单据必须提供版本号")
+        request.remove("version")
+        dbProvider.transaction(principal) { db ->
+            db.get(doctype, id).compose { document ->
+                if (document.version != expectedVersion) {
+                    return@compose Future.failedFuture<DynamicDocument>(DocumentVersionConflictException())
                 }
-            }.onSuccess { send(context, redact(definition, principal, it)) }
-                .onFailure { fail(context, status(it), it.message ?: "更新单据失败") }
-        }.onFailure { fail(context, status(it), it.message ?: "更新单据失败") }
+                val values = DocumentValueCodec.decode(document.metadata(), request, applyDefaults = false)
+                values.fieldNames().forEach { field -> document[field] = values.getValue(field) }
+                db.update(document)
+            }
+        }.onSuccess { send(context, documentJson(it)) }
+            .onFailure { fail(context, status(it), it.message ?: "更新单据失败") }
     }
 
-    private fun action(context: RoutingContext) = withPrincipal(context) { principal ->
-        loadDefinition(principal, context.pathParam("doctype")).compose { definition ->
-            val action = context.pathParam("action")
-            authorize(definition, principal, action)
-            val doctype = context.pathParam("doctype")
-            val behavior = behaviors.resolve(definition, doctype)
-            val id = UUID.fromString(context.pathParam("id"))
-            val expectedVersion = body(context).getInteger("version")
-                ?: return@compose Future.failedFuture<JsonObject>("执行单据动作必须提供版本号")
-            principal.database.withTransaction { connection ->
-                selectOne(connection, definition, id, principal, lock = true).compose { before ->
-                    if (before.getInteger("version", 1) != expectedVersion) {
-                        return@compose Future.failedFuture<JsonObject>(DocumentVersionConflictException())
-                    }
-                    val hookContext = DocumentBehaviorContext(doctype, definition, principal, connection, id, before, action = action)
-                    (behavior?.beforeAction(hookContext, before, action) ?: Future.succeededFuture())
-                        .compose {
-                            val next = DocumentLifecycle.transition(before.getInteger("docstatus", 0), action)
-                            val sql = "UPDATE " + tableSql(definition) +
-                                " SET \"docstatus\"=$1,\"version\"=\"version\"+1,\"updated_at\"=clock_timestamp()" +
-                                " WHERE \"id\"=$2 AND \"docstatus\"=$3 AND \"version\"=$4 RETURNING *"
-                            connection.preparedQuery(sql).execute(Tuple.of(next, id, before.getInteger("docstatus", 0), expectedVersion))
-                                .compose { rows ->
-                                    val after = rows.firstOrNull()?.toJson()
-                                        ?: return@compose Future.failedFuture<JsonObject>("单据状态已变化，请刷新后重试")
-                                    val afterContext = hookContext.copy(after = after)
-                                    (behavior?.afterAction(afterContext, before, after, action) ?: Future.succeededFuture())
-                                        .compose {
-                                            audit(connection, principal, doctype, id, action.uppercase(), before, after).map { after }
-                                        }
-                                }
-                        }
+        private fun action(context: RoutingContext) = withPrincipal(context) { principal ->
+        val doctype = context.pathParam("doctype")
+        val id = UUID.fromString(context.pathParam("id"))
+        val action = context.pathParam("action")
+        val expectedVersion = body(context).getInteger("version")
+            ?: return@withPrincipal fail(context, 400, "执行单据动作必须提供版本号")
+        dbProvider.transaction(principal) { db ->
+            db.get(doctype, id).compose { document ->
+                if (document.version != expectedVersion) {
+                    return@compose Future.failedFuture<DynamicDocument>(DocumentVersionConflictException())
                 }
-            }.onSuccess { send(context, redact(definition, principal, it)) }
-                .onFailure { fail(context, status(it), it.message ?: "单据动作执行失败") }
-        }.onFailure { fail(context, status(it), it.message ?: "读取元数据失败") }
+                db.action(document, action)
+            }
+        }.onSuccess { send(context, documentJson(it)) }
+            .onFailure { fail(context, status(it), it.message ?: "单据动作执行失败") }
     }
 
-    private fun runtimeDefinition(context: RoutingContext) = withPrincipal(context) { principal ->
+        private fun runtimeDefinition(context: RoutingContext) = withPrincipal(context) { principal ->
         loadDefinition(principal, context.pathParam("doctype")).onSuccess { definition ->
             try {
                 authorize(definition, principal, "read")
@@ -193,6 +120,12 @@ class DocumentRuntimeRoutes(behaviors: DocumentBehaviorRegistry = DocumentBehavi
                 validateScopeFields(connection, definition).map { definition }
             }
         }
+
+    private fun documentJson(document: DynamicDocument): JsonObject =
+        document.toJson()
+            .put("id", document.id?.toString())
+            .put("version", document.version)
+            .put("docstatus", document.docstatus)
 
     private fun withPrincipal(context: RoutingContext, action: (TenantPrincipal) -> Unit) {
         val principal = context.get<TenantPrincipal>(TENANT_CONTEXT_KEY)
