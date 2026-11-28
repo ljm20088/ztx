@@ -87,6 +87,10 @@ class MetadataManagementIntegrationTest {
             assertEquals(200, readDefinition.statusCode())
             assertEquals("NEW", JsonObject(readDefinition.body()).getJsonObject("definition")
                 .getJsonArray("fields").getJsonObject(0).getString("defaultValue"))
+            assertEquals("code", JsonObject(readDefinition.body()).getJsonObject("definition")
+                .getJsonObject("form").getJsonArray("fields").getString(0))
+            assertEquals("code", JsonObject(readDefinition.body()).getJsonObject("definition")
+                .getJsonObject("list").getJsonArray("columns").getString(0))
             // Given 元数据校验成功，When 设计器激活该定义，Then 真实物理表和统一运行期迁移历史必须先成功创建。
             val publishedSchema = database.withTransaction { connection ->
                 connection.preparedQuery(
