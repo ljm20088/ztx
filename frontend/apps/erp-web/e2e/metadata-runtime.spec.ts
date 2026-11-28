@@ -108,3 +108,31 @@ test('元数据驱动列表可分页并打开动态单据表单', async ({ page 
   await expect(page.getByPlaceholder('搜索列表字段')).toHaveValue('华东轴承')
   await expect(page.getByText('共 22 条')).toBeVisible()
 })
+
+test('无 DocType 读取权限时列表展示服务端拒绝结果且不泄露数据', async ({ page }) => {
+  // Given 当前业务用户没有该 DocType 的读取权限
+  await page.route('**/api/v1/tenant/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ id: 'tenant-user-2', username: 'operator', role: 'TENANT_USER' }),
+  }))
+  await page.route('**/api/v1/tenant/runtime/doctypes/RestrictedRecord', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      doctype: 'RestrictedRecord',
+      definition: {
+        doctype: 'RestrictedRecord',
+        fields: [{ name: 'secret', label: '机密字段', type: 'string', readRoles: ['TENANT_ADMIN'] }],
+        list: { columns: ['secret'], filters: [], sort: [], search: [] },
+      },
+    }),
+  }))
+  await page.route('**/api/v1/tenant/query/RestrictedRecord', route => route.fulfill({
+    status: 403, contentType: 'application/json',
+    body: JSON.stringify({ error: { message: '当前用户没有可读取的列表字段' } }),
+  }))
+
+  // When 用户打开受限列表，Then 前端呈现服务端拒绝结果且不渲染受保护字段数据。
+  await page.goto('/developer/lists/RestrictedRecord')
+  await expect(page.getByRole('alert')).toContainText('当前用户没有可读取的列表字段')
+  await expect(page.getByText('SENSITIVE-VALUE')).toHaveCount(0)
+})

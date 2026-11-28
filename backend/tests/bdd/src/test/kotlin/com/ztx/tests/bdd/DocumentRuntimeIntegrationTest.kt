@@ -89,7 +89,8 @@ class DocumentRuntimeIntegrationTest {
                 .put("read", JsonArray().add("TENANT_ADMIN"))
                 .put("create", JsonArray().add("TENANT_ADMIN"))
                 .put("update", JsonArray().add("TENANT_ADMIN"))
-                .put("submit", JsonArray().add("TENANT_ADMIN")))
+                .put("submit", JsonArray().add("TENANT_ADMIN"))
+                .put("cancel", JsonArray().add("TENANT_ADMIN")))
             .put("extension", JsonObject()
                 .put("mode", "METADATA_WITH_KOTLIN_FILE")
                 .put("implementation", DocumentProbeBehavior::class.qualifiedName))
@@ -227,6 +228,14 @@ class DocumentRuntimeIntegrationTest {
                 Db(principal, connection).get("DocumentProbe", facadeCreated.id!!)
             }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
             assertEquals("PO-DB-INSERT", afterRejected.getString("code"))
+
+            // Given Document 已通过统一 db 门面创建，When 执行 submit/cancel，Then 生命周期、版本和审计仍由同一 Runtime 管理。
+            val facadeSubmitted = DbProvider().transaction(principal) { db -> db.submit(afterRejected) }
+                .toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals(1, facadeSubmitted.docstatus)
+            val facadeCancelled = DbProvider().transaction(principal) { db -> db.cancel(facadeSubmitted) }
+                .toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals(2, facadeCancelled.docstatus)
 
             loaded["code"] = "PO-DB-003"
             loaded["remark"] = null
