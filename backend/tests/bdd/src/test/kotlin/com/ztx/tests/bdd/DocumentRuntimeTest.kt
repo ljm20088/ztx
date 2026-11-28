@@ -1,5 +1,9 @@
 package com.ztx.tests.bdd
 
+import com.ztx.modules.document.Db
+import com.ztx.modules.document.DbProvider
+import com.ztx.modules.document.DocumentRuntimeRoutes
+import com.ztx.modules.document.DocumentRuntimeSupport
 import com.ztx.modules.document.DocumentLifecycle
 import com.ztx.modules.document.DocumentValueCodec
 import io.vertx.core.json.JsonArray
@@ -14,6 +18,27 @@ import java.time.LocalTime
 import java.util.UUID
 
 class DocumentRuntimeTest {
+    /** Given 统一数据访问门面与 HTTP 路由，When 检查类型依赖，Then Db 不得反向依赖 Routes。 */
+    @Test
+    fun dbIsIndependentFromHttpRoutes() {
+        assertTrue(DocumentRuntimeRoutes::class.java.superclass == DocumentRuntimeSupport::class.java)
+        assertTrue(Db::class.java.declaredFields.none {
+            DocumentRuntimeRoutes::class.java.isAssignableFrom(it.type)
+        })
+        assertTrue(DocumentRuntimeRoutes::class.java.declaredFields.any { it.type == DbProvider::class.java })
+    }
+
+    /** Given 字段只允许 TENANT_ADMIN，When 普通角色请求，Then 不得把管理员角色当成通配符。 */
+    @Test
+    fun fieldReadRolesAreAnAllowlistWithExplicitAdminBypass() {
+        val runtime = DocumentRuntimeSupport()
+        val adminOnly = JsonArray().add("TENANT_ADMIN")
+        assertTrue(!runtime.canReadField(adminOnly, "PURCHASING"))
+        assertTrue(runtime.canReadField(adminOnly, "TENANT_ADMIN"))
+        assertTrue(runtime.canReadField(JsonArray().add("PURCHASING"), "PURCHASING"))
+        assertTrue(runtime.canReadField(JsonArray(), "PURCHASING"))
+    }
+
     /** Given 元数据定义金额、日期和嵌套明细，When 接收 JSON，Then 转换为精确 Kotlin 类型。 */
     @Test
     fun jsonValuesAreConvertedByMetadataTypes() {
