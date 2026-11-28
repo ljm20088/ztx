@@ -44,7 +44,7 @@ PostgreSQL 的非事务性迁移（例如 `CREATE INDEX CONCURRENTLY`）失败�
 - 必填字段是否仍为 NOT NULL；
 - 元数据声明的单字段索引是否存在，且唯一性与声明一致。
 
-检查为只读，不执行 DDL。额外物理列不会被报告为漂移，以兼容 Expand-only 历史字段及 #12 自定义字段扩展。Flyway 源码迁移仍以 `flyway validate` 校验脚本 checksum；动态 DocType 列结构以元数据定义对照 PostgreSQL 实际结构。二者保留各自来源，不将租户动态 DDL 转成 Flyway 脚本。
+检查为只读，不执行 DDL。额外物理列不会被报告为漂移，以兼容 Expand-only 历史字段。#12 的租户自定义字段采用独立扩展表，属于另一套受控物理映射；当前检查只检查 DocType 元数据映射的普通业务表，不枚举或校验自定义字段扩展表，也不代表 #12 已实现或已验收。Flyway 源码迁移仍以 `flyway validate` 校验脚本 checksum；动态 DocType 普通字段列结构以元数据定义对照 PostgreSQL 实际结构。二者保留各自来源，不将租户动态 DDL 转成 Flyway 脚本。
 
 ## 版本发布集成约定
 
