@@ -24,7 +24,7 @@ import java.nio.file.Path
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class MetadataManagementIntegrationTest {
     companion object {
         @Container
