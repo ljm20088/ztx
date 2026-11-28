@@ -320,6 +320,9 @@ class SchemaMigrationIntegrationTest {
                 migrationLocations = "filesystem:$migrationDir"
             )
             val migrator = FlywayMigrator(config)
+            // Given 数据库尚有待执行的 Flyway 版本，When 执行正式部署校验，Then 必须拒绝启动而不能静默放过。
+            val pendingValidation = runCatching { migrator.validateCurrent() }
+            assertTrue(pendingValidation.isFailure, "存在待执行 Flyway migration 时 validateCurrent 必须失败")
             val firstRun = runCatching { migrator.migrate() }
             assertTrue(firstRun.isFailure, "重复数据应使非事务性唯一索引迁移失败")
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
@@ -350,6 +353,13 @@ class SchemaMigrationIntegrationTest {
 
             migrator.repairFailedMigrations()
             migrator.migrate()
+            // Given 所有版本均成功且 checksum 一致，When 正式部署校验，Then 通过。
+            migrator.validateCurrent()
+            // Given 已部署 Flyway 脚本被无授权修改，When 执行校验，Then checksum 不一致必须阻止部署。
+            Files.writeString(migrationDir.resolve("V1__flyway_retry_base.sql"), v1 + "\n-- unauthorized change\n")
+            val checksumValidation = runCatching { migrator.validateCurrent() }
+            assertTrue(checksumValidation.isFailure, "已部署脚本 checksum 变化时 validateCurrent 必须失败")
+            Files.writeString(migrationDir.resolve("V1__flyway_retry_base.sql"), v1)
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
                 connection.prepareStatement(
                     """SELECT string_agg(a.status,',' ORDER BY a.attempt_no)
