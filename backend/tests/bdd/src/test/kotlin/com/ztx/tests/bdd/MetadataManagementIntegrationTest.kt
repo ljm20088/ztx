@@ -38,7 +38,7 @@ class MetadataManagementIntegrationTest {
         val projectDir = Path.of(System.getProperty("ztx.projectDir"))
         val config = DatabaseConfig(
             host = postgres.host, port = postgres.firstMappedPort, database = postgres.databaseName,
-            user = postgres.username, password = postgres.password, poolSize = 2,
+            user = postgres.username, password = postgres.password, poolSize = 4,
             migrationLocations = "filesystem:${projectDir.resolve("database/tenant-migrations")}"
         )
         FlywayMigrator(config).migrate()
