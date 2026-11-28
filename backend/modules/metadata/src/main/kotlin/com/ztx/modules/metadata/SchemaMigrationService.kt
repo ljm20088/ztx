@@ -102,12 +102,6 @@ class SchemaMigrationService {
                         .compose { applyPlan(connection, migrationPlan) }
                         .compose {
                             connection.preparedQuery(
-                                """UPDATE meta.schema_migration
-                                   SET status='SUCCEEDED',completed_at=clock_timestamp(),error_message=NULL
-                                   WHERE source='RUNTIME' AND version=$1 AND doctype=$2"""
-                            ).execute(Tuple.of(version.toString(), doctype))
-                        }.compose {
-                            connection.preparedQuery(
                                 """WITH updated_migration AS (
                                      UPDATE meta.schema_migration
                                      SET status='SUCCEEDED',completed_at=clock_timestamp(),error_message=NULL
