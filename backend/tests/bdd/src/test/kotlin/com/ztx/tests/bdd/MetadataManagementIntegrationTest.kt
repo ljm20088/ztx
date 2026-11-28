@@ -62,6 +62,8 @@ class MetadataManagementIntegrationTest {
             val definition = JsonObject()
                 .put("doctype", "MetadataTestItem")
                 .put("scope", "TENANT")
+                // 客户端即使附带数据库路由字段，也不得覆盖认证主体提供的租户数据库。
+                .put("database", "untrusted_database")
                 .put("table", JsonObject().put("schema", "org").put("name", "metadata_test_item"))
                 .put("fields", JsonArray().add(JsonObject().put("name", "code").put("type", "string").put("required", true).put("defaultValue", "NEW")) )
                 .put("form", JsonObject().put("fields", JsonArray().add("code")))
