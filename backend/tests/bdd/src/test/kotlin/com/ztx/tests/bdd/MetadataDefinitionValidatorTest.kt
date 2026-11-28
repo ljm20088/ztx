@@ -63,6 +63,21 @@ class MetadataDefinitionValidatorTest {
         assertTrue(MetadataDefinitionValidator.validate(definition).any { it.code == "INVALID_LOAD_POLICY" })
     }
 
+    // Given 客户端尝试注入 Schema、表名或字段标识符，When 服务端校验定义，Then 不可信标识符均被拒绝。
+    @Test
+    fun rejectsInjectedSchemaTableAndFieldIdentifiers() {
+        val invalidSchema = validDefinition()
+        invalidSchema.getJsonObject("table").put("schema", "org; DROP TABLE meta.document_definition")
+        assertTrue(MetadataDefinitionValidator.validate(invalidSchema).any { it.code == "INVALID_SCHEMA" })
+
+        val invalidTable = validDefinition()
+        invalidTable.getJsonObject("table").put("name", "sample_item;drop_table")
+        assertTrue(MetadataDefinitionValidator.validate(invalidTable).any { it.code == "INVALID_TABLE" })
+
+        val invalidField = validDefinition()
+        invalidField.getJsonArray("fields").getJsonObject(0).put("name", "code;drop_table")
+        assertTrue(MetadataDefinitionValidator.validate(invalidField).any { it.code == "INVALID_FIELD_NAME" })
+    }
     // Given 租户管理员试图声明平台级范围，When 执行校验，Then 拒绝跨越元数据作用域边界。
     @Test
     fun rejectsPlatformScopeInTenantDefinitions() {
