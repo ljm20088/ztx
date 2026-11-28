@@ -118,6 +118,79 @@ class MetadataManagementIntegrationTest {
             assertEquals(2, historyItems.size())
             // Given 成功发布已完成，Then 历史动作必须明确记录为 PUBLISH，而不是只验证记录数量。
             assertTrue(historyItems.toList().any { (it as JsonObject).getString("action") == "PUBLISH" })
+
+            // Given 同一租户 DocType 草稿，When 两名管理员并发发布，Then 两个请求均幂等成功且只产生一条 PUBLISH 历史。
+            val concurrentDefinition = JsonObject()
+                .put("doctype", "ConcurrentProbe").put("scope", "TENANT")
+                .put("table", JsonObject().put("schema", "org").put("name", "concurrent_probe"))
+                .put("fields", JsonArray().add(JsonObject().put("name", "code").put("type", "string")))
+            val concurrentCreate = client.send(
+                HttpRequest.newBuilder(URI.create("$base/api/v1/tenant/metadata/doctypes"))
+                    .header("content-type", "application/json").POST(HttpRequest.BodyPublishers.ofString(concurrentDefinition.encode())).build(),
+                HttpResponse.BodyHandlers.ofString()
+            )
+            assertEquals(201, concurrentCreate.statusCode())
+            val concurrentRequest = HttpRequest.newBuilder(URI.create("$base/api/v1/tenant/metadata/doctypes/ConcurrentProbe/validate"))
+                .header("content-type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}")).build()
+            val firstPublish = client.sendAsync(concurrentRequest, HttpResponse.BodyHandlers.ofString())
+            val secondPublish = client.sendAsync(concurrentRequest, HttpResponse.BodyHandlers.ofString())
+            assertEquals(200, firstPublish.get(20, TimeUnit.SECONDS).statusCode())
+            assertEquals(200, secondPublish.get(20, TimeUnit.SECONDS).statusCode())
+            val concurrentPublishCount = database.withTransaction { connection ->
+                connection.query("SELECT count(*) FROM meta.document_definition_history WHERE doctype='ConcurrentProbe' AND action='PUBLISH'")
+                    .execute().map { it.first().getLong(0) }
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals(1L, concurrentPublishCount)
+
+            // Given Schema DDL 已提交但元数据激活事务被数据库触发器拒绝，When 管理员修复阻断后重试，Then 已成功迁移应被幂等复用并完成激活。
+            val recoveryDefinition = JsonObject()
+                .put("doctype", "RecoveryProbe").put("scope", "TENANT")
+                .put("table", JsonObject().put("schema", "org").put("name", "recovery_probe"))
+                .put("fields", JsonArray().add(JsonObject().put("name", "code").put("type", "string")))
+            val recoveryCreate = client.send(
+                HttpRequest.newBuilder(URI.create("$base/api/v1/tenant/metadata/doctypes"))
+                    .header("content-type", "application/json").POST(HttpRequest.BodyPublishers.ofString(recoveryDefinition.encode())).build(),
+                HttpResponse.BodyHandlers.ofString()
+            )
+            assertEquals(201, recoveryCreate.statusCode())
+            database.withTransaction { connection ->
+                connection.query("""CREATE OR REPLACE FUNCTION meta.reject_runtime_publish() RETURNS trigger
+                    LANGUAGE plpgsql AS 'BEGIN IF NEW.doctype = ''RecoveryProbe'' AND NEW.status = ''VALIDATED'' THEN
+                    RAISE EXCEPTION ''forced activation failure''; END IF; RETURN NEW; END'""").execute()
+                    .compose { connection.query("CREATE TRIGGER reject_runtime_publish BEFORE UPDATE ON meta.document_definition FOR EACH ROW EXECUTE FUNCTION meta.reject_runtime_publish()").execute() }
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            val failedActivation = client.send(
+                HttpRequest.newBuilder(URI.create("$base/api/v1/tenant/metadata/doctypes/RecoveryProbe/validate"))
+                    .header("content-type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}")).build(),
+                HttpResponse.BodyHandlers.ofString()
+            )
+            assertEquals(400, failedActivation.statusCode())
+            val recoveryState = database.withTransaction { connection ->
+                connection.preparedQuery("""SELECT d.status, m.status AS migration_status,
+                    EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='org' AND table_name='recovery_probe') AS table_exists
+                    FROM meta.document_definition d JOIN meta.schema_migration m ON m.doctype=d.doctype AND m.version=d.version::text
+                    WHERE d.doctype='RecoveryProbe' AND d.scope='TENANT' AND m.source='RUNTIME'""")
+                    .execute().map { rows -> Triple(rows.first().getString("status"), rows.first().getString("migration_status"), rows.first().getBoolean("table_exists")) }
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals("DRAFT", recoveryState.first)
+            assertEquals("SUCCEEDED", recoveryState.second)
+            assertTrue(recoveryState.third)
+            database.withTransaction { connection ->
+                connection.query("DROP TRIGGER reject_runtime_publish ON meta.document_definition").execute()
+                    .compose { connection.query("DROP FUNCTION meta.reject_runtime_publish()").execute() }
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            val recoveredPublish = client.send(
+                HttpRequest.newBuilder(URI.create("$base/api/v1/tenant/metadata/doctypes/RecoveryProbe/validate"))
+                    .header("content-type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}")).build(),
+                HttpResponse.BodyHandlers.ofString()
+            )
+            assertEquals(200, recoveredPublish.statusCode())
+            assertTrue(JsonObject(recoveredPublish.body()).getBoolean("valid"))
+            val recoveredCount = database.withTransaction { connection ->
+                connection.query("SELECT count(*) FROM meta.schema_migration WHERE source='RUNTIME' AND doctype='RecoveryProbe' AND version='1' AND status='SUCCEEDED'")
+                    .execute().map { it.first().getLong(0) }
+            }.toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+            assertEquals(1L, recoveredCount)
         } finally {
             server.close().toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
             database.close()
