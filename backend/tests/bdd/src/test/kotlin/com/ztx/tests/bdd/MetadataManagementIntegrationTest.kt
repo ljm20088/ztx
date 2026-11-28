@@ -68,6 +68,14 @@ class MetadataManagementIntegrationTest {
                 .put("fields", JsonArray().add(JsonObject().put("name", "code").put("type", "string").put("required", true).put("defaultValue", "NEW")) )
                 .put("form", JsonObject().put("fields", JsonArray().add("code")))
                 .put("list", JsonObject().put("columns", JsonArray().add("code")))
+            // Given 客户端伪造数据库路由字段，When 创建租户 DocType，Then 服务端拒绝请求且不允许切换租户数据库。
+            val forgedRoute = client.send(
+                HttpRequest.newBuilder(URI.create("$base/api/v1/tenant/metadata/doctypes"))
+                    .header("content-type", "application/json").POST(HttpRequest.BodyPublishers.ofString(definition.encode())).build(),
+                HttpResponse.BodyHandlers.ofString()
+            )
+            assertEquals(400, forgedRoute.statusCode())
+            definition.remove("database")
             val create = client.send(
                 HttpRequest.newBuilder(URI.create("$base/api/v1/tenant/metadata/doctypes"))
                     .header("content-type", "application/json").POST(HttpRequest.BodyPublishers.ofString(definition.encode())).build(),
