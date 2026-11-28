@@ -25,6 +25,15 @@ ZTX 保留两种 Schema 变更入口：
 - DDL 和成功状态在同一事务提交；失败回滚 DDL，并在独立事务记录 FAILED 状态及诊断。失败版本可使用相同 checksum 重试。
 - 同一版本 checksum 不一致必须提升版本号，不允许覆盖已记录的迁移内容。
 
+## 只读 Schema 漂移检查
+
+`SchemaMigrationService.inspectDrift(database, doctype, definition)` 根据当前已发布定义检查受管物理表：
+- 表/字段是否存在，字段 PostgreSQL 类型是否匹配；
+- 必填字段是否仍为 NOT NULL；
+- 元数据声明的单字段索引是否存在，且唯一性与声明一致。
+
+检查为只读，不执行 DDL。额外物理列不会被报告为漂移，以兼容 Expand-only 历史字段及 #12 自定义字段扩展。Flyway 源码迁移仍以 `flyway validate` 校验脚本 checksum；动态 DocType 列结构以元数据定义对照 PostgreSQL 实际结构。二者保留各自来源，不将租户动态 DDL 转成 Flyway 脚本。
+
 ## 版本发布集成约定
 
 元数据发布流程（#13）应按以下顺序调用：

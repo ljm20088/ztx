@@ -207,13 +207,22 @@ class SchemaMigrationIntegrationTest {
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
                 connection.createStatement().use { statement ->
                     statement.execute("ALTER TABLE org.schema_probe ALTER COLUMN code TYPE UUID USING gen_random_uuid()")
+                    statement.execute("ALTER TABLE org.schema_probe ALTER COLUMN company_id DROP NOT NULL")
                     statement.execute("ALTER TABLE org.schema_probe DROP COLUMN remark")
+                    val uniqueIndex = statement.executeQuery(
+                        """SELECT indexname FROM pg_indexes
+                           WHERE schemaname='org' AND tablename='schema_probe'
+                             AND indexdef LIKE 'CREATE UNIQUE INDEX%' AND indexdef LIKE '%(code)'"""
+                    ).use { rows -> if (rows.next()) rows.getString(1) else null }
+                    if (uniqueIndex != null) statement.execute("DROP INDEX \"org\".\"$uniqueIndex\"")
                 }
             }
             val drift = service.inspectDrift(database, "SchemaProbe", retryDefinition)
                 .toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
             assertTrue(drift.any { (it as JsonObject).getString("code") == "COLUMN_TYPE_MISMATCH" })
             assertTrue(drift.any { (it as JsonObject).getString("code") == "COLUMN_MISSING" })
+            assertTrue(drift.any { (it as JsonObject).getString("code") == "COLUMN_NULLABILITY_MISMATCH" })
+            assertTrue(drift.any { (it as JsonObject).getString("code") == "INDEX_MISSING" })
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
                 connection.createStatement().use { statement ->
                     statement.executeQuery(
