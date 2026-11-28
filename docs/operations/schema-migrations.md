@@ -25,6 +25,18 @@ ZTX 保留两种 Schema 变更入口：
 - DDL 和成功状态在同一事务提交；失败回滚 DDL，并在独立事务记录 FAILED 状态及诊断。失败版本可使用相同 checksum 重试。
 - 同一版本 checksum 不一致必须提升版本号，不允许覆盖已记录的迁移内容。
 
+## Flyway 失败迁移恢复
+
+PostgreSQL 的非事务性迁移（例如 `CREATE INDEX CONCURRENTLY`）失败时，Flyway 可能保留 `success=false` 的原生历史记录。统一治理同步会将其镜像为 `FAILED`，并按 Flyway `installed_rank` 保留独立 attempt；重复同步不会重复创建 attempt。
+
+恢复必须由有部署权限的操作者执行：
+1. 检查 Flyway 失败诊断和数据库残留状态（例如无效索引），先修复数据或迁移脚本。
+2. 调用 `FlywayMigrator.repairFailedMigrations()` 清理 Flyway 原生失败标记。该入口要求存在失败记录，并拒绝同时存在其他非正常迁移状态。
+3. 再调用常规 `migrate()` 重试迁移。
+4. 核对 `meta.schema_migration_attempt` 中原 FAILED 与新 SUCCEEDED 尝试均保留，master 状态更新为 SUCCEEDED。
+
+禁止在未检查数据库残留对象前直接 repair/retry；repair 不会自动撤销失败的非事务性 DDL，也不替代备份与人工风险判断。
+
 ## 只读 Schema 漂移检查
 
 `SchemaMigrationService.inspectDrift(database, doctype, definition)` 根据当前已发布定义检查受管物理表：

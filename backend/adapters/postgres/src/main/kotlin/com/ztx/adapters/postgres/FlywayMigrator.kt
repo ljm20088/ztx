@@ -41,6 +41,25 @@ class FlywayMigrator(private val config: DatabaseConfig) {
     }
 
     /**
+     * 显式修复 Flyway 失败迁移记录。
+     *
+     * PostgreSQL 非事务性迁移失败后，Flyway 会保留 success=false 的原生历史行；
+     * 操作者修复数据/脚本后，必须先执行此受控操作，再重新 migrate。
+     * 只允许在不存在 checksum 缺失/过期等其他历史异常时修复，避免顺带改写无关历史。
+     */
+    fun repairFailedMigrations() = withMigrationLock {
+        val flyway = configuredFlyway()
+        val states = flyway.info().all().map { it.state?.toString() ?: "UNKNOWN" }
+        require(states.any { it == "FAILED" }) { "没有待修复的 Flyway 失败迁移" }
+        val unexpected = states.filter { it !in setOf("SUCCESS", "FAILED") }
+        require(unexpected.isEmpty()) {
+            "检测到非失败迁移历史异常（${unexpected.joinToString()}），拒绝执行 Flyway repair"
+        }
+        flyway.repair()
+        synchronizeFlywayHistory()
+    }
+
+    /**
      * 将 Flyway 原生历史镜像到统一治理表。
      *
      * installed_rank 作为稳定的 attempt_no：重复同步通过唯一约束幂等；

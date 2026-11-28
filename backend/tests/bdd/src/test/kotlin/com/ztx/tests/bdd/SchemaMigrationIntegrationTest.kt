@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.DriverManager
 import java.util.UUID
@@ -241,4 +242,109 @@ class SchemaMigrationIntegrationTest {
             vertx.close().toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
         }
     }
+    /** Given PostgreSQL 非事务性 Flyway 迁移失败，When 修复后显式 repair 并重试，Then 原失败尝试保留且新尝试成功。 */
+    @Test
+    fun recordsNonTransactionalFlywayFailureAndExplicitRepairRetry() {
+        val databaseName = "ztx_flyway_retry_" + UUID.randomUUID().toString().replace("-", "")
+        val adminUrl = "jdbc:postgresql://${postgres.host}:${postgres.firstMappedPort}/postgres"
+        val migrationDir = Files.createTempDirectory("ztx-flyway-retry")
+        try {
+            DriverManager.getConnection(adminUrl, postgres.username, postgres.password).use { connection ->
+                connection.createStatement().use { it.execute("CREATE DATABASE \"$databaseName\"") }
+            }
+            val v1 = """
+                CREATE SCHEMA meta;
+                CREATE TABLE meta.schema_migration (
+                    id UUID PRIMARY KEY, source VARCHAR(16) NOT NULL, version VARCHAR(128) NOT NULL,
+                    doctype VARCHAR(120) NOT NULL DEFAULT '', schema_name VARCHAR(63), table_name VARCHAR(63),
+                    checksum VARCHAR(128) NOT NULL, status VARCHAR(16) NOT NULL, plan_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    diagnostics JSONB NOT NULL DEFAULT '[]'::jsonb, actor_id UUID,
+                    started_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(), completed_at TIMESTAMPTZ,
+                    error_message TEXT, UNIQUE(source,version,doctype)
+                );
+                CREATE TABLE meta.schema_migration_attempt (
+                    id UUID PRIMARY KEY, migration_id UUID NOT NULL REFERENCES meta.schema_migration(id),
+                    attempt_no INTEGER NOT NULL, status VARCHAR(16) NOT NULL, checksum VARCHAR(128) NOT NULL,
+                    plan_json JSONB NOT NULL, diagnostics JSONB NOT NULL DEFAULT '[]'::jsonb, actor_id UUID,
+                    started_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(), completed_at TIMESTAMPTZ,
+                    error_message TEXT, UNIQUE(migration_id,attempt_no)
+                );
+                CREATE TABLE public.flyway_probe (id INTEGER PRIMARY KEY, code TEXT NOT NULL);
+                INSERT INTO public.flyway_probe(id,code) VALUES (1,'duplicate'),(2,'duplicate');
+            """.trimIndent()
+            val v2 = """
+                CREATE UNIQUE INDEX CONCURRENTLY ux_flyway_probe_code ON public.flyway_probe(code);
+            """.trimIndent()
+            Files.writeString(migrationDir.resolve("V1__flyway_retry_base.sql"), v1)
+            Files.writeString(migrationDir.resolve("V2__flyway_retry_unique_index.sql"), v2)
+            val config = DatabaseConfig(
+                host = postgres.host, port = postgres.firstMappedPort, database = databaseName,
+                user = postgres.username, password = postgres.password, poolSize = 2,
+                migrationLocations = "filesystem:$migrationDir"
+            )
+            val migrator = FlywayMigrator(config)
+            val firstRun = runCatching { migrator.migrate() }
+            assertTrue(firstRun.isFailure, "重复数据应使非事务性唯一索引迁移失败")
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.prepareStatement(
+                    "SELECT success FROM public.flyway_schema_history WHERE version='2'"
+                ).use { statement ->
+                    statement.executeQuery().use { rows ->
+                        assertTrue(rows.next())
+                        assertTrue(!rows.getBoolean(1), "Flyway 原生历史应保留失败记录")
+                    }
+                }
+                connection.prepareStatement(
+                    """SELECT m.status,a.status FROM meta.schema_migration m
+                       JOIN meta.schema_migration_attempt a ON a.migration_id=m.id
+                       WHERE m.source='FLYWAY' AND m.version='2' AND a.attempt_no=2"""
+                ).use { statement ->
+                    statement.executeQuery().use { rows ->
+                        assertTrue(rows.next())
+                        assertEquals("FAILED", rows.getString(1))
+                        assertEquals("FAILED", rows.getString(2))
+                    }
+                }
+                connection.createStatement().use { statement ->
+                    statement.execute("DROP INDEX CONCURRENTLY IF EXISTS public.ux_flyway_probe_code")
+                    statement.execute("DELETE FROM public.flyway_probe WHERE id=2")
+                }
+            }
+
+            migrator.repairFailedMigrations()
+            migrator.migrate()
+            DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
+                connection.prepareStatement(
+                    """SELECT string_agg(a.status,',' ORDER BY a.attempt_no)
+                       FROM meta.schema_migration_attempt a
+                       JOIN meta.schema_migration m ON m.id=a.migration_id
+                       WHERE m.source='FLYWAY' AND m.version='2'"""
+                ).use { statement ->
+                    statement.executeQuery().use { rows ->
+                        assertTrue(rows.next())
+                        assertEquals("FAILED,SUCCEEDED", rows.getString(1))
+                    }
+                }
+                connection.prepareStatement(
+                    "SELECT status FROM meta.schema_migration WHERE source='FLYWAY' AND version='2'"
+                ).use { statement ->
+                    statement.executeQuery().use { rows ->
+                        assertTrue(rows.next())
+                        assertEquals("SUCCEEDED", rows.getString(1))
+                    }
+                }
+            }
+        } finally {
+            runCatching {
+                DriverManager.getConnection(adminUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { it.execute("DROP DATABASE IF EXISTS \"$databaseName\" WITH (FORCE)") }
+                }
+            }
+            Files.deleteIfExists(migrationDir.resolve("V1__flyway_retry_base.sql"))
+            Files.deleteIfExists(migrationDir.resolve("V2__flyway_retry_unique_index.sql"))
+            Files.deleteIfExists(migrationDir)
+        }
+    }
+
+
 }
