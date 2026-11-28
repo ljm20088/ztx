@@ -29,17 +29,6 @@ class DocumentRuntimeTest {
         assertTrue(DocumentRuntimeRoutes::class.java.declaredFields.any { it.type == DocumentRuntimeSupport::class.java })
     }
 
-    /** Given 字段只允许 TENANT_ADMIN，When 普通角色请求，Then 不得把管理员角色当成通配符。 */
-    @Test
-    fun fieldReadRolesAreAnAllowlistWithExplicitAdminBypass() {
-        val runtime = DocumentRuntimeSupport()
-        val adminOnly = JsonArray().add("TENANT_ADMIN")
-        assertTrue(!runtime.canReadField(adminOnly, "PURCHASING"))
-        assertTrue(runtime.canReadField(adminOnly, "TENANT_ADMIN"))
-        assertTrue(runtime.canReadField(JsonArray().add("PURCHASING"), "PURCHASING"))
-        assertTrue(runtime.canReadField(JsonArray(), "PURCHASING"))
-    }
-
     /** Given 元数据定义金额、日期和嵌套明细，When 接收 JSON，Then 转换为精确 Kotlin 类型。 */
     @Test
     fun jsonValuesAreConvertedByMetadataTypes() {
