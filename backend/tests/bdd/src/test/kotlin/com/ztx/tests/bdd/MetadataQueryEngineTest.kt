@@ -88,6 +88,30 @@ class MetadataQueryEngineTest {
         assertEquals(true, compiled.selectSql.startsWith("SELECT \"id\", \"supplier_name\""))
     }
 
+
+    /** Given 字段白名单包含 TENANT_ADMIN，When 普通用户编译列表查询，Then 不得把管理员角色当作通配符。 */
+    @Test
+    fun tenantAdminFieldRoleDoesNotGrantOrdinaryUsersAccess() {
+        val restricted = definition.copy().put("fields", JsonArray()
+            .add(JsonObject().put("name", "supplier_name").put("type", "string")
+                .put("readRoles", JsonArray().add("TENANT_ADMIN")))
+            .add(JsonObject().put("name", "company_id").put("type", "uuid")))
+            .put("list", JsonObject().put("columns", JsonArray().add("supplier_name"))
+                .put("filters", JsonArray()).put("sort", JsonArray()).put("search", JsonArray()))
+
+        val denied = assertThrows(IllegalArgumentException::class.java) {
+            MetadataQueryEngine.compile(
+                restricted, JsonObject(), "TENANT_USER", setOf(companyId), emptySet(), emptySet()
+            )
+        }
+        assertEquals("当前用户没有可读取的列表字段", denied.message)
+
+        val admin = MetadataQueryEngine.compile(
+            restricted, JsonObject(), "TENANT_ADMIN", setOf(companyId), emptySet(), emptySet()
+        )
+        assertEquals(true, admin.selectSql.contains("supplier_name"))
+    }
+
     /** Given 用户没有企业数据范围，When 编译查询，Then 查询条件强制为空集。 */
     @Test
     fun emptyCompanyScopeReturnsNoRows() {
