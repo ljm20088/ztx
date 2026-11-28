@@ -213,8 +213,7 @@ class Db(
                 .filterIsInstance<JsonObject>().firstOrNull { it.getString("name") == field }
                 ?: return@compose Future.failedFuture<Any?>("DocType 未定义字段：$field")
             val readRoles = metadata.getJsonArray("readRoles")
-            if (readRoles != null && !readRoles.isEmpty &&
-                readRoles.none { it == principal.role || it == "TENANT_ADMIN" }) {
+            if (!runtime.canReadField(readRoles, principal.role)) {
                 return@compose Future.failedFuture<Any?>("无权读取字段：$field")
             }
             if (!metadata.getBoolean("loadOnDemand", false)) {
