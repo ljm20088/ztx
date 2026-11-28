@@ -14,7 +14,7 @@ import java.util.UUID
  * 只包含元数据、权限、数据范围、字段映射、SQL 持久化和审计能力；
  * 不依赖 HTTP Router 或 RoutingContext。Db 与 HTTP Routes 都可以调用它。
  */
-open class DocumentRuntimeSupport {
+open class DocumentRuntimeSupport(internal val behaviors: DocumentBehaviorRegistry = DocumentBehaviorRegistry.load()) {
     private val identifier = Regex("[a-z][a-z0-9_]{0,62}")
     private val protectedSchemas = setOf("public", "platform", "iam", "meta", "audit", "pg_catalog", "information_schema")
 
@@ -213,7 +213,7 @@ internal fun authorize(definition: JsonObject, principal: TenantPrincipal, actio
     val roles = definition.getJsonObject("permissions")?.getJsonArray(action)
     if (roles == null || roles.isEmpty) {
         if (principal.role != "TENANT_ADMIN") throw IllegalArgumentException("无权执行单据动作：$action")
-    } else if (roles.none { it == principal.role || it == "TENANT_ADMIN" }) {
+    } else if (principal.role != "TENANT_ADMIN" && roles.none { it == principal.role }) {
         throw IllegalArgumentException("无权执行单据动作：$action")
     }
 }
@@ -222,7 +222,7 @@ internal fun redact(definition: JsonObject, principal: TenantPrincipal, row: Jso
     val fields = definition.getJsonArray("fields") ?: JsonArray()
     val allowed = fields.filterIsInstance<JsonObject>().filter { field ->
         val roles = field.getJsonArray("readRoles")
-        roles == null || roles.isEmpty || roles.any { it == principal.role || it == "TENANT_ADMIN" }
+        canReadField(roles, principal.role)
     }.mapNotNull { it.getString("name") }.toSet() + setOf("id", "docstatus", "version", "created_at", "updated_at")
     return JsonObject().also { output ->
         row.fieldNames().filter { it in allowed }.forEach { output.put(it, row.getValue(it)) }
