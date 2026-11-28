@@ -185,9 +185,7 @@ internal fun writableEntries(
         val value = values.getValue(name)
         if (value == null && !includeNulls) return@mapNotNull null
         val writeRoles = field.getJsonArray("writeRoles")
-        if (writeRoles != null && !writeRoles.isEmpty && writeRoles.none {
-            it == principal.role || it == "TENANT_ADMIN"
-        }) throw IllegalArgumentException("无权修改字段：$name")
+        if (writeRoles != null && !writeRoles.isEmpty && principal.role != "TENANT_ADMIN" && writeRoles.none { it == principal.role }) throw IllegalArgumentException("无权修改字段：$name")
         val type = field.getString("type")
         Triple(name, value, type == "json" || type == "table")
     }
@@ -247,4 +245,8 @@ internal fun audit(
     ).execute(Tuple.of(UUID.randomUUID(), adminId, userId, doctype, id, action,
         before?.encode(), after?.encode())).mapEmpty()
 }
+    
+    internal fun canReadField(roles: JsonArray?, role: String): Boolean =
+        roles == null || roles.isEmpty || role == "TENANT_ADMIN" || roles.any { it == role }
+
 }
