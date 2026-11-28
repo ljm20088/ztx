@@ -65,6 +65,17 @@ class DocumentRuntimeIntegrationTest {
         }
     }
 
+    /** Given 字段只允许 TENANT_ADMIN，When 普通角色请求字段，Then 不得把 TENANT_ADMIN 错当成全员通配符。 */
+    @Test
+    fun fieldReadRolesAreAnAllowlistWithExplicitAdminBypass() {
+        val routes = DocumentRuntimeRoutes()
+        val roles = JsonArray().add("TENANT_ADMIN")
+        assertTrue(!routes.canReadField(roles, "PURCHASING"))
+        assertTrue(routes.canReadField(roles, "TENANT_ADMIN"))
+        assertTrue(routes.canReadField(JsonArray().add("PURCHASING"), "PURCHASING"))
+        assertTrue(routes.canReadField(JsonArray(), "PURCHASING"))
+    }
+
     /** Given 已校验单据元数据和 Kotlin Hook，When 创建、修改、提交及触发扩展失败，Then 状态、权限和审计保持事务一致。 */
     @Test
     fun executesDocumentLifecycleAndKotlinHooksInOneTransaction() {
