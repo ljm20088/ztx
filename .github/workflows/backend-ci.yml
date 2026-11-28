@@ -168,6 +168,9 @@ jobs:
           docker compose logs postgres
           exit 1
 
+      - name: Run PostgreSQL Testcontainers integration tests
+        run: ./gradlew --no-daemon :tests:bdd:test
+
       - name: Smoke test unified development and integrated launchers
         run: |
           set -euo pipefail
