@@ -280,8 +280,12 @@ class SchemaMigrationIntegrationTest {
             val v2 = """
                 CREATE UNIQUE INDEX CONCURRENTLY ux_flyway_probe_code ON public.flyway_probe(code);
             """.trimIndent()
+            val v3 = """
+                CREATE TABLE public.flyway_after_retry (id INTEGER PRIMARY KEY);
+            """.trimIndent()
             Files.writeString(migrationDir.resolve("V1__flyway_retry_base.sql"), v1)
             Files.writeString(migrationDir.resolve("V2__flyway_retry_unique_index.sql"), v2)
+            Files.writeString(migrationDir.resolve("V3__flyway_after_retry.sql"), v3)
             val config = DatabaseConfig(
                 host = postgres.host, port = postgres.firstMappedPort, database = databaseName,
                 user = postgres.username, password = postgres.password, poolSize = 2,
@@ -331,6 +335,14 @@ class SchemaMigrationIntegrationTest {
                     }
                 }
                 connection.prepareStatement(
+                    "SELECT to_regclass('public.flyway_after_retry') IS NOT NULL"
+                ).use { statement ->
+                    statement.executeQuery().use { rows ->
+                        assertTrue(rows.next())
+                        assertTrue(rows.getBoolean(1), "失败迁移之后的 PENDING 迁移也应在 repair 后正常执行")
+                    }
+                }
+                connection.prepareStatement(
                     "SELECT status FROM meta.schema_migration WHERE source='FLYWAY' AND version='2'"
                 ).use { statement ->
                     statement.executeQuery().use { rows ->
@@ -347,6 +359,7 @@ class SchemaMigrationIntegrationTest {
             }
             Files.deleteIfExists(migrationDir.resolve("V1__flyway_retry_base.sql"))
             Files.deleteIfExists(migrationDir.resolve("V2__flyway_retry_unique_index.sql"))
+            Files.deleteIfExists(migrationDir.resolve("V3__flyway_after_retry.sql"))
             Files.deleteIfExists(migrationDir)
         }
     }
