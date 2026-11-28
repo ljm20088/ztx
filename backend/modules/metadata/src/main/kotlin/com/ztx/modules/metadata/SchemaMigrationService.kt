@@ -74,7 +74,7 @@ class SchemaMigrationService {
         catch (error: Throwable) { return Future.failedFuture(error) }
         val schema = migrationPlan.getString("schema")
         val table = migrationPlan.getString("table")
-        val expectedColumns = mutableListOf(
+                            val expectedColumns = """["$fieldName"]"""
             Triple("id", "uuid", true),
             Triple("docstatus", "int4", true),
             Triple("version", "int4", true),
