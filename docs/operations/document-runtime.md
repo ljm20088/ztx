@@ -117,6 +117,11 @@ dbProvider.transaction(principal) { db ->
     db.list("PurchaseOrder", JsonObject().put("page", 1).put("pageSize", 20))
 }
 
+// 平台核心 Kotlin data class 通过同一 db 门面读取和转换。
+dbProvider.transaction(principal) { db ->
+    db.getAs("PurchaseOrder", purchaseOrderId, PurchaseOrderView::class)
+}
+
 // 大字段显式按需读取。
 dbProvider.transaction(principal) { db ->
     db.getValue("PurchaseOrder", purchaseOrderId, "attachment_content")

@@ -8,6 +8,7 @@ import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 import java.util.UUID
+import kotlin.reflect.KClass
 
 /**
  * 绑定当前租户身份和当前事务连接的数据访问门面。
@@ -57,6 +58,12 @@ class Db(
             routes.selectOne(connection, definition, id, principal, lock = false, includeDeferred = false).map { row ->
                 DynamicDocument.loaded(doctype, definition, routes.redact(definition, principal, row))
             }
+        }
+
+    /** 将同一 Document Runtime 结果转换为平台核心 Kotlin 强类型模型。 */
+    fun <T : Any> getAs(doctype: String, id: UUID, target: KClass<T>): Future<T> =
+        get(doctype, id).map { document ->
+            DocumentValueCodec.decodeAs(document.metadata(), document.toJson(), target)
         }
 
     fun update(document: DynamicDocument): Future<DynamicDocument> {

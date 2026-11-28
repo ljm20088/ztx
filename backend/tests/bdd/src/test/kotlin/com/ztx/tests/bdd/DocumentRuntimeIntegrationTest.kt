@@ -232,10 +232,10 @@ class DocumentRuntimeIntegrationTest {
             // Given Document 已通过统一 db 门面创建，When 执行 submit/cancel，Then 生命周期、版本和审计仍由同一 Runtime 管理。
             val facadeSubmitted = DbProvider().transaction(principal) { db -> db.submit(afterRejected) }
                 .toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
-            assertEquals(1, facadeSubmitted.docstatus)
+            assertEquals(1, facadeSubmitted.getInteger("docstatus"))
             val facadeCancelled = DbProvider().transaction(principal) { db -> db.cancel(facadeSubmitted) }
                 .toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
-            assertEquals(2, facadeCancelled.docstatus)
+            assertEquals(2, facadeCancelled.getInteger("docstatus"))
 
             loaded["code"] = "PO-DB-003"
             loaded["remark"] = null
