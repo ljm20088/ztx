@@ -147,7 +147,8 @@ class SchemaMigrationIntegrationTest {
                 .put("fields", JsonArray()
                     .add(JsonObject().put("name", "code").put("type", "string").put("required", true).put("unique", true))
                     .add(JsonObject().put("name", "company_id").put("type", "uuid").put("required", true))
-                    .add(JsonObject().put("name", "remark").put("type", "text")))
+                     .add(JsonObject().put("name", "remark").put("type", "text"))
+                    .add(JsonObject().put("name", "category").put("type", "string").put("defaultValue", "general")))
             DriverManager.getConnection(config.jdbcUrl, config.user, config.password).use { connection ->
                 connection.prepareStatement(
                     """INSERT INTO org.schema_probe(id,code,company_id) VALUES
