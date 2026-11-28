@@ -119,10 +119,17 @@ class MetadataRoutes(private val schemaMigrations: SchemaMigrationService = Sche
         val doctype = context.pathParam("doctype")
         principal.database.withTransaction { connection ->
             connection.preparedQuery(
-                """SELECT id,version,definition_json FROM meta.document_definition
+                """SELECT id,version,status,definition_json FROM meta.document_definition
                    WHERE scope='TENANT' AND doctype=$1 ORDER BY version DESC LIMIT 1 FOR UPDATE"""
             ).execute(Tuple.of(doctype)).compose { rows ->
                 val row = rows.firstOrNull() ?: return@compose Future.failedFuture<JsonObject>("DocType 不存在")
+                // Given 另一个管理员已完成该版本发布，When 并发请求再次校验，Then 幂等返回且不重复写入发布历史。
+                if (row.getString("status") == "VALIDATED") {
+                    return@compose Future.succeededFuture(
+                        JsonObject().put("doctype", doctype).put("version", row.getInteger("version"))
+                            .put("status", "VALIDATED").put("valid", true).put("diagnostics", JsonArray())
+                    )
+                }
                 val definition = row.getJsonObject("definition_json")
                 loadDefinitions(connection).compose { known ->
                     val diagnostics = MetadataDefinitionValidator.validate(definition, known - doctype)
