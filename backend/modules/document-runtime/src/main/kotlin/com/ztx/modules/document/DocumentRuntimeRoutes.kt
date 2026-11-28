@@ -139,10 +139,6 @@ class DocumentRuntimeRoutes(behaviors: DocumentBehaviorRegistry = DocumentBehavi
             .putHeader("content-type", "application/json; charset=utf-8").end(value.encode())
     }
 
-    /** 字段白名单按当前用户角色匹配；TENANT_ADMIN 是特权用户角色，不是授予所有人的通配符。 */
-    fun canReadField(roles: JsonArray?, role: String): Boolean =
-        roles == null || roles.isEmpty || role == "TENANT_ADMIN" || roles.any { it == role }
-
     private fun status(error: Throwable): Int = when {
         error.message?.contains("无权") == true -> 403
         error is DocumentVersionConflictException -> 409
