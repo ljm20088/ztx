@@ -43,6 +43,9 @@ class MetadataRoutes(private val schemaMigrations: SchemaMigrationService = Sche
 
     private fun create(context: RoutingContext) = withMetadataAdmin(context) { principal ->
         val definition = body(context)
+        if (containsUntrustedRouting(definition)) {
+            return@withMetadataAdmin fail(context, 400, "租户和数据库路由必须来自已认证的租户上下文")
+        }
         if (definition.getString("scope", "TENANT") != "TENANT") return@withMetadataAdmin fail(context, 403, "租户管理员不能创建平台级元数据")
         val doctype = definition.getString("doctype", "").trim()
         if (doctype.isBlank()) return@withMetadataAdmin fail(context, 400, "DocType 标识不能为空")
@@ -77,6 +80,9 @@ class MetadataRoutes(private val schemaMigrations: SchemaMigrationService = Sche
     private fun update(context: RoutingContext) = withMetadataAdmin(context) { principal ->
         val doctype = context.pathParam("doctype")
         val definition = body(context)
+        if (containsUntrustedRouting(definition)) {
+            return@withMetadataAdmin fail(context, 400, "租户和数据库路由必须来自已认证的租户上下文")
+        }
         if (definition.getString("scope", "TENANT") != "TENANT") return@withMetadataAdmin fail(context, 403, "租户管理员不能修改平台级元数据")
         if (definition.getString("doctype") != doctype) return@withMetadataAdmin fail(context, 400, "DocType 标识不能通过更新请求修改")
         definition.put("scope", "TENANT")
@@ -281,6 +287,11 @@ class MetadataRoutes(private val schemaMigrations: SchemaMigrationService = Sche
             if (allowed) action(principal) else fail(context, 403, "缺少元数据管理权限")
         }.onFailure { fail(context, 503, "元数据管理权限校验失败") }
     }
+
+    /** 租户/数据库路由只允许来自 TenantPrincipal，拒绝客户端伪造路由字段。 */
+    private fun containsUntrustedRouting(definition: JsonObject): Boolean =
+        definition.containsKey("database") || definition.containsKey("tenantId") ||
+            definition.containsKey("tenantCode")
 
     private fun body(context: RoutingContext): JsonObject =
         runCatching { context.body().asJsonObject() }.getOrNull() ?: JsonObject()
